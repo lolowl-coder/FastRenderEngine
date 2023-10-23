@@ -29,7 +29,7 @@ CMake
 
 **APIs to support:**
 
-- Vulkan
+- Vulkan (primary)
 - OpenGL
 - Metal
 - Not DirectX oriented

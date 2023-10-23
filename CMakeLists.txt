@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.27.7)
+cmake_minimum_required(VERSION 3.26.0)
 
 project(
     "FRE"
@@ -27,12 +27,8 @@ option(ENABLE_SANITIZE_THREAD "Enable thread sanitize (Gcc/Clang only)." OFF)
 option(ENABLE_LTO "Enable to add Link Time Optimization." ON)
 
 # Project/Library Names
-set(LIBRARIES
-	#assimp
-	#tiny_gltf
-	#stb_image
-	)
-set(EXECUTABLE_NAME "main")
+set(LIBRARY_NAME "fre")
+set(EXECUTABLE_NAME "Basic")
 
 # CMAKE MODULES
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/)
@@ -53,7 +49,7 @@ if(ENABLE_LTO)
     include(LTO)
 endif()
 
-else(USE_CPM)
+if(USE_CPM)
     message(STATUS "Using CPM")
     include(CPM)
     #examples:
@@ -63,20 +59,21 @@ endif()
 
 # SUB DIRECTORIES
 
-add_subdirectory(configured)
-add_subdirectory(external)
-#add_subdirectory(src)
+#add_subdirectory(configured)
+#add_subdirectory(external)
+add_subdirectory(src)
+add_subdirectory(samples)
 
 # INSTALL TARGETS
 
 install(
     TARGETS ${EXECUTABLE_NAME}
-    EXPORT ${LIBRARIES}
+    EXPORT ${LIBRARY_NAME}
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin)
 
 install(
-    TARGETS ${LIBRARIES}
+    TARGETS ${LIBRARY_NAME}
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib)
