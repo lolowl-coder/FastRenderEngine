@@ -1,21 +1,57 @@
 # Sources and Headers
-set(LIBRARY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Engine.cpp")
-set(LIBRARY_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/../include/Engine.hpp"
+set(LIBRARY_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/Engine.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Mesh.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/MeshModel.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Utilities.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanRenderer.cpp")
+set(LIBRARY_HEADERS
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Engine.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Mesh.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/MeshModel.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Utilities.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Hash/Hash.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Macros/Class.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Macros/Member.hpp")
-#set(LIBRARY_INCLUDES "./" "${CMAKE_BINARY_DIR}/configured_files/include")
-set(LIBRARY_INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Macros/Member.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanRenderer.hpp")
+set(LIBRARY_INCLUDES_PUBLIC
+    "./"
+    "${CMAKE_BINARY_DIR}/configured_files/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include"
+    "${glm_SOURCE_DIR}"
+    "${stb_image_SOURCE_DIR}"
+    )
+
+set(LIBRARY_INCLUDES_PRIVATE
+    "${Vulkan_INCLUDE_DIRS}"
+    )
+
+# Vulkan SDK
+
+#target_include_directories(${LIBRARY_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
+#message(WARNING "Vulkan dirs: " ${Vulkan_INCLUDE_DIRS})
 
 # MyLib Library
 add_library(${LIBRARY_NAME} STATIC ${LIBRARY_SOURCES} ${LIBRARY_HEADERS})
-target_include_directories(${LIBRARY_NAME} PUBLIC ${LIBRARY_INCLUDES})
+target_include_directories(${LIBRARY_NAME} PUBLIC
+    ${LIBRARY_INCLUDES_PUBLIC}
+    )
+target_include_directories(${LIBRARY_NAME} PRIVATE
+    ${LIBRARY_INCLUDES_PRIVATE}
+    )
+
 #target_link_libraries(
 #    ${LIBRARY_NAME}
 #    PRIVATE nlohmann_json::nlohmann_json
 #            fmt::fmt
 #            spdlog::spdlog
 #            cxxopts::cxxopts)
+
+target_link_libraries(${LIBRARY_NAME} PRIVATE
+    glfw
+    ${Vulkan_LIBRARIES}
+    assimp
+    )
 
 if(${ENABLE_WARNINGS})
     target_set_warnings(

@@ -55,11 +55,42 @@ if(USE_CPM)
     #examples:
 	# cpmaddpackage("gh:nlohmann/json@3.11.2")
     # cpmaddpackage("gh:catchorg/Catch2@2.13.9")
+    CPMAddPackage(
+        NAME GLFW
+        GIT_REPOSITORY https://github.com/glfw/glfw
+        GIT_TAG 3.3.9  # Specify the version/tag you want
+    )
+    CPMAddPackage(
+        NAME assimp
+        GIT_REPOSITORY https://github.com/assimp/assimp
+        GIT_TAG v5.3.1  # Specify the version you want
+    )
+
 endif()
+
+# Use FetchContent for single-header libs
+
+include(FetchContent)
+
+FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm
+    GIT_TAG master  # You can use a specific release tag if needed
+)
+FetchContent_MakeAvailable(glm)
+
+FetchContent_Declare(
+    stb_image
+    GIT_REPOSITORY https://github.com/nothings/stb
+    GIT_TAG master  # You can use a specific release tag if needed
+)
+FetchContent_MakeAvailable(stb_image)
+
+find_package(Vulkan REQUIRED)
 
 # SUB DIRECTORIES
 
-#add_subdirectory(configured)
+add_subdirectory(configured)
 #add_subdirectory(external)
 add_subdirectory(src)
 add_subdirectory(samples)

@@ -3,6 +3,10 @@
 int main()
 {
     fre::Engine engine;
-    engine.init(800, 600);
+    if(engine.init("Test Vulkan", 800, 600))
+    {
+        engine.run();
+        engine.destroy();
+    }
     return 0;
 }
