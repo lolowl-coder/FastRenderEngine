@@ -20,16 +20,15 @@ set(LIBRARY_INCLUDES_PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/../include"
     "${glm_SOURCE_DIR}"
     "${stb_image_SOURCE_DIR}"
+    "${glfw_INCLUDE_DIRS}"
+    "${Vulkan_INCLUDE_DIRS}"
+    "${assimp_INCLUDE_DIRS}"
     )
 
 set(LIBRARY_INCLUDES_PRIVATE
-    "${Vulkan_INCLUDE_DIRS}"
     )
 
 # Vulkan SDK
-
-#target_include_directories(${LIBRARY_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
-#message(WARNING "Vulkan dirs: " ${Vulkan_INCLUDE_DIRS})
 
 # MyLib Library
 add_library(${LIBRARY_NAME} STATIC ${LIBRARY_SOURCES} ${LIBRARY_HEADERS})

@@ -2,9 +2,12 @@
 
 #include <cstdint>
 #include <string>
+#include <memory>
 
 namespace fre
 {
+    class VulkanRenderer;
+
     //Concept:
     //Applicaton side:
     //create window/view and engine instance
@@ -15,9 +18,12 @@ namespace fre
     class Engine
     {
     public:
-        bool init(std::string wName, const int width, const int height);
-        void run();
-        void tick();
-        void destroy();
+        virtual ~Engine(){}
+        virtual bool init(std::string wName, const int width, const int height);
+        virtual void run();
+        virtual void tick();
+        virtual void destroy();
+    protected:
+        std::shared_ptr<VulkanRenderer> renderer;
     };
 }

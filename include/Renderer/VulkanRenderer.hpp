@@ -20,173 +20,175 @@
 #include "Utilities.hpp"
 #include "MeshModel.hpp"
 
-class VulkanRenderer
+namespace fre
 {
-public:
-	VulkanRenderer();
-	int init(GLFWwindow* newWindow);
-
-	int createMeshModel(std::string modelFile);
-	void updateModel(int mdoelId, glm::mat4 newModel);
-
-	void draw();
-	void cleanup();
-
-	~VulkanRenderer();
-
-private:
-	GLFWwindow* window;
-
-	int currentFrame = 0;
-
-	//Scene settings
-	struct UboViewProjection
+	class VulkanRenderer
 	{
-		glm::mat4 projection;
-		glm::mat4 view;
-	} uboViewProjection;
+	public:
+		VulkanRenderer();
+		int init(GLFWwindow* newWindow);
 
-	//Vulkan components
-	VkInstance instance;
+		int createMeshModel(std::string modelFile);
+		void updateModel(int mdoelId, glm::mat4 newModel);
 
-	struct
-	{
-		VkPhysicalDevice physicalDevice;
-		VkDevice logicalDevice;
-	} mainDevice;
+		void draw();
+		void cleanup();
 
-	VkQueue graphicsQueue;
-	VkQueue presentationQueue;
-	VkSurfaceKHR surface;
-	VkSwapchainKHR swapchain;
-	std::vector<SwapChainImage> swapChainImages;
-	std::vector<VkFramebuffer> swapChainFrameBuffers;
-	std::vector<VkCommandBuffer> commandBuffers;
+		~VulkanRenderer();
 
-	std::vector<VkImage> colourBufferImage;
-	std::vector<VkDeviceMemory> colourBufferImageMemory;
-	std::vector<VkImageView> colourBufferImageView;
+	private:
+		GLFWwindow* window;
 
-	std::vector<VkImage> depthBufferImage;
-	std::vector<VkDeviceMemory> depthBufferImageMemory;
-	std::vector<VkImageView> depthBufferImageView;
+		int currentFrame = 0;
 
-	VkSampler textureSampler;
+		//Scene settings
+		struct UboViewProjection
+		{
+			glm::mat4 projection;
+			glm::mat4 view;
+		} uboViewProjection;
 
-	// - Descriptors
-	VkDescriptorSetLayout descriptorSetLayout;
-	VkDescriptorSetLayout samplerSetLayout;
-	VkDescriptorSetLayout inputSetLayout;
-	VkPushConstantRange pushConstantRange;
+		//Vulkan components
+		VkInstance instance;
 
-	VkDescriptorPool descriptorPool;
-	VkDescriptorPool samplerDescriptorPool;
-	VkDescriptorPool inputDescriptorPool;
-	std::vector<VkDescriptorSet> descriptorSets;
-	std::vector<VkDescriptorSet> samplerDescriptorSets;
-	std::vector<VkDescriptorSet> inputDescriptorSets;
+		struct
+		{
+			VkPhysicalDevice physicalDevice;
+			VkDevice logicalDevice;
+		} mainDevice;
 
-	std::vector<VkBuffer> vpUniformBuffer;
-	std::vector<VkDeviceMemory> vpUniformBufferMemory;
+		VkQueue graphicsQueue;
+		VkQueue presentationQueue;
+		VkSurfaceKHR surface;
+		VkSwapchainKHR swapchain;
+		std::vector<SwapChainImage> swapChainImages;
+		std::vector<VkFramebuffer> swapChainFrameBuffers;
+		std::vector<VkCommandBuffer> commandBuffers;
 
-	std::vector<VkBuffer> modelDUniformBuffer;
-	std::vector<VkDeviceMemory> modelDUniformBufferMemory;
+		std::vector<VkImage> colourBufferImage;
+		std::vector<VkDeviceMemory> colourBufferImageMemory;
+		std::vector<VkImageView> colourBufferImageView;
+
+		std::vector<VkImage> depthBufferImage;
+		std::vector<VkDeviceMemory> depthBufferImageMemory;
+		std::vector<VkImageView> depthBufferImageView;
+
+		VkSampler textureSampler;
+
+		// - Descriptors
+		VkDescriptorSetLayout descriptorSetLayout;
+		VkDescriptorSetLayout samplerSetLayout;
+		VkDescriptorSetLayout inputSetLayout;
+		VkPushConstantRange pushConstantRange;
+
+		VkDescriptorPool descriptorPool;
+		VkDescriptorPool samplerDescriptorPool;
+		VkDescriptorPool inputDescriptorPool;
+		std::vector<VkDescriptorSet> descriptorSets;
+		std::vector<VkDescriptorSet> samplerDescriptorSets;
+		std::vector<VkDescriptorSet> inputDescriptorSets;
+
+		std::vector<VkBuffer> vpUniformBuffer;
+		std::vector<VkDeviceMemory> vpUniformBufferMemory;
+
+		std::vector<VkBuffer> modelDUniformBuffer;
+		std::vector<VkDeviceMemory> modelDUniformBufferMemory;
 
 
-	/*VkDeviceSize minUniformBufferOffset;
-	size_t modelUniformAlignment;
-	Model* modetTransferSpace;*/
+		/*VkDeviceSize minUniformBufferOffset;
+		size_t modelUniformAlignment;
+		Model* modetTransferSpace;*/
 
-	// - Assets
-	std::vector<MeshModel> modelList;
+		// - Assets
+		std::vector<MeshModel> modelList;
 
-	std::vector<VkImage> textureImages;
-	std::vector<VkDeviceMemory> textureImageMemory;
-	std::vector<VkImageView> textureImageViews;
+		std::vector<VkImage> textureImages;
+		std::vector<VkDeviceMemory> textureImageMemory;
+		std::vector<VkImageView> textureImageViews;
 
-	// - Pipeline
-	VkPipeline graphicsPipeline;
-	VkPipelineLayout pipelineLayout;
-	VkPipeline secondPipeline;
-	VkPipelineLayout secondPipelineLayout;
+		// - Pipeline
+		VkPipeline graphicsPipeline;
+		VkPipelineLayout pipelineLayout;
+		VkPipeline secondPipeline;
+		VkPipelineLayout secondPipelineLayout;
 
 
-	VkRenderPass renderPass;
+		VkRenderPass renderPass;
 
-	// - Pools -
-	VkCommandPool graphicsCommandPool;
+		// - Pools -
+		VkCommandPool graphicsCommandPool;
 
-	// - Utility
-	VkFormat swapChainImageFormat;
-	VkExtent2D swapChainExtent;
+		// - Utility
+		VkFormat swapChainImageFormat;
+		VkExtent2D swapChainExtent;
 
-	// - Synchronization
-	std::vector<VkSemaphore> imageAvailable;
-	std::vector<VkSemaphore> renderFinished;
-	std::vector<VkFence> drawFences;
+		// - Synchronization
+		std::vector<VkSemaphore> imageAvailable;
+		std::vector<VkSemaphore> renderFinished;
+		std::vector<VkFence> drawFences;
 
-	//Vulkan functions
-	// -create functions
-	void createInstance();
+		//Vulkan functions
+		// -create functions
+		void createInstance();
 
-	void createLogicalDevice();
-	void createSurface();
-	void createSwapChain();
-	void createRenderPass();
-	void createDescriptorSetLayout();
-	void createPushConstantRange();
-	void createGraphicsPipeline();
-	void createColourBufferImage();
-	void createDepthBufferImage();
-	void createFrameBuffers();
-	void createCommandPool();
-	void createCommandBuffers();
+		void createLogicalDevice();
+		void createSurface();
+		void createSwapChain();
+		void createRenderPass();
+		void createDescriptorSetLayout();
+		void createPushConstantRange();
+		void createGraphicsPipeline();
+		void createColourBufferImage();
+		void createDepthBufferImage();
+		void createFrameBuffers();
+		void createCommandPool();
+		void createCommandBuffers();
 
-	void createUniformBuffers();
-	void createDescriptorPool();
-	void createDescriptorSets();
-	void createInputDescriptorSets();
+		void createUniformBuffers();
+		void createDescriptorPool();
+		void createDescriptorSets();
+		void createInputDescriptorSets();
 
-	void updateUniformBuffers(uint32_t imageIndex);
+		void updateUniformBuffers(uint32_t imageIndex);
 
-	// - Record functions
-	void recordCommands(uint32_t currentImage);
-		
-	// - Get functions
-	void getPhysicalDevice();
+		// - Record functions
+		void recordCommands(uint32_t currentImage);
+			
+		// - Get functions
+		void getPhysicalDevice();
 
-	// - Allocate function
-	void allocateDynamicBufferTransferSpace();
+		// - Allocate function
+		void allocateDynamicBufferTransferSpace();
 
-	// -support functions
-	// --Checker functions
-	bool checkInstanceExtentionsSupport(std::vector<const char*>* checkExtentions);
-	bool checkValidationLayerSupport();
-	bool checkDeviceExtentionSupport(VkPhysicalDevice device);
-	bool checkDeviceSuitable(VkPhysicalDevice device);
+		// -support functions
+		// --Checker functions
+		bool checkInstanceExtentionsSupport(std::vector<const char*>* checkExtentions);
+		bool checkValidationLayerSupport();
+		bool checkDeviceExtentionSupport(VkPhysicalDevice device);
+		bool checkDeviceSuitable(VkPhysicalDevice device);
 
-	// --Getter functions
-	QueueFamilyIndices getQueueFamilies(VkPhysicalDevice device);
-	SwapChainDetails getSwapChainDetails(VkPhysicalDevice device);
+		// --Getter functions
+		QueueFamilyIndices getQueueFamilies(VkPhysicalDevice device);
+		SwapChainDetails getSwapChainDetails(VkPhysicalDevice device);
 
-	// -- Choose functions
-	VkSurfaceFormatKHR chooseBestSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats);
-	VkPresentModeKHR chooseBestPresentationMode(const std::vector<VkPresentModeKHR>& presentationModes);
-	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
-	VkFormat chooseSupportedFormat(const std::vector<VkFormat>& formats, VkImageTiling tiling, VkFormatFeatureFlags featureFlags);
+		// -- Choose functions
+		VkSurfaceFormatKHR chooseBestSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats);
+		VkPresentModeKHR chooseBestPresentationMode(const std::vector<VkPresentModeKHR>& presentationModes);
+		VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
+		VkFormat chooseSupportedFormat(const std::vector<VkFormat>& formats, VkImageTiling tiling, VkFormatFeatureFlags featureFlags);
 
-	// -- Create Functions
-	VkImage createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags useFlags, VkMemoryPropertyFlags propFlags, VkDeviceMemory *imageMemory);
-	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
-	VkShaderModule createShaderModule(const std::vector<char>& code);
-	void createSynchronisation();
-	void createTextureSampler();
+		// -- Create Functions
+		VkImage createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags useFlags, VkMemoryPropertyFlags propFlags, VkDeviceMemory *imageMemory);
+		VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+		VkShaderModule createShaderModule(const std::vector<char>& code);
+		void createSynchronisation();
+		void createTextureSampler();
 
-	int createTextureImage(std::string fileName);
-	int createTexture(std::string fileName);
-	int createTextureDescriptor(VkImageView textureImage);
+		int createTextureImage(std::string fileName);
+		int createTexture(std::string fileName);
+		int createTextureDescriptor(VkImageView textureImage);
 
-	// -- Loader functions --
-	stbi_uc* loatTextureFile(std::string fileName, int* width, int* height, VkDeviceSize* imageSize);
-};
-
+		// -- Loader functions --
+		stbi_uc* loatTextureFile(std::string fileName, int* width, int* height, VkDeviceSize* imageSize);
+	};
+}
