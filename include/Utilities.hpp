@@ -46,7 +46,7 @@ namespace fre
 	{
 		VkSurfaceCapabilitiesKHR surfaceCapabilities;		//Surface properties, e.g. image size/extent
 		std::vector<VkSurfaceFormatKHR> formats;			//Surface image formats, e.g RGBA and size of each color
-		std::vector<VkPresentModeKHR> presentationModes;	//How images should be presented to scree
+		std::vector<VkPresentModeKHR> presentationModes;	//How images should be presented to screen
 	};
 
 	struct SwapChainImage
@@ -234,8 +234,8 @@ namespace fre
 		imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;	//First layer to start alternation on
 		imageMemoryBarrier.subresourceRange.layerCount = 1;	//Number of layers to start alternation on
 
-		VkPipelineStageFlags srcStage;
-		VkPipelineStageFlags dstStage;
+		VkPipelineStageFlags srcStage = VK_PIPELINE_STAGE_NONE;
+		VkPipelineStageFlags dstStage = VK_PIPELINE_STAGE_NONE;
 
 		if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
 		{
@@ -255,13 +255,16 @@ namespace fre
 			dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 		}
 
-		vkCmdPipelineBarrier(commandBuffer,
-			srcStage, dstStage,	//Pipeline stages (match to src and dst AccessMasks)
-			0,		//Dependency flags
-			0, nullptr,	//Memory Barrier count + data
-			0, nullptr,	//Buffer Memory Barrier count + data
-			1, &imageMemoryBarrier	//Buffer Image Memory Barrier count + data
-			);
+		if(srcStage != VK_PIPELINE_STAGE_NONE && dstStage != VK_PIPELINE_STAGE_NONE)
+		{
+			vkCmdPipelineBarrier(commandBuffer,
+				srcStage, dstStage,	//Pipeline stages (match to src and dst AccessMasks)
+				0,		//Dependency flags
+				0, nullptr,	//Memory Barrier count + data
+				0, nullptr,	//Buffer Memory Barrier count + data
+				1, &imageMemoryBarrier	//Buffer Image Memory Barrier count + data
+				);
+		}
 
 		endAndSubmitCommitBuffer(device, commandPool, queue, commandBuffer);
 	}

@@ -11,7 +11,7 @@ public:
     {
         bool result = Engine::init(wName, width, height);
 
-        helicopter = renderer->createMeshModel("Models/Seahawk.obj");
+        helicopter = renderer->createMeshModel("Models/sea.obj");
 
         return result && helicopter != -1;
     }
@@ -32,7 +32,7 @@ public:
 
         glm::mat4 testMat = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
         //testMat = glm::rotate(testMat, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        testMat = glm::scale(testMat, glm::vec3(0.2f, 0.2f, 0.2f));
+        testMat = glm::scale(testMat, glm::vec3(0.09f, 0.1f, 0.09f));
         renderer->updateModel(helicopter, testMat);
     }
 private:
@@ -41,9 +41,9 @@ private:
 
 int main()
 {
-    std::cout << std::filesystem::current_path() << std::endl;
+    //std::cout << std::filesystem::current_path() << std::endl;
     MyEngine engine;
-    if(engine.init("Test Vulkan", 800, 600))
+    if(engine.init("Test Vulkan", 1700, 900))
     {
         engine.run();
         engine.destroy();

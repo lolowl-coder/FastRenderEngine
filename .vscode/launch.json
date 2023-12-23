@@ -10,8 +10,8 @@
             "stopAtEntry": false,
             "cwd": "D:/Projects/FastRenderEngine/Data",
             "environment": [],
-            "console": "externalTerminal",
-            //"console": "integratedTerminal"
+            //"console": "externalTerminal",
+            "console": "integratedTerminal",
         }
 
     ]

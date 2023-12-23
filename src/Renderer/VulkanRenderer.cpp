@@ -1,4 +1,5 @@
 #include "Renderer/VulkanRenderer.hpp"
+#include "config.hpp"
 
 #include <array>
 
@@ -47,7 +48,7 @@ namespace fre
 			createSynchronisation();
 
 			uboViewProjection.projection = glm::perspective(glm::radians(45.0f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
-			uboViewProjection.view = glm::lookAt(glm::vec3(30.0f, 30.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+			uboViewProjection.view = glm::lookAt(glm::vec3(30.0f, 30.0f, 0.0f), glm::vec3(0.0f, 5.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 			//In Vulkan Up direction points down
 			uboViewProjection.projection[1][1] *= -1.0f;
 			createTexture("test.jpg");
@@ -205,7 +206,8 @@ namespace fre
 
 	void VulkanRenderer::createInstance()
 	{
-		if (enableValidationLayers && !checkValidationLayerSupport()) {
+		if (enableValidationLayers && !checkValidationLayerSupport())
+		{
 			throw std::runtime_error("Validation layers requested, but not available!");
 		}
 
@@ -213,10 +215,12 @@ namespace fre
 		VkApplicationInfo appInfo = {};
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 		appInfo.pApplicationName = "Vulkan App";
-		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);		// Custom version of the application
-		appInfo.pEngineName = "No Engine";
-		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);	//Custom engine version
-		appInfo.apiVersion = VK_API_VERSION_1_0;			//Vulkan version
+		// Custom version of the application
+		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+		appInfo.pEngineName = project_name.data();
+		appInfo.engineVersion = VK_MAKE_VERSION(project_version_major, project_version_minor, project_version_patch);	//Custom engine version
+		//Vulkan version
+		appInfo.apiVersion = VK_API_VERSION_1_0;
 
 		//Creation information for VkInstance
 		VkInstanceCreateInfo createInfo = {};
@@ -226,7 +230,8 @@ namespace fre
 		std::vector<const char*> instanceExtentions = std::vector<const char*>();
 		//Setup extentions instance will use
 		uint32_t glfwExtentionsCount = 0;
-		const char** glfwExtentions;			//Extentions are passed as array of cstrings
+		//Extentions are passed as array of cstrings
+		const char** glfwExtentions;
 		glfwExtentions = glfwGetRequiredInstanceExtensions(&glfwExtentionsCount);
 		for (size_t i = 0; i < glfwExtentionsCount; i++)
 		{
@@ -381,7 +386,7 @@ namespace fre
 			swapChainCreateInfo.pQueueFamilyIndices = nullptr;
 		}
 
-		//If old swap chain been destroyed and this one replace it, then ling old one to quickle hand over responsibilities
+		//If old swap chain been destroyed and this one replace it, then ling old one to quickly hand over responsibilities
 		swapChainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
 
 		//Create swapchain
@@ -416,9 +421,6 @@ namespace fre
 
 	void VulkanRenderer::createRenderPass()
 	{
-		//Array of subpasses
-		std::array<VkSubpassDescription, 2> subpasses{};
-
 		//ATTACHMENTS
 		//SUBPASS 1 ATTACHMENTS + REFERENCES (INPUT ATTACHMENTS)
 
@@ -461,13 +463,16 @@ namespace fre
 		depthAttachmentReference.attachment = 2;
 		depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;		//Layout before subpass
 
+		//Array of subpasses
+		std::array<VkSubpassDescription, 2> subpasses{};
+		
 		//Setup subpass 1
 		subpasses[0].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;	//pipeline type subpass is to be bound to
 		subpasses[0].colorAttachmentCount = 1;
 		subpasses[0].pColorAttachments = &colourAttachmentReference;
 		subpasses[0].pDepthStencilAttachment = &depthAttachmentReference;
 
-		//SUBPASS 2 ATTACHMENTS + REFERENCES
+		//2 ATTACHMENTS + REFERENCES
 
 		//Swapchain colour attachment
 		VkAttachmentDescription swapchainColourAttachment = {};
@@ -1501,7 +1506,6 @@ namespace fre
 		VkPhysicalDeviceFeatures deviceFeatures;
 		vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 		
-
 		QueueFamilyIndices indices = getQueueFamilies(device);
 
 		bool extensionSupported = checkDeviceExtentionSupport(device);
@@ -1643,7 +1647,7 @@ namespace fre
 			newExtent.width = static_cast<uint32_t>(width);
 			newExtent.height = static_cast<uint32_t>(height);
 
-			//Surface also defines max and min, so make sure within boundaries be clampeing value
+			//Surface also defines max and min, so make sure within boundaries be clamping value
 			newExtent.width = std::max(surfaceCapabilities.minImageExtent.width, std::min(surfaceCapabilities.maxImageExtent.width, newExtent.width));
 			newExtent.height = std::max(surfaceCapabilities.minImageExtent.height, std::min(surfaceCapabilities.maxImageExtent.height, newExtent.height));
 

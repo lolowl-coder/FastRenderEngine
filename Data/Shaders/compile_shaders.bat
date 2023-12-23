@@ -1,4 +1,4 @@
-cd /D D:/Projects/Vulkan/Udemy/VulkanCourseApp5/VulkanCourseApp/Shader
+rem cd /D D:/Projects/Vulkan/Udemy/VulkanCourseApp5/VulkanCourseApp/Shader
 C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -V shader.vert
 C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -V shader.frag
 C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o second_vert.spv -V second.vert
