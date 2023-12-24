@@ -63,10 +63,10 @@ namespace fre
 		return 0;
 	}
 
-	void VulkanRenderer::updateModel(int modelId, glm::mat4 newModel)
+	void VulkanRenderer::updateModel(int modelId, glm::mat4 newModelMatrix)
 	{
 		if (modelId >= modelList.size()) return;
-		modelList[modelId].setModel(newModel);
+		modelList[modelId].setModelMatrix(newModelMatrix);
 	}
 
 	void VulkanRenderer::draw()
@@ -571,7 +571,7 @@ namespace fre
 		vpLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;	//Shader stage we bind to
 		vpLayoutBinding.pImmutableSamplers = nullptr;	//Immutability by specifying the layout
 
-		//Model Binding info
+		//ModelMatrix Binding info
 		/*VkDescriptorSetLayoutBinding modelLayoutBinding = {};
 		modelLayoutBinding.binding = 1;
 		modelLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -650,7 +650,7 @@ namespace fre
 		//Define push constant value (no "create" need!)
 		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;	//Shader stage push constant will go to
 		pushConstantRange.offset = 0;
-		pushConstantRange.size = sizeof(Model);
+		pushConstantRange.size = sizeof(ModelMatrix);
 	}
 
 	void VulkanRenderer::createGraphicsPipeline()
@@ -1028,7 +1028,7 @@ namespace fre
 		//ViewProjection buffer size will be size of all three variables (will offset to access)
 		VkDeviceSize vpBufferSize = sizeof(UboViewProjection);
 
-		//Model buffer size
+		//ModelMatrix buffer size
 		//VkDeviceSize modelBufferSize = modelUniformAlignment * MAX_OBJECTS;
 
 		//One uniform buffer for each image (and by extension, command buffer)
@@ -1058,7 +1058,7 @@ namespace fre
 		vpPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		vpPoolSize.descriptorCount = static_cast<uint32_t>(vpUniformBuffer.size());
 
-		//Model Pool (dynamic)
+		//ModelMatrix Pool (dynamic)
 		/*VkDescriptorPoolSize modelPoolSize = {};
 		modelPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 		modelPoolSize.descriptorCount = static_cast<uint32_t>(modelDUniformBuffer.size());*/
@@ -1165,7 +1165,7 @@ namespace fre
 			vpSetWrite.pBufferInfo = &vpBufferInfo;	//Information about buffer data to bind
 
 			//MODEL DESCRIPTOR
-			//Model Buffer info and data offset info
+			//ModelMatrix Buffer info and data offset info
 			/*VkDescriptorBufferInfo modelBufferInfo = {};
 			modelBufferInfo.buffer = modelDUniformBuffer[i];	//Buffer to get data from
 			modelBufferInfo.offset = 0;
@@ -1261,11 +1261,11 @@ namespace fre
 		memcpy(data, &uboViewProjection, sizeof(UboViewProjection));
 		vkUnmapMemory(mainDevice.logicalDevice, vpUniformBufferMemory[imageIndex]);
 
-		//Copy Model data
+		//Copy ModelMatrix data
 		/*for (size_t i = 0; i < meshList.size(); i++)
 		{
-			Model* thisModel = (Model*)((uint64_t)modetTransferSpace + i * modelUniformAlignment);
-			*thisModel = meshList[i].getModel();
+			ModelMatrix* thisModel = (ModelMatrix*)((uint64_t)modetTransferSpace + i * modelUniformAlignment);
+			*thisModel = meshList[i].getModelMatrix();
 		}
 		//Map the list of model data
 		vkMapMemory(mainDevice.logicalDevice, modelDUniformBufferMemory[imageIndex], 0, modelUniformAlignment * meshList.size(), 0, &data);
@@ -1309,14 +1309,14 @@ namespace fre
 				for (size_t j = 0; j < modelList.size(); j++)
 				{
 					MeshModel thisModel = modelList[j];
-					const auto& modelMatrix = thisModel.getModel();
+					const auto& modelMatrix = thisModel.getModelMatrix();
 					//"Push" constants to given hader stage directly (no buffer)
 					vkCmdPushConstants(
 						commandBuffers[currentImage],
 						pipelineLayout,
 						VK_SHADER_STAGE_VERTEX_BIT,
 						0,
-						sizeof(Model),	//Size of data being pushed
+						sizeof(ModelMatrix),	//Size of data being pushed
 						&modelMatrix);	//Actual data being pushed (can be array)
 
 					for (size_t k = 0; k < thisModel.getMeshCount(); k++)
@@ -1393,11 +1393,11 @@ namespace fre
 	void VulkanRenderer::allocateDynamicBufferTransferSpace()
 	{
 		//Calculate alignment of model data
-		/*modelUniformAlignment = (sizeof(Model) + minUniformBufferOffset - 1)
+		/*modelUniformAlignment = (sizeof(ModelMatrix) + minUniformBufferOffset - 1)
 			& ~(minUniformBufferOffset - 1);
 
 		//Create space in memory to hold dynamic buffer that is aligned to our required alignment and holds MAX_OBJECTS
-		modetTransferSpace = (Model*)_aligned_malloc(modelUniformAlignment * MAX_OBJECTS, modelUniformAlignment);*/
+		modetTransferSpace = (ModelMatrix*)_aligned_malloc(modelUniformAlignment * MAX_OBJECTS, modelUniformAlignment);*/
 	}
 
 	bool VulkanRenderer::checkInstanceExtentionsSupport(std::vector<const char*>* checkExtentions)

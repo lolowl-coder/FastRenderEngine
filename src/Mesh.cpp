@@ -17,7 +17,7 @@ namespace fre
 		createVertexBuffer(transferQueue, transferCommandPool, vertices);
 		createIndexBuffer(transferQueue, transferCommandPool, indices);
 
-		model.model = glm::mat4(1.0f);
+		model.modelMatrix = glm::mat4(1.0f);
 		texId = newTexId;
 	}
 
@@ -25,12 +25,12 @@ namespace fre
 	{
 	}
 
-	void Mesh::setModel(glm::mat4 newModel)
+	void Mesh::setModelMatrix(glm::mat4 newModelMatrix)
 	{
-		model.model = newModel;
+		model.modelMatrix = newModelMatrix;
 	}
 
-	Model Mesh::getModel()
+	ModelMatrix Mesh::getModelMatrix()
 	{
 		return model;
 	}

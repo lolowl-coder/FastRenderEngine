@@ -5,7 +5,7 @@ namespace fre
 	MeshModel::MeshModel(std::vector<Mesh> newMeshList)
 	{
 		meshList = newMeshList;
-		model = glm::mat4(1.0f);
+		modelMatrix = glm::mat4(1.0f);
 	}
 
 	size_t MeshModel::getMeshCount()
@@ -23,14 +23,14 @@ namespace fre
 		return &meshList[index];
 	}
 
-	glm::mat4 MeshModel::getModel()
+	glm::mat4 MeshModel::getModelMatrix()
 	{
-		return model;
+		return modelMatrix;
 	}
 
-	void MeshModel::setModel(const glm::mat4& newModel)
+	void MeshModel::setModelMatrix(const glm::mat4& newModelMatrix)
 	{
-		model = newModel;
+		modelMatrix = newModelMatrix;
 	}
 
 	void MeshModel::destroyMeshModel()

@@ -29,7 +29,7 @@ namespace fre
 		int init(GLFWwindow* newWindow);
 
 		int createMeshModel(std::string modelFile);
-		void updateModel(int mdoelId, glm::mat4 newModel);
+		void updateModel(int mdoelId, glm::mat4 newModelMatrix);
 
 		void draw();
 		void cleanup();
@@ -97,7 +97,7 @@ namespace fre
 
 		/*VkDeviceSize minUniformBufferOffset;
 		size_t modelUniformAlignment;
-		Model* modetTransferSpace;*/
+		ModelMatrix* modetTransferSpace;*/
 
 		// - Assets
 		std::vector<MeshModel> modelList;

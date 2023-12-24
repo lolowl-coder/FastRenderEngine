@@ -7,9 +7,9 @@
 
 namespace fre
 {
-	struct Model
+	struct ModelMatrix
 	{
-		glm::mat4 model;
+		glm::mat4 modelMatrix;
 	};
 
 	class Mesh
@@ -21,8 +21,8 @@ namespace fre
 			int newTexId);
 		~Mesh();
 
-		void setModel(glm::mat4 newModel);
-		Model getModel();
+		void setModelMatrix(glm::mat4 newModelMatrix);
+		ModelMatrix getModelMatrix();
 
 		int getTexId();
 
@@ -32,7 +32,7 @@ namespace fre
 		VkBuffer getIndexBuffer();
 		void destroyBuffers();
 	private:
-		Model model;
+		ModelMatrix model;
 
 		int texId;
 
