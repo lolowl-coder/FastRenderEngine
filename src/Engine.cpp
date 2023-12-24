@@ -13,16 +13,31 @@ namespace
 
 namespace fre
 {
+    void Engine::positionWindow(const int width, const int height)
+    {
+        int count;
+        int monitorX, monitorY;
+        GLFWmonitor** monitors = glfwGetMonitors(&count);
+        const GLFWvidmode* videoMode = glfwGetVideoMode(monitors[0]);
+        glfwGetMonitorPos(monitors[0], &monitorX, &monitorY);
+        glfwSetWindowPos(window,
+                 monitorX + (videoMode->width - width) / 2,
+                 monitorY + (videoMode->height - height) / 2); 
+    }
+
     bool Engine::init(std::string wName, const int width, const int height)
     {
         renderer.reset(new VulkanRenderer());
         //Initialize GLFW
         glfwInit();
+
         //Set FGLW to not work with OpenGL
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
         window = glfwCreateWindow(width, height, wName.c_str(), nullptr, nullptr);
+
+        positionWindow(width, height);
 
         return renderer->init(window) == 0;
     }

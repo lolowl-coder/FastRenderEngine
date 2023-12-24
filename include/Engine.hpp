@@ -23,6 +23,8 @@ namespace fre
         virtual void run();
         virtual void tick();
         virtual void destroy();
+    private:
+        void positionWindow(const int width, const int height);
     protected:
         std::shared_ptr<VulkanRenderer> renderer;
     };
