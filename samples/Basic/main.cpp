@@ -15,6 +15,7 @@ public:
 
         return result && helicopter != -1;
     }
+    
     virtual void tick()
     {
         float angle = 0.0f;

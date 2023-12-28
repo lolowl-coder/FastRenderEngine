@@ -29,8 +29,10 @@ namespace fre
 			getPhysicalDevice();
 			createLogicalDevice();
 			createSwapChain();
+			createSwapchainImageViews();
 			createRenderPass();
 			createDescriptorSetLayout();
+			createInputDescriptorSetLayout();
 			createPushConstantRange();
 			createGraphicsPipeline();
 			createColourBufferImage();
@@ -43,14 +45,13 @@ namespace fre
 			//allocateDynamicBufferTransferSpace();
 			createUniformBuffers();
 			createDescriptorPool();
+			createInputDescriptorPool();
 			createDescriptorSets();
 			createInputDescriptorSets();
 			createSynchronisation();
 
-			uboViewProjection.projection = glm::perspective(glm::radians(45.0f), (float)swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 100.0f);
+			updateProjectionMatrix();
 			uboViewProjection.view = glm::lookAt(glm::vec3(30.0f, 30.0f, 0.0f), glm::vec3(0.0f, 5.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-			//In Vulkan Up direction points down
-			uboViewProjection.projection[1][1] *= -1.0f;
 			createTexture("test.jpg");
 		}
 		catch (std::runtime_error& e)
@@ -71,62 +72,110 @@ namespace fre
 
 	void VulkanRenderer::draw()
 	{
-		uint32_t imageIndex;
-		//Get index of next image to be drawn to, and sibnal semaphore when ready to be drawn to
-		vkAcquireNextImageKHR(mainDevice.logicalDevice, swapchain, std::numeric_limits<uint64_t>::max(), imageAvailable[currentFrame], VK_NULL_HANDLE, &imageIndex);
-
-		// -- GET NEXT IMAGE--
 		//Wait for given fence to signal (open) from last draw before continuing
 		vkWaitForFences(mainDevice.logicalDevice, 1, &drawFences[currentFrame], VK_TRUE, std::numeric_limits<uint32_t>::max());
-		//Manually reset (close) fences
-		vkResetFences(mainDevice.logicalDevice, 1, &drawFences[currentFrame]);
 
-		recordCommands(imageIndex);
+		uint32_t imageIndex;
+		//Get index of next image to be drawn to, and signal semaphore when ready to be drawn to
+		VkResult result = vkAcquireNextImageKHR(mainDevice.logicalDevice, swapchain, std::numeric_limits<uint64_t>::max(), imageAvailable[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
-		updateUniformBuffers(imageIndex);
-
-		// -- SUBMIT COMMAND BUFFER TO RENDER --
-		//Queue submission info
-		VkSubmitInfo submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.waitSemaphoreCount = 1;		//Number of semaphores to wait on
-		submitInfo.pWaitSemaphores = &imageAvailable[currentFrame];	//List of samephores to wait on
-		VkPipelineStageFlags waitStages[] = {
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-		};
-		submitInfo.pWaitDstStageMask = waitStages;	//Stages to check semaphores at
-		submitInfo.commandBufferCount = 1;	//Number of command buffers to submit
-		submitInfo.pCommandBuffers = &commandBuffers[imageIndex];	//Command buffer to submit
-		submitInfo.signalSemaphoreCount = 1;	//Number of semaphores to signal
-		submitInfo.pSignalSemaphores = &renderFinished[currentFrame];	//Semaphore to signal wen command buffer finishes
-
-		VkResult result = vkQueueSubmit(graphicsQueue, 1, &submitInfo, drawFences[currentFrame]);
-		if (result != VK_SUCCESS)
+		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 		{
-			throw std::runtime_error("Failed to submit Command Buffer to Queue!");
+			recreateSwapChain();
 		}
-
-		// -- PRESENT RENDERED IMAGE TO SCREEN --
-		VkPresentInfoKHR presentInfo = {};
-		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-		presentInfo.waitSemaphoreCount = 1;	//Number of semaphores to wait on
-		presentInfo.pWaitSemaphores = &renderFinished[currentFrame];	//Semaphores to wait on
-		presentInfo.swapchainCount = 1;
-		presentInfo.pSwapchains = &swapchain;	//Swapchains to present images to
-		presentInfo.pImageIndices = &imageIndex;	//Indices of images in swapchain to present
-
-		result = vkQueuePresentKHR(presentationQueue, &presentInfo);
-		if (result != VK_SUCCESS)
+		else if (result != VK_SUCCESS/* && result != VK_SUBOPTIMAL_KHR*/)
 		{
-			throw std::runtime_error("Failed to present Image!");
+			throw std::runtime_error("failed to acquire swap chain image!");
 		}
+		else
+		{
+			// -- GET NEXT IMAGE--
+			//Manually reset (close) fences
+			vkResetFences(mainDevice.logicalDevice, 1, &drawFences[currentFrame]);
 
-		//Get next frame
-		currentFrame = (currentFrame + 1) % MAX_FRAME_DRAWS;
+			recordCommands(imageIndex);
+
+			updateUniformBuffers(imageIndex);
+
+			// -- SUBMIT COMMAND BUFFER TO RENDER --
+			//Queue submission info
+			VkSubmitInfo submitInfo = {};
+			submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+			submitInfo.waitSemaphoreCount = 1;		//Number of semaphores to wait on
+			submitInfo.pWaitSemaphores = &imageAvailable[currentFrame];	//List of samephores to wait on
+			VkPipelineStageFlags waitStages[] = {
+				VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+			};
+			submitInfo.pWaitDstStageMask = waitStages;	//Stages to check semaphores at
+			submitInfo.commandBufferCount = 1;	//Number of command buffers to submit
+			submitInfo.pCommandBuffers = &commandBuffers[imageIndex];	//Command buffer to submit
+			submitInfo.signalSemaphoreCount = 1;	//Number of semaphores to signal
+			submitInfo.pSignalSemaphores = &renderFinished[currentFrame];	//Semaphore to signal wen command buffer finishes
+
+			result = vkQueueSubmit(graphicsQueue, 1, &submitInfo, drawFences[currentFrame]);
+			if (result != VK_SUCCESS)
+			{
+				throw std::runtime_error("Failed to submit Command Buffer to Queue!");
+			}
+
+			// -- PRESENT RENDERED IMAGE TO SCREEN --
+			VkPresentInfoKHR presentInfo = {};
+			presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+			presentInfo.waitSemaphoreCount = 1;	//Number of semaphores to wait on
+			presentInfo.pWaitSemaphores = &renderFinished[currentFrame];	//Semaphores to wait on
+			presentInfo.swapchainCount = 1;
+			presentInfo.pSwapchains = &swapchain;	//Swapchains to present images to
+			presentInfo.pImageIndices = &imageIndex;	//Indices of images in swapchain to present
+
+			result = vkQueuePresentKHR(presentationQueue, &presentInfo);
+
+			if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
+			{
+				framebufferResized = false;
+				recreateSwapChain();
+			}
+			else if (result != VK_SUCCESS)
+			{
+				throw std::runtime_error("failed to present swap chain image!");
+			}
+
+			//Get next frame
+			currentFrame = (currentFrame + 1) % MAX_FRAME_DRAWS;
+		}
 	}
 
-	void VulkanRenderer::cleanup()
+	void VulkanRenderer::cleanupInputDescriptorPool()
 	{
+		vkDestroyDescriptorPool(mainDevice.logicalDevice, inputDescriptorPool, nullptr);
+		vkDestroyDescriptorSetLayout(mainDevice.logicalDevice, inputSetLayout, nullptr);
+	}
+
+    void VulkanRenderer::cleanupSwapchainImagesSemaphores()
+    {
+		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		{
+			vkDestroySemaphore(mainDevice.logicalDevice, imageAvailable[i], nullptr);
+		}
+    }
+
+    void VulkanRenderer::cleanupRenderFinishedSemaphors()
+    {
+		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		{
+			vkDestroySemaphore(mainDevice.logicalDevice, renderFinished[i], nullptr);
+		}
+    }
+    
+	void VulkanRenderer::cleanupDrawFences()
+    {
+		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		{
+			vkDestroyFence(mainDevice.logicalDevice, drawFences[i], nullptr);
+		}
+    }
+
+    void VulkanRenderer::cleanup()
+    {
 		//Wait until no actions being run on device before destroying
 		vkDeviceWaitIdle(mainDevice.logicalDevice);
 
@@ -137,8 +186,7 @@ namespace fre
 			modelList[i].destroyMeshModel();
 		}
 
-		vkDestroyDescriptorPool(mainDevice.logicalDevice, inputDescriptorPool, nullptr);
-		vkDestroyDescriptorSetLayout(mainDevice.logicalDevice, inputSetLayout, nullptr);
+		cleanupInputDescriptorPool();
 
 		vkDestroyDescriptorPool(mainDevice.logicalDevice, samplerDescriptorPool, nullptr);
 		vkDestroyDescriptorSetLayout(mainDevice.logicalDevice, samplerSetLayout, nullptr);
@@ -152,19 +200,7 @@ namespace fre
 			vkFreeMemory(mainDevice.logicalDevice, textureImageMemory[i], nullptr);
 		}
 
-		for (size_t i = 0; i < colourBufferImage.size(); i++)
-		{
-			vkDestroyImageView(mainDevice.logicalDevice, colourBufferImageView[i], nullptr);
-			vkDestroyImage(mainDevice.logicalDevice, colourBufferImage[i], nullptr);
-			vkFreeMemory(mainDevice.logicalDevice, colourBufferImageMemory[i], nullptr);
-		}
-
-		for (size_t i = 0; i < depthBufferImage.size(); i++)
-		{
-			vkDestroyImageView(mainDevice.logicalDevice, depthBufferImageView[i], nullptr);
-			vkDestroyImage(mainDevice.logicalDevice, depthBufferImage[i], nullptr);
-			vkFreeMemory(mainDevice.logicalDevice, depthBufferImageMemory[i], nullptr);
-		}
+		cleanupSwapChain();
 
 		vkDestroyDescriptorPool(mainDevice.logicalDevice, descriptorPool, nullptr);
 		vkDestroyDescriptorSetLayout(mainDevice.logicalDevice, descriptorSetLayout, nullptr);
@@ -178,34 +214,29 @@ namespace fre
 			//vkFreeMemory(mainDevice.logicalDevice, modelDUniformBufferMemory[i], nullptr);
 		}
 
-		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
-		{
-			vkDestroySemaphore(mainDevice.logicalDevice, renderFinished[i], nullptr);
-			vkDestroySemaphore(mainDevice.logicalDevice, imageAvailable[i], nullptr);
-			vkDestroyFence(mainDevice.logicalDevice, drawFences[i], nullptr);
-		}
+		cleanupSwapchainImagesSemaphores();
+		cleanupRenderFinishedSemaphors();
+		cleanupDrawFences();
+
 		vkDestroyCommandPool(mainDevice.logicalDevice, graphicsCommandPool, nullptr);
-		for (auto framebuffer : swapChainFrameBuffers)
-		{
-			vkDestroyFramebuffer(mainDevice.logicalDevice, framebuffer, nullptr);
-		}
 		vkDestroyPipeline(mainDevice.logicalDevice, secondPipeline, nullptr);
 		vkDestroyPipelineLayout(mainDevice.logicalDevice, secondPipelineLayout, nullptr);
 		vkDestroyPipeline(mainDevice.logicalDevice, graphicsPipeline, nullptr);
 		vkDestroyPipelineLayout(mainDevice.logicalDevice, pipelineLayout, nullptr);
 		vkDestroyRenderPass(mainDevice.logicalDevice, renderPass, nullptr);
-		for (auto image : swapChainImages)
-		{
-			vkDestroyImageView(mainDevice.logicalDevice, image.imageView, nullptr);
-		}
-		vkDestroySwapchainKHR(mainDevice.logicalDevice, swapchain, nullptr);
+		
 		vkDestroySurfaceKHR(instance, surface, nullptr);
 		vkDestroyDevice(mainDevice.logicalDevice, nullptr);
 		vkDestroyInstance(instance, nullptr);
 	}
 
-	void VulkanRenderer::createInstance()
-	{
+    void VulkanRenderer::setFramebufferResized(bool resized)
+    {
+		framebufferResized = resized;
+    }
+
+    void VulkanRenderer::createInstance()
+    {
 		if (enableValidationLayers && !checkValidationLayerSupport())
 		{
 			throw std::runtime_error("Validation layers requested, but not available!");
@@ -325,6 +356,27 @@ namespace fre
 		}
 	}
 
+	void VulkanRenderer::createSwapchainImageViews()
+	{
+		//Get swap chain images
+		uint32_t swapChainImageCount;
+		vkGetSwapchainImagesKHR(mainDevice.logicalDevice, swapchain, &swapChainImageCount, nullptr);
+		std::vector<VkImage> images(swapChainImageCount);
+		vkGetSwapchainImagesKHR(mainDevice.logicalDevice, swapchain, &swapChainImageCount, images.data());
+
+		swapChainImages.clear();
+		for (VkImage image : images)
+		{
+			//Store image handle
+			SwapChainImage swapChainImage = {};
+			swapChainImage.image = image;
+			swapChainImage.imageView = createImageView(image, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+
+			//Add to swapchain image list
+			swapChainImages.push_back(swapChainImage);
+		}
+	}
+
 	void VulkanRenderer::createSwapChain()
 	{
 		//Get swap chain details so we can pick best settings
@@ -399,24 +451,6 @@ namespace fre
 		//Store for later reference
 		swapChainImageFormat = surfaceFormat.format;
 		swapChainExtent = extent;
-
-		//Get swap chain images
-		uint32_t swapChainImageCount;
-		vkGetSwapchainImagesKHR(mainDevice.logicalDevice, swapchain, &swapChainImageCount, nullptr);
-		std::vector<VkImage> images(swapChainImageCount);
-		vkGetSwapchainImagesKHR(mainDevice.logicalDevice, swapchain, &swapChainImageCount, images.data());
-
-		for (VkImage image : images)
-		{
-			//Store image handle
-			SwapChainImage swapChainImage = {};
-			swapChainImage.image = image;
-			swapChainImage.imageView = createImageView(image, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
-
-			//Add to swapchain image list
-			swapChainImages.push_back(swapChainImage);
-		}
-
 	}
 
 	void VulkanRenderer::createRenderPass()
@@ -613,7 +647,10 @@ namespace fre
 		{
 			throw std::runtime_error("Failed to create Sampler Descriptor Set Layout!");
 		}
-		
+	}
+
+	void VulkanRenderer::createInputDescriptorSetLayout()
+	{
 		//CREATE INPUT ATTACHMENT IMAGE DESCRIPTOR SET LAYOUT
 		//Colour input binding
 		VkDescriptorSetLayoutBinding colourInputLayoutBinding = {};
@@ -638,7 +675,7 @@ namespace fre
 		inputLayoutCreateInfo.pBindings = inputBindings.data();
 
 		//Create descriptor set layout
-		result = vkCreateDescriptorSetLayout(mainDevice.logicalDevice, &inputLayoutCreateInfo, nullptr, &inputSetLayout);
+		VkResult result = vkCreateDescriptorSetLayout(mainDevice.logicalDevice, &inputLayoutCreateInfo, nullptr, &inputSetLayout);
 		if (result != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create Input Descriptor Set Layout!");
@@ -720,31 +757,16 @@ namespace fre
 		inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		inputAssembly.primitiveRestartEnable = VK_FALSE;
 
-		// -- VIEWPORT & SCISSOR --
-		//Create a viewport info struct
-		VkViewport viewport = {};
-		viewport.x = 0.0f;
-		viewport.y = 0.0f;
-		viewport.width = (float)swapChainExtent.width;
-		viewport.height = (float)swapChainExtent.height;
-		viewport.minDepth = 0.0f;
-		viewport.maxDepth = 1.0f;
-
-		//Create a scissor info struct
-		VkRect2D scissor = {};
-		scissor.offset = { 0, 0 };
-		scissor.extent = swapChainExtent;
-
 		VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
 		viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 		viewportStateCreateInfo.viewportCount = 1;
-		viewportStateCreateInfo.pViewports = &viewport;
+		//viewportStateCreateInfo.pViewports = &viewport;
 		viewportStateCreateInfo.scissorCount = 1;
-		viewportStateCreateInfo.pScissors = &scissor;
+		//viewportStateCreateInfo.pScissors = &scissor;
 
 		// -- DYNAMIC STATES --
 		//Dynamic states to enable
-		/*std::vector<VkDynamicState> dynamicStateEnables;
+		std::vector<VkDynamicState> dynamicStateEnables;
 		dynamicStateEnables.push_back(VK_DYNAMIC_STATE_VIEWPORT);	//Dynamic viewport : Can resize in command buffer with vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 		dynamicStateEnables.push_back(VK_DYNAMIC_STATE_SCISSOR);	//Dynamic scissor : Can rsize in command buffer with vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
@@ -752,7 +774,7 @@ namespace fre
 		VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
 		dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 		dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStateEnables.size());
-		dynamicStateCreateInfo.pDynamicStates = dynamicStateEnables.data();*/
+		dynamicStateCreateInfo.pDynamicStates = dynamicStateEnables.data();
 
 		// -- RASTERIZER --
 		VkPipelineRasterizationStateCreateInfo rasterizerCreateInfo = {};
@@ -834,7 +856,7 @@ namespace fre
 		pipelineCreateInfo.pVertexInputState = &vertexInputCreateInfo;
 		pipelineCreateInfo.pInputAssemblyState = &inputAssembly;
 		pipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
-		pipelineCreateInfo.pDynamicState = nullptr;
+		pipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
 		pipelineCreateInfo.pRasterizationState = &rasterizerCreateInfo;
 		pipelineCreateInfo.pColorBlendState = &colourBlendingCreateInfo;
 		pipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
@@ -1097,7 +1119,10 @@ namespace fre
 		{
 			throw std::runtime_error("Failed to create Sampler Descriptor Pool!");
 		}
+	}
 
+	void VulkanRenderer::createInputDescriptorPool()
+	{
 		//CREATE INPUT ATTACHMENT DESCRIPTOR POOL
 		//Colour Attachment Pool Size
 		VkDescriptorPoolSize colourInputPoolSize = {};
@@ -1118,7 +1143,7 @@ namespace fre
 		inputPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(inputPoolSizes.size());
 		inputPoolCreateInfo.pPoolSizes = inputPoolSizes.data();
 
-		result = vkCreateDescriptorPool(mainDevice.logicalDevice, &inputPoolCreateInfo, nullptr, &inputDescriptorPool);
+		VkResult result = vkCreateDescriptorPool(mainDevice.logicalDevice, &inputPoolCreateInfo, nullptr, &inputDescriptorPool);
 		if (result != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create Input Descriptor Pool!");
@@ -1306,6 +1331,10 @@ namespace fre
 
 				vkCmdBindPipeline(commandBuffers[currentImage], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
+				setViewport(currentImage);
+
+				setScissor(currentImage);
+
 				for (size_t j = 0; j < modelList.size(); j++)
 				{
 					MeshModel thisModel = modelList[j];
@@ -1398,6 +1427,64 @@ namespace fre
 
 		//Create space in memory to hold dynamic buffer that is aligned to our required alignment and holds MAX_OBJECTS
 		modetTransferSpace = (ModelMatrix*)_aligned_malloc(modelUniformAlignment * MAX_OBJECTS, modelUniformAlignment);*/
+	}
+
+	void VulkanRenderer::cleanupSwapChain()
+	{
+		for (auto imageView : swapChainImages) {
+            vkDestroyImageView(mainDevice.logicalDevice, imageView.imageView, nullptr);
+        }
+
+		for (size_t i = 0; i < colourBufferImage.size(); i++)
+		{
+			vkDestroyImageView(mainDevice.logicalDevice, colourBufferImageView[i], nullptr);
+			vkDestroyImage(mainDevice.logicalDevice, colourBufferImage[i], nullptr);
+			vkFreeMemory(mainDevice.logicalDevice, colourBufferImageMemory[i], nullptr);
+		}
+
+		for (size_t i = 0; i < depthBufferImage.size(); i++)
+		{
+			vkDestroyImageView(mainDevice.logicalDevice, depthBufferImageView[i], nullptr);
+			vkDestroyImage(mainDevice.logicalDevice, depthBufferImage[i], nullptr);
+			vkFreeMemory(mainDevice.logicalDevice, depthBufferImageMemory[i], nullptr);
+		}
+
+		for (auto framebuffer : swapChainFrameBuffers)
+		{
+			vkDestroyFramebuffer(mainDevice.logicalDevice, framebuffer, nullptr);
+		}
+
+		vkDestroySwapchainKHR(mainDevice.logicalDevice, swapchain, nullptr);
+	}
+
+	void VulkanRenderer::recreateSwapChain()
+	{
+		int width = 0, height = 0;
+		glfwGetFramebufferSize(window, &width, &height);
+		while (width == 0 || height == 0)
+		{
+			glfwGetFramebufferSize(window, &width, &height);
+			glfwWaitEvents();
+		}
+
+		vkDeviceWaitIdle(mainDevice.logicalDevice);
+
+		cleanupSwapChain();
+		cleanupInputDescriptorPool();
+		cleanupSwapchainImagesSemaphores();
+
+		createSwapChain();
+		createSwapchainImageViews();
+		createColourBufferImage();
+		createDepthBufferImage();
+		createFrameBuffers();
+		createInputDescriptorSetLayout();
+		createInputDescriptorPool();
+		createInputDescriptorSets();
+
+		createSwapchainImagesSemaphores();
+
+		updateProjectionMatrix();
 	}
 
 	bool VulkanRenderer::checkInstanceExtentionsSupport(std::vector<const char*>* checkExtentions)
@@ -1773,16 +1860,39 @@ namespace fre
 		return shaderModule;
 	}
 
-	void VulkanRenderer::createSynchronisation()
+	void VulkanRenderer::createSwapchainImagesSemaphores()
 	{
 		imageAvailable.resize(MAX_FRAME_DRAWS);
-		renderFinished.resize(MAX_FRAME_DRAWS);
-		drawFences.resize(MAX_FRAME_DRAWS);
-
 		//Semaphore creation information
 		VkSemaphoreCreateInfo semaphoreCreateInfo = {};
 		semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		{
+			if (vkCreateSemaphore(mainDevice.logicalDevice, &semaphoreCreateInfo, nullptr, &imageAvailable[i]) != VK_SUCCESS)
+			{
+				throw std::runtime_error("Failed to create swapchain-image Semaphore!");
+			}
+		}
+	}
 
+	void VulkanRenderer::createRenderFinishedSemaphores()
+	{
+		renderFinished.resize(MAX_FRAME_DRAWS);
+		//Semaphore creation information
+		VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+		semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		{
+			if (vkCreateSemaphore(mainDevice.logicalDevice, &semaphoreCreateInfo, nullptr, &renderFinished[i]) != VK_SUCCESS)
+			{
+				throw std::runtime_error("Failed to create render-finished Semaphore!");
+			}
+		}
+	}
+
+	void VulkanRenderer::createDrawFences()
+	{
+		drawFences.resize(MAX_FRAME_DRAWS);
 		//Fence creation information
 		VkFenceCreateInfo fenceCreateInfo = {};
 		fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -1790,17 +1900,52 @@ namespace fre
 
 		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
 		{
-			if (vkCreateSemaphore(mainDevice.logicalDevice, &semaphoreCreateInfo, nullptr, &imageAvailable[i]) != VK_SUCCESS ||
-				vkCreateSemaphore(mainDevice.logicalDevice, &semaphoreCreateInfo, nullptr, &renderFinished[i]) != VK_SUCCESS ||
-				vkCreateFence(mainDevice.logicalDevice, &fenceCreateInfo, nullptr, &drawFences[i]) != VK_SUCCESS)
+			if (vkCreateFence(mainDevice.logicalDevice, &fenceCreateInfo, nullptr, &drawFences[i]) != VK_SUCCESS)
 			{
-				throw std::runtime_error("Failed to create a Semaphore and/or Fence!");
+				throw std::runtime_error("Failed to create a Semaphore and/ordraw Fence!");
 			}
 		}
 	}
 
-	void VulkanRenderer::createTextureSampler()
+	void VulkanRenderer::createSynchronisation()
 	{
+		createSwapchainImagesSemaphores();
+		createRenderFinishedSemaphores();
+		createDrawFences();
+	}
+
+    void VulkanRenderer::setViewport(uint32_t currentImage)
+    {
+		VkViewport viewport{};
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = (float) swapChainExtent.width;
+		viewport.height = (float) swapChainExtent.height;
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		vkCmdSetViewport(commandBuffers[currentImage], 0, 1, &viewport);
+    }
+
+    void VulkanRenderer::setScissor(uint32_t currentImage)
+    {
+		VkRect2D scissor{};
+		scissor.offset = {0, 0};
+		scissor.extent = swapChainExtent;
+		vkCmdSetScissor(commandBuffers[currentImage], 0, 1, &scissor);
+    }
+
+	void VulkanRenderer::updateProjectionMatrix()
+	{
+		uboViewProjection.projection = glm::perspective(
+			glm::radians(45.0f),
+			(float)swapChainExtent.width / (float)swapChainExtent.height,
+			0.1f, 100.0f);
+		//In Vulkan Up direction points down
+		uboViewProjection.projection[1][1] *= -1.0f;
+	}
+
+    void VulkanRenderer::createTextureSampler()
+    {
 		VkSamplerCreateInfo samplerCreateInfo = {};
 		samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 		samplerCreateInfo.magFilter = VK_FILTER_LINEAR;

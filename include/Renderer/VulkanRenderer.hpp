@@ -34,6 +34,8 @@ namespace fre
 		void draw();
 		void cleanup();
 
+		void setFramebufferResized(bool resized);
+
 		~VulkanRenderer();
 
 	private:
@@ -127,15 +129,19 @@ namespace fre
 		std::vector<VkSemaphore> renderFinished;
 		std::vector<VkFence> drawFences;
 
+		bool framebufferResized = false;
+
 		//Vulkan functions
 		// -create functions
 		void createInstance();
 
 		void createLogicalDevice();
 		void createSurface();
+		void createSwapchainImageViews();
 		void createSwapChain();
 		void createRenderPass();
 		void createDescriptorSetLayout();
+		void createInputDescriptorSetLayout();
 		void createPushConstantRange();
 		void createGraphicsPipeline();
 		void createColourBufferImage();
@@ -146,6 +152,7 @@ namespace fre
 
 		void createUniformBuffers();
 		void createDescriptorPool();
+		void createInputDescriptorPool();
 		void createDescriptorSets();
 		void createInputDescriptorSets();
 
@@ -159,6 +166,21 @@ namespace fre
 
 		// - Allocate function
 		void allocateDynamicBufferTransferSpace();
+
+		// - Cleanup methods
+		void cleanupSwapChain();
+		void cleanupInputDescriptorPool();
+		void cleanupSwapchainImagesSemaphores();
+		void cleanupRenderFinishedSemaphors();
+		void cleanupDrawFences();
+
+		// - Recreate methods
+		void recreateSwapChain();
+
+		// - Dynamic data update functions
+		void setViewport(uint32_t currentImage);
+		void setScissor(uint32_t currentImage);
+		void updateProjectionMatrix();
 
 		// -support functions
 		// --Checker functions
@@ -181,6 +203,10 @@ namespace fre
 		VkImage createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags useFlags, VkMemoryPropertyFlags propFlags, VkDeviceMemory *imageMemory);
 		VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 		VkShaderModule createShaderModule(const std::vector<char>& code);
+		
+		void createSwapchainImagesSemaphores();
+		void createRenderFinishedSemaphores();
+		void createDrawFences();
 		void createSynchronisation();
 		void createTextureSampler();
 

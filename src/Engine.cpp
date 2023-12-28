@@ -25,6 +25,12 @@ namespace fre
                  monitorY + (videoMode->height - height) / 2); 
     }
 
+    static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
+    {
+        auto renderer = reinterpret_cast<VulkanRenderer*>(glfwGetWindowUserPointer(window));
+        renderer->setFramebufferResized(true);
+    }
+
     bool Engine::init(std::string wName, const int width, const int height)
     {
         renderer.reset(new VulkanRenderer());
@@ -36,6 +42,8 @@ namespace fre
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
         window = glfwCreateWindow(width, height, wName.c_str(), nullptr, nullptr);
+        glfwSetWindowUserPointer(window, renderer.get());
+        glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 
         positionWindow(width, height);
 
