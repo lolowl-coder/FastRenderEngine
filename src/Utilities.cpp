@@ -21,6 +21,29 @@ namespace fre
 		return fileBuffer;
 	}
 
+	VkFormat chooseSupportedFormat(VkPhysicalDevice physicalDevice, const std::vector<VkFormat>& formats, VkImageTiling tiling, VkFormatFeatureFlags featureFlags)
+	{
+		//Loop through options an find compatible one
+		for (VkFormat format : formats)
+		{
+			//Get properties for given format on this device
+			VkFormatProperties properties;
+			vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &properties);
+
+			//Depending on tiling choise need to check for different bit flag
+			if (tiling == VK_IMAGE_TILING_LINEAR && (properties.linearTilingFeatures & featureFlags) == featureFlags)
+			{
+				return format;
+			}
+			else if (tiling == VK_IMAGE_TILING_OPTIMAL && (properties.optimalTilingFeatures & featureFlags) == featureFlags)
+			{
+				return format;
+			}
+		}
+		
+		throw std::runtime_error("Failed to find a matching format!");
+	}
+
     uint32_t findMemoryTypeIndex(VkPhysicalDevice physicalDevice, uint32_t allowedTypes, VkMemoryPropertyFlags properties)
 	{
 		//Get properties of physical device memory

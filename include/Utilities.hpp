@@ -12,6 +12,12 @@ namespace fre
 	const int MAX_FRAME_DRAWS = 3;
 	const int MAX_OBJECTS = 30;
 
+	struct MainDevice
+	{
+		VkPhysicalDevice physicalDevice;
+		VkDevice logicalDevice;
+	};
+
 	const std::vector<const char*> deviceExtentions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
 	};
@@ -56,6 +62,8 @@ namespace fre
 	};
 
 	std::vector<char> readFile(const std::string& fileName);
+	
+	VkFormat chooseSupportedFormat(VkPhysicalDevice physicalDevice, const std::vector<VkFormat>& formats, VkImageTiling tiling, VkFormatFeatureFlags featureFlags);
 
 	uint32_t findMemoryTypeIndex(VkPhysicalDevice physicalDevice, uint32_t allowedTypes, VkMemoryPropertyFlags properties);
 

@@ -4,7 +4,9 @@ set(LIBRARY_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Mesh.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/MeshModel.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Utilities.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanRenderer.cpp")
+    "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanRenderer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanRenderPass.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanCommandBuffers.cpp")
 set(LIBRARY_HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Engine.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Mesh.hpp"
@@ -13,7 +15,9 @@ set(LIBRARY_HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Hash/Hash.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Macros/Class.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Macros/Member.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanRenderer.hpp")
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanRenderer.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanRenderPass.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanCommandBuffers.hpp")
 set(LIBRARY_INCLUDES_PUBLIC
     "./"
     "${CMAKE_BINARY_DIR}/configured_files/include"

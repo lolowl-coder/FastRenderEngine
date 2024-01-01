@@ -10,12 +10,13 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-#include <stdexcept>
 #include <vector>
 #include <set>
 #include <iostream>
 #include <algorithm>
 
+#include "Renderer/VulkanRenderPass.hpp"
+#include "Renderer/VulkanCommandBuffers.hpp"
 #include "stb_image.h"
 #include "Utilities.hpp"
 #include "MeshModel.hpp"
@@ -52,12 +53,8 @@ namespace fre
 
 		//Vulkan components
 		VkInstance instance;
-
-		struct
-		{
-			VkPhysicalDevice physicalDevice;
-			VkDevice logicalDevice;
-		} mainDevice;
+		
+		MainDevice mainDevice;
 
 		VkQueue graphicsQueue;
 		VkQueue presentationQueue;
@@ -65,7 +62,7 @@ namespace fre
 		VkSwapchainKHR swapchain;
 		std::vector<SwapChainImage> swapChainImages;
 		std::vector<VkFramebuffer> swapChainFrameBuffers;
-		std::vector<VkCommandBuffer> commandBuffers;
+		VulkanCommandBuffers mCommandBuffers;
 
 		std::vector<VkImage> colourBufferImage;
 		std::vector<VkDeviceMemory> colourBufferImageMemory;
@@ -114,8 +111,7 @@ namespace fre
 		VkPipeline secondPipeline;
 		VkPipelineLayout secondPipelineLayout;
 
-
-		VkRenderPass renderPass;
+		VulkanRenderPass mRenderPass;
 
 		// - Pools -
 		VkCommandPool graphicsCommandPool;
@@ -139,7 +135,6 @@ namespace fre
 		void createSurface();
 		void createSwapchainImageViews();
 		void createSwapChain();
-		void createRenderPass();
 		void createDescriptorSetLayout();
 		void createInputDescriptorSetLayout();
 		void createPushConstantRange();
@@ -197,7 +192,6 @@ namespace fre
 		VkSurfaceFormatKHR chooseBestSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats);
 		VkPresentModeKHR chooseBestPresentationMode(const std::vector<VkPresentModeKHR>& presentationModes);
 		VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
-		VkFormat chooseSupportedFormat(const std::vector<VkFormat>& formats, VkImageTiling tiling, VkFormatFeatureFlags featureFlags);
 
 		// -- Create Functions
 		VkImage createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags useFlags, VkMemoryPropertyFlags propFlags, VkDeviceMemory *imageMemory);
