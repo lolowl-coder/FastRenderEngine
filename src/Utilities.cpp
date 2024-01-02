@@ -163,6 +163,130 @@ namespace fre
 		endAndSubmitCommitBuffer(device, transferCommandPool, transferQueue, transferCommandBuffer);
 	}
 
+	QueueFamilyIndices getQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface)
+	{
+		QueueFamilyIndices indices;
+
+		//Get all Queue Family properties info for the given device
+		uint32_t queueFamilyCount = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+		std::vector<VkQueueFamilyProperties> queueFamilyList(queueFamilyCount);
+		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilyList.data());
+
+		//Go through each queue family and check if it has at least 1 of the required types of queue
+		int i = 0;
+		for (const auto& queueFamily : queueFamilyList)
+		{
+			//First check if queue family has at least 1 queue in that family (could have no queues)
+			//Queue can be of multiple types defined through bitfield. Need to bitwise AND with VK_QUEUE_*_BIT to check if it has required type
+			if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+			{
+				indices.graphicsFamily = i; //If queue family invalid get index
+			}
+
+			//Check if queue family supports presentation
+			VkBool32 presentationSupport = false;
+			vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentationSupport);
+			//Check if queue is presentation type (can be both graphics and presentation)
+			if (queueFamily.queueCount > 0 && presentationSupport)
+			{
+				indices.presentationFamily = i;
+			}
+
+			//Check if queue family indices are in a valid state, stop searching if so
+			if (indices.isValid())
+			{
+				break;
+			}
+			i++;
+		}
+
+		return indices;
+	}
+
+	VkImage createImage(const MainDevice& mainDevice,
+		uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
+		VkImageUsageFlags useFlags, VkMemoryPropertyFlags propFlags,
+		VkDeviceMemory* imageMemory)
+	{
+		//Create Image
+		VkImageCreateInfo imageCreateInfo = {};
+		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+		imageCreateInfo.extent.width = width;
+		imageCreateInfo.extent.height = height;
+		imageCreateInfo.extent.depth = 1;
+		imageCreateInfo.mipLevels = 1;
+		imageCreateInfo.arrayLayers = 1;
+		imageCreateInfo.format = format;
+		imageCreateInfo.tiling = tiling;
+		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;	//Layout of image on creation
+		imageCreateInfo.usage = useFlags;	//What image will be used for
+		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;	//Can't be shared between queues
+
+		VkImage image;
+		VkResult result = vkCreateImage(mainDevice.logicalDevice, &imageCreateInfo, nullptr, &image);
+		if (result != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create an Image!");
+		}
+
+		//Create memory for image
+
+		//Here we ask for memory requirements for this image
+		VkMemoryRequirements memoryRequirement;
+		vkGetImageMemoryRequirements(mainDevice.logicalDevice, image, &memoryRequirement);
+
+		VkMemoryAllocateInfo memoryAllocInfo = {};
+		memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		memoryAllocInfo.allocationSize = memoryRequirement.size;
+		memoryAllocInfo.memoryTypeIndex = findMemoryTypeIndex(mainDevice.physicalDevice, memoryRequirement.memoryTypeBits, propFlags);
+
+		result = vkAllocateMemory(mainDevice.logicalDevice, &memoryAllocInfo, nullptr, imageMemory);
+		if (result != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to allocate memory for Image!");
+		}
+
+		//Connect memory to image
+		vkBindImageMemory(mainDevice.logicalDevice, image, *imageMemory, 0);
+
+		return image;
+	}
+
+	VkImageView createImageView(VkDevice logicalDevice,
+		VkImage image, VkFormat format, VkImageAspectFlags aspectFlags)
+	{
+		VkImageViewCreateInfo viewCreateInfo = {};
+		viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		viewCreateInfo.image = image;		//Image to create view for
+		viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		viewCreateInfo.format = format;
+		viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;	//Allows remapping of RGBA components to other components
+		viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+		//Subresource allow the view to view only a part of an image
+		viewCreateInfo.subresourceRange.aspectMask = aspectFlags;		//Which aspect of image to view (COLOR_BIT, etc.)
+		viewCreateInfo.subresourceRange.baseMipLevel = 0;				//Starting mip-level to view image from
+		viewCreateInfo.subresourceRange.levelCount = 1;
+		viewCreateInfo.subresourceRange.baseArrayLayer = 0;				//Starting array layer to view from
+		viewCreateInfo.subresourceRange.layerCount = 1;
+
+		VkImageView imageView;
+		VkResult result = vkCreateImageView(logicalDevice, &viewCreateInfo, nullptr, &imageView);
+
+		if (result != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create an Image view!");
+		}
+
+		return imageView;
+	}
+
 	void copyImageBuffer(VkDevice device, VkQueue transferQueue, VkCommandPool transferCommandPool,
 		VkBuffer srcBuffer, VkImage image, uint32_t width, uint32_t height)
 	{

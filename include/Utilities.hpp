@@ -78,6 +78,15 @@ namespace fre
 	void copyBuffer(VkDevice device, VkQueue transferQueue, VkCommandPool transferCommandPool,
 		VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize bufferSize);
 
+	QueueFamilyIndices getQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
+
+	VkImage createImage(const MainDevice& mainDevice,
+		uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
+		VkImageUsageFlags useFlags, VkMemoryPropertyFlags propFlags,
+		VkDeviceMemory *imageMemory);
+
+	VkImageView createImageView(VkDevice logicalDevice, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+
 	void copyImageBuffer(VkDevice device, VkQueue transferQueue, VkCommandPool transferCommandPool,
 		VkBuffer srcBuffer, VkImage image, uint32_t width, uint32_t height);
 

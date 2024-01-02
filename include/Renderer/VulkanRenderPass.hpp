@@ -16,7 +16,7 @@ namespace fre
         void end(VkCommandBuffer commandBuffer);
         void destroy(VkDevice logicalDevice);
 
-        VkRenderPass mRenderPass;
+        VkRenderPass mRenderPass = VK_NULL_HANDLE;
     };
     
 }

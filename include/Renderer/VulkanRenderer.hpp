@@ -17,6 +17,8 @@
 
 #include "Renderer/VulkanRenderPass.hpp"
 #include "Renderer/VulkanCommandBuffers.hpp"
+#include "Renderer/VulkanFrameBuffer.hpp"
+#include "Renderer/VulkanSwapchain.hpp"
 #include "stb_image.h"
 #include "Utilities.hpp"
 #include "MeshModel.hpp"
@@ -59,18 +61,7 @@ namespace fre
 		VkQueue graphicsQueue;
 		VkQueue presentationQueue;
 		VkSurfaceKHR surface;
-		VkSwapchainKHR swapchain;
-		std::vector<SwapChainImage> swapChainImages;
-		std::vector<VkFramebuffer> swapChainFrameBuffers;
 		VulkanCommandBuffers mCommandBuffers;
-
-		std::vector<VkImage> colourBufferImage;
-		std::vector<VkDeviceMemory> colourBufferImageMemory;
-		std::vector<VkImageView> colourBufferImageView;
-
-		std::vector<VkImage> depthBufferImage;
-		std::vector<VkDeviceMemory> depthBufferImageMemory;
-		std::vector<VkImageView> depthBufferImageView;
 
 		VkSampler textureSampler;
 
@@ -111,14 +102,12 @@ namespace fre
 		VkPipeline secondPipeline;
 		VkPipelineLayout secondPipelineLayout;
 
+		VulkanSwapChain mSwapChain;
+		std::vector<VulkanFrameBuffer> mSwapChainFrameBuffers;
 		VulkanRenderPass mRenderPass;
 
 		// - Pools -
 		VkCommandPool graphicsCommandPool;
-
-		// - Utility
-		VkFormat swapChainImageFormat;
-		VkExtent2D swapChainExtent;
 
 		// - Synchronization
 		std::vector<VkSemaphore> imageAvailable;
@@ -132,16 +121,12 @@ namespace fre
 		void createInstance();
 
 		void createLogicalDevice();
+		void createSwapChainFrameBuffers();
 		void createSurface();
-		void createSwapchainImageViews();
-		void createSwapChain();
 		void createDescriptorSetLayout();
 		void createInputDescriptorSetLayout();
 		void createPushConstantRange();
 		void createGraphicsPipeline();
-		void createColourBufferImage();
-		void createDepthBufferImage();
-		void createFrameBuffers();
 		void createCommandPool();
 		void createCommandBuffers();
 
@@ -163,7 +148,7 @@ namespace fre
 		void allocateDynamicBufferTransferSpace();
 
 		// - Cleanup methods
-		void cleanupSwapChain();
+		void cleanupSwapChainFrameBuffers();
 		void cleanupInputDescriptorPool();
 		void cleanupSwapchainImagesSemaphores();
 		void cleanupRenderFinishedSemaphors();
@@ -184,18 +169,7 @@ namespace fre
 		bool checkDeviceExtentionSupport(VkPhysicalDevice device);
 		bool checkDeviceSuitable(VkPhysicalDevice device);
 
-		// --Getter functions
-		QueueFamilyIndices getQueueFamilies(VkPhysicalDevice device);
-		SwapChainDetails getSwapChainDetails(VkPhysicalDevice device);
-
-		// -- Choose functions
-		VkSurfaceFormatKHR chooseBestSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats);
-		VkPresentModeKHR chooseBestPresentationMode(const std::vector<VkPresentModeKHR>& presentationModes);
-		VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
-
 		// -- Create Functions
-		VkImage createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags useFlags, VkMemoryPropertyFlags propFlags, VkDeviceMemory *imageMemory);
-		VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 		VkShaderModule createShaderModule(const std::vector<char>& code);
 		
 		void createSwapchainImagesSemaphores();

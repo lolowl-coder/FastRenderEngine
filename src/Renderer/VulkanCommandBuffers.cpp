@@ -36,6 +36,7 @@ namespace fre
 		{
 			throw std::runtime_error("Failed to start recording a Command Buffer!");
 		}
+
     }
 
     void VulkanCommandBuffers::end(uint32_t currentImageIndex)
