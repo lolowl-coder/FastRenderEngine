@@ -1,6 +1,8 @@
 #include "Renderer/VulkanSwapchain.hpp"
 
+#include <stdexcept>
 #include <array>
+#include <limits>
 
 namespace fre
 {
@@ -85,7 +87,8 @@ namespace fre
 
     void VulkanSwapChain::destroy(VkDevice logicalDevice)
     {
-		for (auto image : mSwapChainImages) {
+		for (auto image : mSwapChainImages)
+        {
             vkDestroyImageView(logicalDevice, image.imageView, nullptr);
         }
 
@@ -194,10 +197,11 @@ namespace fre
 		return formats[0];
 	}
 
-	VkPresentModeKHR VulkanSwapChain::chooseBestPresentationMode(const std::vector<VkPresentModeKHR>& presentationModes)
+	VkPresentModeKHR VulkanSwapChain::chooseBestPresentationMode(
+        const std::vector<VkPresentModeKHR>& presentationModes)
 	{
 		//Look for Mailbox presentation mode
-		for (const auto& presentationMode : presentationModes)
+		for (const auto presentationMode : presentationModes)
 		{
 			if (presentationMode == VK_PRESENT_MODE_MAILBOX_KHR)
 			{

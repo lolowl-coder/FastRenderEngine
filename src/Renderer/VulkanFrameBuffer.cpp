@@ -1,84 +1,28 @@
 #include "Renderer/VulkanFrameBuffer.hpp"
 #include "Utilities.hpp"
 
+#include <stdexcept>
 #include <array>
 
 namespace fre
 {
     void VulkanFrameBuffer::create(const MainDevice& mainDevice,
-        VkImageView swapChainImageView, VkExtent2D swapchainExtent,
+        VkImageView swapChainImageView, VkExtent2D swapChainExtent,
         VkRenderPass renderPass)
     {
-        createColourBufferImage(mainDevice, swapchainExtent);
-        createDepthBufferImage(mainDevice, swapchainExtent);
+        mColorAttachment.create(mainDevice, EAttachmentKind::AK_COLOR, swapChainExtent);
+        mDepthAttachment.create(mainDevice, EAttachmentKind::AK_DEPTH, swapChainExtent);
         createFrameBuffers(mainDevice.logicalDevice, swapChainImageView,
-            swapchainExtent, renderPass);
+            swapChainExtent, renderPass);
     }
 
     void VulkanFrameBuffer::destroy(VkDevice logicalDevice)
     {
-        vkDestroyImageView(logicalDevice, mColourBufferImageView, nullptr);
-        vkDestroyImage(logicalDevice, mColourBufferImage, nullptr);
-        vkFreeMemory(logicalDevice, mColourBufferImageMemory, nullptr);
-
-        vkDestroyImageView(logicalDevice, mDepthBufferImageView, nullptr);
-        vkDestroyImage(logicalDevice, mDepthBufferImage, nullptr);
-        vkFreeMemory(logicalDevice, mDepthBufferImageMemory, nullptr);
+        mColorAttachment.destroy(logicalDevice);
+        mDepthAttachment.destroy(logicalDevice);
 
         vkDestroyFramebuffer(logicalDevice, mFrameBuffer, nullptr);
     }
-
-	void VulkanFrameBuffer::createColourBufferImage(const MainDevice& mainDevice,
-        VkExtent2D swapChainExtent)
-	{
-		//Get supported format for colour attachment
-		VkFormat colourFormat = chooseSupportedFormat(
-			mainDevice.physicalDevice,
-			{ VK_FORMAT_R8G8B8A8_UNORM },
-			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-		);
-
-        //Create colour buffer image
-        mColourBufferImage = createImage(
-            mainDevice,
-            swapChainExtent.width, swapChainExtent.height,
-            colourFormat, VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            &mColourBufferImageMemory);
-
-        //Create Colour Image View
-        mColourBufferImageView = createImageView(
-            mainDevice.logicalDevice, mColourBufferImage, colourFormat,
-            VK_IMAGE_ASPECT_COLOR_BIT);
-	}
-
-	void VulkanFrameBuffer::createDepthBufferImage(const MainDevice& mainDevice,
-        VkExtent2D swapChainExtent)
-	{
-		//Get supported format for depth buffer
-		VkFormat depthFormat = chooseSupportedFormat(
-			mainDevice.physicalDevice,
-			{ VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT },
-			VK_IMAGE_TILING_OPTIMAL,
-			VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-
-        //Create depth buffer image
-        mDepthBufferImage = createImage(
-            mainDevice,
-            swapChainExtent.width,
-            swapChainExtent.height,
-            depthFormat, VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            &mDepthBufferImageMemory);
-
-        //Create Depth Image View
-        mDepthBufferImageView = createImageView(
-            mainDevice.logicalDevice, mDepthBufferImage, depthFormat,
-            VK_IMAGE_ASPECT_DEPTH_BIT);
-	}
 
 	void VulkanFrameBuffer::createFrameBuffers(VkDevice logicalDevice,
         VkImageView swapChainImageView, VkExtent2D swapChainExtent,
@@ -88,8 +32,8 @@ namespace fre
         std::array<VkImageView, 3> attachments =
         {
             swapChainImageView,
-            mColourBufferImageView,
-            mDepthBufferImageView
+            mColorAttachment.mImageView,
+            mDepthAttachment.mImageView
         };
 
         VkFramebufferCreateInfo framebufferCreateInfo = {};

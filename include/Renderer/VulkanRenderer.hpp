@@ -19,8 +19,8 @@
 #include "Renderer/VulkanCommandBuffers.hpp"
 #include "Renderer/VulkanFrameBuffer.hpp"
 #include "Renderer/VulkanSwapchain.hpp"
-#include "stb_image.h"
 #include "Utilities.hpp"
+#include "stb_image.h"
 #include "MeshModel.hpp"
 
 namespace fre

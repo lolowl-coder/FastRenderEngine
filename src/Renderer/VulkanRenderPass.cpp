@@ -1,4 +1,5 @@
 #include "Renderer/VulkanRenderPass.hpp"
+#include "Renderer/VulkanImage.hpp"
 #include "Utilities.hpp"
 
 #include <array>
@@ -12,7 +13,7 @@ namespace fre
 
 		//Colour Attachment (Input)
 		VkAttachmentDescription colourAttachment = {};
-		colourAttachment.format = chooseSupportedFormat(
+		colourAttachment.format = chooseSupportedImageFormat(
 			mainDevice.physicalDevice,
 			{ VK_FORMAT_R8G8B8A8_UNORM },
 			VK_IMAGE_TILING_OPTIMAL,
@@ -28,7 +29,7 @@ namespace fre
 
 		//Depth attachment (Input)
 		VkAttachmentDescription depthAttachment = {};
-		depthAttachment.format = chooseSupportedFormat(
+		depthAttachment.format = chooseSupportedImageFormat(
 			mainDevice.physicalDevice,
 			{ VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT },
 			VK_IMAGE_TILING_OPTIMAL,
@@ -176,7 +177,7 @@ namespace fre
         vkCmdEndRenderPass(commandBuffer);
     }
 
-    void fre::VulkanRenderPass::destroy(VkDevice logicalDevice)
+    void VulkanRenderPass::destroy(VkDevice logicalDevice)
     {
         vkDestroyRenderPass(logicalDevice, mRenderPass, nullptr);
     }

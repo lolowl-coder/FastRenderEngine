@@ -1,8 +1,9 @@
 #include "Renderer/VulkanRenderer.hpp"
 #include "config.hpp"
 
-#include <stdexcept>
 #include <array>
+#include <limits>
+#include <stdexcept>
 
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
@@ -926,7 +927,7 @@ namespace fre
 			//Colour Attachment Descriptor
 			VkDescriptorImageInfo colourAttachmentDescriptor = {};
 			colourAttachmentDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;	//Image layout when in use
-			colourAttachmentDescriptor.imageView = mSwapChainFrameBuffers[i].mColourBufferImageView;		//Image to bind to set
+			colourAttachmentDescriptor.imageView = mSwapChainFrameBuffers[i].mColorAttachment.mImageView;		//Image to bind to set
 			colourAttachmentDescriptor.sampler = VK_NULL_HANDLE;		//We don't need a sampler, because we will read it in other way in shader
 
 			//Colour Attachment Descriptor Write
@@ -942,7 +943,7 @@ namespace fre
 			//Depth Attachment Descriptor
 			VkDescriptorImageInfo depthAttachmentDescriptor = {};
 			depthAttachmentDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;	//Image layout when in use
-			depthAttachmentDescriptor.imageView = mSwapChainFrameBuffers[i].mDepthBufferImageView;		//Image to bind to set
+			depthAttachmentDescriptor.imageView = mSwapChainFrameBuffers[i].mDepthAttachment.mImageView;		//Image to bind to set
 			depthAttachmentDescriptor.sampler = VK_NULL_HANDLE;		//We don't need a sampler, because we will read it in other way in shader
 
 			//Depth Attachment Descriptor Write

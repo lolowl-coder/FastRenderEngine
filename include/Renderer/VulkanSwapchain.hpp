@@ -3,10 +3,19 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include "Renderer/VulkanImage.hpp"
 #include "Utilities.hpp"
+
+#include <vector>
 
 namespace fre
 {
+	struct SwapChainImage
+	{
+		VkImage image = VK_NULL_HANDLE;
+		VkImageView imageView = VK_NULL_HANDLE; 
+	};
+
     struct VulkanSwapChain
     {
         void create(GLFWwindow* window, const MainDevice& mainDevice,
