@@ -16,7 +16,7 @@
 #include <algorithm>
 
 #include "Renderer/VulkanRenderPass.hpp"
-#include "Renderer/VulkanCommandBuffers.hpp"
+#include "Renderer/VulkanCommandBuffer.hpp"
 #include "Renderer/VulkanFrameBuffer.hpp"
 #include "Renderer/VulkanSwapchain.hpp"
 #include "Utilities.hpp"
@@ -61,7 +61,7 @@ namespace fre
 		VkQueue graphicsQueue;
 		VkQueue presentationQueue;
 		VkSurfaceKHR surface;
-		VulkanCommandBuffers mCommandBuffers;
+		std::vector<VulkanCommandBuffer> mCommandBuffers;
 
 		VkSampler textureSampler;
 

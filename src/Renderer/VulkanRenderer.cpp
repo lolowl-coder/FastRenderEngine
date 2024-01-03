@@ -38,9 +38,7 @@ namespace fre
 			createPushConstantRange();
 			createGraphicsPipeline();
 			createCommandPool();
-
-			mCommandBuffers.create(mSwapChainFrameBuffers.size(),
-				graphicsCommandPool, mainDevice.logicalDevice);
+			createCommandBuffers();
 			createTextureSampler();
 			//allocateDynamicBufferTransferSpace();
 			createUniformBuffers();
@@ -108,7 +106,7 @@ namespace fre
 			};
 			submitInfo.pWaitDstStageMask = waitStages;	//Stages to check semaphores at
 			submitInfo.commandBufferCount = 1;	//Number of command buffers to submit
-			VkCommandBuffer commandBuffer = mCommandBuffers.get(imageIndex);
+			VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
 			submitInfo.pCommandBuffers = &commandBuffer;	//Command buffer to submit
 			submitInfo.signalSemaphoreCount = 1;	//Number of semaphores to signal
 			submitInfo.pSignalSemaphores = &renderFinished[currentFrame];	//Semaphore to signal wen command buffer finishes
@@ -731,6 +729,15 @@ namespace fre
 		}
 	}
 
+	void VulkanRenderer::createCommandBuffers()
+	{
+		mCommandBuffers.resize(mSwapChainFrameBuffers.size());
+		for(auto& cb : mCommandBuffers)
+		{
+			cb.create(graphicsCommandPool, mainDevice.logicalDevice);
+		}
+	}
+
 	void VulkanRenderer::createUniformBuffers()
 	{
 		//ViewProjection buffer size will be size of all three variables (will offset to access)
@@ -986,8 +993,8 @@ namespace fre
 
 	void VulkanRenderer::recordCommands(uint32_t currentImage)
 	{
-		mCommandBuffers.begin(currentImage);
-		VkCommandBuffer commandBuffer = mCommandBuffers.get(currentImage);
+		mCommandBuffers[currentImage].begin();
+		VkCommandBuffer commandBuffer = mCommandBuffers[currentImage].mCommandBuffer;
 		mRenderPass.begin(mSwapChainFrameBuffers[currentImage].mFrameBuffer, mSwapChain.mSwapChainExtent, commandBuffer);
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
@@ -1039,7 +1046,7 @@ namespace fre
 		vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
 		mRenderPass.end(commandBuffer);
-		mCommandBuffers.end(currentImage);
+		mCommandBuffers[currentImage].end();
 	}
 
 	void VulkanRenderer::getPhysicalDevice()
@@ -1311,7 +1318,7 @@ namespace fre
 		viewport.height = (float) mSwapChain.mSwapChainExtent.height;
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
-		vkCmdSetViewport(mCommandBuffers.get(currentImage), 0, 1, &viewport);
+		vkCmdSetViewport(mCommandBuffers[currentImage].mCommandBuffer, 0, 1, &viewport);
     }
 
     void VulkanRenderer::setScissor(uint32_t currentImage)
@@ -1319,7 +1326,7 @@ namespace fre
 		VkRect2D scissor{};
 		scissor.offset = {0, 0};
 		scissor.extent = mSwapChain.mSwapChainExtent;
-		vkCmdSetScissor(mCommandBuffers.get(currentImage), 0, 1, &scissor);
+		vkCmdSetScissor(mCommandBuffers[currentImage].mCommandBuffer, 0, 1, &scissor);
     }
 
 	void VulkanRenderer::updateProjectionMatrix()
