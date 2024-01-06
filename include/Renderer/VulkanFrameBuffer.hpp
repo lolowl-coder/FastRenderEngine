@@ -16,7 +16,7 @@ namespace fre
         void destroy(VkDevice logicalDevice);
 
     private:
-        void createFrameBuffers(VkDevice logicalDevice, VkImageView swapChainImageView,
+        void createFrameBuffer(VkDevice logicalDevice, VkImageView swapChainImageView,
             VkExtent2D swapChainExtent, VkRenderPass renderPass);
 
     public:

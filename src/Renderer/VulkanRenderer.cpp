@@ -473,8 +473,8 @@ namespace fre
 
 	void VulkanRenderer::createGraphicsPipeline()
 	{
-		auto vertexShaderCode = readFile("Shaders/vert.spv");
-		auto fragmentShaderCode = readFile("Shaders/frag.spv");
+		auto vertexShaderCode = readFile("Shaders/textured.vert.spv");
+		auto fragmentShaderCode = readFile("Shaders/textured.frag.spv");
 
 		VkShaderModule vertexShaderModule = createShaderModule(vertexShaderCode);
 		VkShaderModule fragmentShaderModule = createShaderModule(fragmentShaderCode);
@@ -661,8 +661,8 @@ namespace fre
 
 		//CREATE SECOND PASS PIPELINE
 		//Second pass shaders
-		auto secondVertexShaderCode = readFile("Shaders/second_vert.spv");
-		auto secondFragmentShaderCode = readFile("Shaders/second_frag.spv");
+		auto secondVertexShaderCode = readFile("Shaders/fog.vert.spv");
+		auto secondFragmentShaderCode = readFile("Shaders/fog.frag.spv");
 
 		//Build shaders
 		VkShaderModule secondVertexShaderModule = createShaderModule(secondVertexShaderCode);

@@ -12,7 +12,7 @@ namespace fre
     {
         mColorAttachment.create(mainDevice, EAttachmentKind::AK_COLOR, swapChainExtent);
         mDepthAttachment.create(mainDevice, EAttachmentKind::AK_DEPTH, swapChainExtent);
-        createFrameBuffers(mainDevice.logicalDevice, swapChainImageView,
+        createFrameBuffer(mainDevice.logicalDevice, swapChainImageView,
             swapChainExtent, renderPass);
     }
 
@@ -24,11 +24,10 @@ namespace fre
         vkDestroyFramebuffer(logicalDevice, mFrameBuffer, nullptr);
     }
 
-	void VulkanFrameBuffer::createFrameBuffers(VkDevice logicalDevice,
+	void VulkanFrameBuffer::createFrameBuffer(VkDevice logicalDevice,
         VkImageView swapChainImageView, VkExtent2D swapChainExtent,
         VkRenderPass renderPass)
 	{
-		//Create a framebuffer for each swap chain image
         std::array<VkImageView, 3> attachments =
         {
             swapChainImageView,
