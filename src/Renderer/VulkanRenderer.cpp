@@ -145,7 +145,8 @@ namespace fre
 
 	void VulkanRenderer::cleanupSwapChainFrameBuffers()
 	{
-		for(auto fbo : mSwapChainFrameBuffers)
+		//destroy frame buffers
+		for(auto& fbo : mFrameBuffers)
 		{
 			fbo.destroy(mainDevice.logicalDevice);
 		}
@@ -355,13 +356,29 @@ namespace fre
 
 	void VulkanRenderer::createSwapChainFrameBuffers()
 	{
-		mSwapChainFrameBuffers.resize(mSwapChain.mSwapChainImages.size());
+		mFrameBuffers.resize(mSwapChain.mSwapChainImages.size());
+		
 		for (size_t i = 0; i < mSwapChain.mSwapChainImages.size(); i++)
 		{
-			mSwapChainFrameBuffers[i].create(mainDevice,
+			VulkanAttachment colorAttachment;
+			VulkanAttachment depthAttachment;
+			
+			colorAttachment.create(mainDevice, AK_COLOR, mSwapChain.mSwapChainExtent);
+			depthAttachment.create(mainDevice, AK_DEPTH, mSwapChain.mSwapChainExtent);
+
+			std::vector<VkImageView> attachmentsViews =
+			{
 				mSwapChain.mSwapChainImages[i].imageView,
+				colorAttachment.mImageView,
+				depthAttachment.mImageView
+			};
+
+			mFrameBuffers[i].create(mainDevice,
+				attachmentsViews,
 				mSwapChain.mSwapChainExtent,
 				mRenderPass.mRenderPass);
+			mFrameBuffers[i].addColorAttachment(colorAttachment);
+			mFrameBuffers[i].setDepthAttachment(depthAttachment);
 		}
 	}
 
@@ -731,7 +748,7 @@ namespace fre
 
 	void VulkanRenderer::createCommandBuffers()
 	{
-		mCommandBuffers.resize(mSwapChainFrameBuffers.size());
+		mCommandBuffers.resize(mFrameBuffers.size());
 		for(auto& cb : mCommandBuffers)
 		{
 			cb.create(graphicsCommandPool, mainDevice.logicalDevice);
@@ -820,12 +837,12 @@ namespace fre
 		//Colour Attachment Pool Size
 		VkDescriptorPoolSize colourInputPoolSize = {};
 		colourInputPoolSize.type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-		colourInputPoolSize.descriptorCount = static_cast<uint32_t>(mSwapChainFrameBuffers.size());
+		colourInputPoolSize.descriptorCount = static_cast<uint32_t>(mFrameBuffers.size());
 
 		//Depth Attachment Pool Size
 		VkDescriptorPoolSize depthInputPoolSize = {};
 		depthInputPoolSize.type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-		depthInputPoolSize.descriptorCount = static_cast<uint32_t>(mSwapChainFrameBuffers.size());
+		depthInputPoolSize.descriptorCount = static_cast<uint32_t>(mFrameBuffers.size());
 
 		std::vector<VkDescriptorPoolSize> inputPoolSizes = { colourInputPoolSize, depthInputPoolSize };
 
@@ -934,7 +951,7 @@ namespace fre
 			//Colour Attachment Descriptor
 			VkDescriptorImageInfo colourAttachmentDescriptor = {};
 			colourAttachmentDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;	//Image layout when in use
-			colourAttachmentDescriptor.imageView = mSwapChainFrameBuffers[i].mColorAttachment.mImageView;		//Image to bind to set
+			colourAttachmentDescriptor.imageView = mFrameBuffers[i].mColorAttachments[0].mImageView;		//Image to bind to set
 			colourAttachmentDescriptor.sampler = VK_NULL_HANDLE;		//We don't need a sampler, because we will read it in other way in shader
 
 			//Colour Attachment Descriptor Write
@@ -950,7 +967,7 @@ namespace fre
 			//Depth Attachment Descriptor
 			VkDescriptorImageInfo depthAttachmentDescriptor = {};
 			depthAttachmentDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;	//Image layout when in use
-			depthAttachmentDescriptor.imageView = mSwapChainFrameBuffers[i].mDepthAttachment.mImageView;		//Image to bind to set
+			depthAttachmentDescriptor.imageView = mFrameBuffers[i].mDepthAttachment.mImageView;		//Image to bind to set
 			depthAttachmentDescriptor.sampler = VK_NULL_HANDLE;		//We don't need a sampler, because we will read it in other way in shader
 
 			//Depth Attachment Descriptor Write
@@ -995,7 +1012,7 @@ namespace fre
 	{
 		mCommandBuffers[currentImage].begin();
 		VkCommandBuffer commandBuffer = mCommandBuffers[currentImage].mCommandBuffer;
-		mRenderPass.begin(mSwapChainFrameBuffers[currentImage].mFrameBuffer, mSwapChain.mSwapChainExtent, commandBuffer);
+		mRenderPass.begin(mFrameBuffers[currentImage].mFrameBuffer, mSwapChain.mSwapChainExtent, commandBuffer);
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 

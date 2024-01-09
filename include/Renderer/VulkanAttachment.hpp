@@ -14,13 +14,11 @@ namespace fre
         AK_COUNT
     };
 
-    class VulkanAttachment
+    struct VulkanAttachment
     {
-    public:
         void create(const MainDevice& mainDevice, EAttachmentKind attachmentKind, VkExtent2D swapChainExtent);
         void destroy(VkDevice logicalDevice);
 
-    public:
         VkImage mImage = VK_NULL_HANDLE;
         VkImageView mImageView = VK_NULL_HANDLE;
     private:

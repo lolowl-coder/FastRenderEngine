@@ -103,7 +103,7 @@ namespace fre
 		VkPipelineLayout secondPipelineLayout;
 
 		VulkanSwapChain mSwapChain;
-		std::vector<VulkanFrameBuffer> mSwapChainFrameBuffers;
+		std::vector<VulkanFrameBuffer> mFrameBuffers;
 		VulkanRenderPass mRenderPass;
 
 		// - Pools -

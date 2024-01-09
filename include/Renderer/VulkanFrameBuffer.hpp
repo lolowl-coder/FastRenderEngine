@@ -5,22 +5,21 @@
 
 #include "Renderer/VulkanAttachment.hpp"
 
+#include <vector>
+
 namespace fre
 {
     struct MainDevice;
 
     struct VulkanFrameBuffer
     {
-        void create(const MainDevice& mainDevice, VkImageView swapChainImageView,
+        void create(const MainDevice& mainDevice, std::vector<VkImageView> attachmentsViews,
             VkExtent2D swapChainExtent, VkRenderPass renderPass);
+        void addColorAttachment(const VulkanAttachment& colorAttachment);
+        void setDepthAttachment(const VulkanAttachment& depthAttachment);
         void destroy(VkDevice logicalDevice);
 
-    private:
-        void createFrameBuffer(VkDevice logicalDevice, VkImageView swapChainImageView,
-            VkExtent2D swapChainExtent, VkRenderPass renderPass);
-
-    public:
-        VulkanAttachment mColorAttachment;
+        std::vector<VulkanAttachment> mColorAttachments;
         VulkanAttachment mDepthAttachment;
         VkFramebuffer mFrameBuffer = VK_NULL_HANDLE;
     };

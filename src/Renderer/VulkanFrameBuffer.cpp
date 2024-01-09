@@ -7,47 +7,43 @@
 namespace fre
 {
     void VulkanFrameBuffer::create(const MainDevice& mainDevice,
-        VkImageView swapChainImageView, VkExtent2D swapChainExtent,
+        std::vector<VkImageView> attachmentsViews, VkExtent2D swapChainExtent,
         VkRenderPass renderPass)
     {
-        mColorAttachment.create(mainDevice, EAttachmentKind::AK_COLOR, swapChainExtent);
-        mDepthAttachment.create(mainDevice, EAttachmentKind::AK_DEPTH, swapChainExtent);
-        createFrameBuffer(mainDevice.logicalDevice, swapChainImageView,
-            swapChainExtent, renderPass);
-    }
-
-    void VulkanFrameBuffer::destroy(VkDevice logicalDevice)
-    {
-        mColorAttachment.destroy(logicalDevice);
-        mDepthAttachment.destroy(logicalDevice);
-
-        vkDestroyFramebuffer(logicalDevice, mFrameBuffer, nullptr);
-    }
-
-	void VulkanFrameBuffer::createFrameBuffer(VkDevice logicalDevice,
-        VkImageView swapChainImageView, VkExtent2D swapChainExtent,
-        VkRenderPass renderPass)
-	{
-        std::array<VkImageView, 3> attachments =
-        {
-            swapChainImageView,
-            mColorAttachment.mImageView,
-            mDepthAttachment.mImageView
-        };
-
         VkFramebufferCreateInfo framebufferCreateInfo = {};
         framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferCreateInfo.renderPass = renderPass;	//Render pass layout the Framebuffer will be used with
-        framebufferCreateInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-        framebufferCreateInfo.pAttachments = attachments.data();	//List of attachments (1:1 with Render Pass)
+        framebufferCreateInfo.attachmentCount = static_cast<uint32_t>(attachmentsViews.size());
+        framebufferCreateInfo.pAttachments = attachmentsViews.data();	//List of attachments (1:1 with Render Pass)
         framebufferCreateInfo.width = swapChainExtent.width;
         framebufferCreateInfo.height = swapChainExtent.height;
         framebufferCreateInfo.layers = 1;
 
-        VkResult result = vkCreateFramebuffer(logicalDevice, &framebufferCreateInfo, nullptr, &mFrameBuffer);
+        VkResult result = vkCreateFramebuffer(mainDevice.logicalDevice, &framebufferCreateInfo, nullptr, &mFrameBuffer);
         if (result != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to create a Frame Buffer!");
         }
-	}
+    }
+
+    void VulkanFrameBuffer::addColorAttachment(const VulkanAttachment& colorAttachment)
+    {
+        mColorAttachments.push_back(colorAttachment);
+    }
+    
+    void VulkanFrameBuffer::setDepthAttachment(const VulkanAttachment& depthAttachment)
+    {
+        mDepthAttachment = depthAttachment;
+    }
+
+    void VulkanFrameBuffer::destroy(VkDevice logicalDevice)
+    {
+        for(auto& colorAttachment : mColorAttachments)
+        {
+            colorAttachment.destroy(logicalDevice);
+        }
+        mColorAttachments.clear();
+        mDepthAttachment.destroy(logicalDevice);
+        vkDestroyFramebuffer(logicalDevice, mFrameBuffer, nullptr);
+    }
 }
