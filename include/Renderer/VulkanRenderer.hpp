@@ -25,21 +25,53 @@
 
 namespace fre
 {
+	struct VulkanPipeline;
+
 	class VulkanRenderer
 	{
 	public:
 		VulkanRenderer();
-		int init(GLFWwindow* newWindow);
+		virtual ~VulkanRenderer();
+		
+		int create(GLFWwindow* newWindow);
+		void destroy();
 
 		int createMeshModel(std::string modelFile);
 		void updateModel(int mdoelId, glm::mat4 newModelMatrix);
 
 		void draw();
-		void cleanup();
 
 		void setFramebufferResized(bool resized);
 
-		~VulkanRenderer();
+
+	protected:
+		virtual void createGraphicsPipelines();
+
+		virtual void cleanupGraphicsPipelines(VkDevice logicalDevice);
+
+	protected:
+		MainDevice mainDevice;
+		int32_t mSubPassesCount = 0;
+
+		VulkanRenderPass mRenderPass;
+
+		// - Descriptors
+		VkDescriptorSetLayout descriptorSetLayout;
+		VkDescriptorSetLayout samplerSetLayout;
+		VkDescriptorSetLayout inputSetLayout;
+
+		// - inputs
+		VkPushConstantRange pushConstantRange;
+
+		// - Dynamic data update functions
+		void setViewport(uint32_t imageIndex);
+		void setScissor(uint32_t imageIndex);
+
+		// - Render
+		void bindPipeline(uint32_t imageIndex, const VulkanPipeline& pipeline);
+		void renderScene(uint32_t imageIndex, const VulkanPipeline& pipeline);
+		void renderTexturedRect(uint32_t imageIndex, VulkanPipeline& pipeline);
+		virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex);
 
 	private:
 		GLFWwindow* window;
@@ -55,8 +87,6 @@ namespace fre
 
 		//Vulkan components
 		VkInstance instance;
-		
-		MainDevice mainDevice;
 
 		VkQueue graphicsQueue;
 		VkQueue presentationQueue;
@@ -64,12 +94,6 @@ namespace fre
 		std::vector<VulkanCommandBuffer> mCommandBuffers;
 
 		VkSampler textureSampler;
-
-		// - Descriptors
-		VkDescriptorSetLayout descriptorSetLayout;
-		VkDescriptorSetLayout samplerSetLayout;
-		VkDescriptorSetLayout inputSetLayout;
-		VkPushConstantRange pushConstantRange;
 
 		VkDescriptorPool descriptorPool;
 		VkDescriptorPool samplerDescriptorPool;
@@ -84,7 +108,6 @@ namespace fre
 		std::vector<VkBuffer> modelDUniformBuffer;
 		std::vector<VkDeviceMemory> modelDUniformBufferMemory;
 
-
 		/*VkDeviceSize minUniformBufferOffset;
 		size_t modelUniformAlignment;
 		ModelMatrix* modetTransferSpace;*/
@@ -96,15 +119,8 @@ namespace fre
 		std::vector<VkDeviceMemory> textureImageMemory;
 		std::vector<VkImageView> textureImageViews;
 
-		// - Pipeline
-		VkPipeline graphicsPipeline;
-		VkPipelineLayout pipelineLayout;
-		VkPipeline secondPipeline;
-		VkPipelineLayout secondPipelineLayout;
-
 		VulkanSwapChain mSwapChain;
 		std::vector<VulkanFrameBuffer> mFrameBuffers;
-		VulkanRenderPass mRenderPass;
 
 		// - Pools -
 		VkCommandPool graphicsCommandPool;
@@ -126,7 +142,6 @@ namespace fre
 		void createDescriptorSetLayout();
 		void createInputDescriptorSetLayout();
 		void createPushConstantRange();
-		void createGraphicsPipeline();
 		void createCommandPool();
 		void createCommandBuffers();
 
@@ -139,7 +154,7 @@ namespace fre
 		void updateUniformBuffers(uint32_t imageIndex);
 
 		// - Record functions
-		void recordCommands(uint32_t currentImage);
+		void recordCommands(uint32_t imageIndex);
 			
 		// - Get functions
 		void getPhysicalDevice();
@@ -158,8 +173,6 @@ namespace fre
 		void recreateSwapChain();
 
 		// - Dynamic data update functions
-		void setViewport(uint32_t currentImage);
-		void setScissor(uint32_t currentImage);
 		void updateProjectionMatrix();
 
 		// -support functions
@@ -168,9 +181,6 @@ namespace fre
 		bool checkValidationLayerSupport();
 		bool checkDeviceExtentionSupport(VkPhysicalDevice device);
 		bool checkDeviceSuitable(VkPhysicalDevice device);
-
-		// -- Create Functions
-		VkShaderModule createShaderModule(const std::vector<char>& code);
 		
 		void createSwapchainImagesSemaphores();
 		void createRenderFinishedSemaphores();

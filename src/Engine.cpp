@@ -31,9 +31,8 @@ namespace fre
         renderer->setFramebufferResized(true);
     }
 
-    bool Engine::init(std::string wName, const int width, const int height)
+    bool Engine::create(std::string wName, const int width, const int height)
     {
-        renderer.reset(new VulkanRenderer());
         //Initialize GLFW
         glfwInit();
 
@@ -42,12 +41,12 @@ namespace fre
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
         window = glfwCreateWindow(width, height, wName.c_str(), nullptr, nullptr);
-        glfwSetWindowUserPointer(window, renderer.get());
+        glfwSetWindowUserPointer(window, mRenderer.get());
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 
         positionWindow(width, height);
 
-        return renderer->init(window) == 0;
+        return window != nullptr && mRenderer != nullptr && mRenderer->create(window) == 0;
     }
 
     void Engine::run()
@@ -59,7 +58,10 @@ namespace fre
             
             tick();
 
-            renderer->draw();
+            if(mRenderer != nullptr)
+            {
+                mRenderer->draw();
+            }
         }
     }
 
@@ -69,8 +71,10 @@ namespace fre
 
     void Engine::destroy()
     {
-        renderer->cleanup();
-
+        if(mRenderer != nullptr)
+        {
+            mRenderer->destroy();
+        }
         //Destroy window
         glfwDestroyWindow(window);
         glfwTerminate();

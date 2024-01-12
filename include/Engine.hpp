@@ -19,13 +19,13 @@ namespace fre
     {
     public:
         virtual ~Engine(){}
-        virtual bool init(std::string wName, const int width, const int height);
+        virtual bool create(std::string wName, const int width, const int height);
         virtual void run();
         virtual void tick();
         virtual void destroy();
     private:
         void positionWindow(const int width, const int height);
     protected:
-        std::shared_ptr<VulkanRenderer> renderer;
+        std::shared_ptr<VulkanRenderer> mRenderer;
     };
 }

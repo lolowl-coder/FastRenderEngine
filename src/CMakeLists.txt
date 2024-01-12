@@ -8,8 +8,10 @@ set(LIBRARY_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanCommandBuffer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanImage.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanFrameBuffer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanPipeline.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanRenderer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanRenderPass.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanShader.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanSwapChain.cpp")
 set(LIBRARY_HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Engine.hpp"
@@ -23,8 +25,10 @@ set(LIBRARY_HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanCommandBuffer.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanImage.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanFrameBuffer.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanPipeline.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanRenderer.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanRenderPass.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanShader.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanSwapChain.hpp")
 set(LIBRARY_INCLUDES_PUBLIC
     "./"
