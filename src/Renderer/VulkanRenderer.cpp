@@ -53,7 +53,6 @@ namespace fre
 
 			updateProjectionMatrix();
 			uboViewProjection.view = glm::lookAt(glm::vec3(30.0f, 30.0f, 0.0f), glm::vec3(0.0f, 5.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-			createTexture("test.jpg");
 		}
 		catch (std::runtime_error& e)
 		{
@@ -73,7 +72,7 @@ namespace fre
 
 		for (size_t i = 0; i < modelList.size(); i++)
 		{
-			modelList[i].destroyMeshModel();
+			modelList[i].destroyMeshModel(mainDevice.logicalDevice);
 		}
 
 		cleanupInputDescriptorPool();
@@ -122,8 +121,10 @@ namespace fre
 
 	void VulkanRenderer::updateModel(int modelId, glm::mat4 newModelMatrix)
 	{
-		if (modelId >= modelList.size()) return;
-		modelList[modelId].setModelMatrix(newModelMatrix);
+		if (modelId < modelList.size())
+		{
+			modelList[modelId].setModelMatrix(newModelMatrix);
+		}
 	}
 
 	void VulkanRenderer::draw()
@@ -486,7 +487,7 @@ namespace fre
 		//Define push constant value (no "create" need!)
 		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;	//Shader stage push constant will go to
 		pushConstantRange.offset = 0;
-		pushConstantRange.size = sizeof(ModelMatrix);
+		pushConstantRange.size = sizeof(glm::mat4);
 	}
 
 	void VulkanRenderer::createGraphicsPipelines()
@@ -544,7 +545,7 @@ namespace fre
 		//Create uniform buffers
 		for (size_t i = 0; i < mSwapChain.mSwapChainImages.size(); i++)
 		{
-			createBuffer(mainDevice.physicalDevice, mainDevice.logicalDevice, vpBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			createBuffer(mainDevice, vpBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &vpUniformBuffer[i], &vpUniformBufferMemory[i]);
 			/*createBuffer(mainDevice.physicalDevice, mainDevice.logicalDevice, modelBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &modelDUniformBuffer[i], &modelDUniformBufferMemory[i]);*/
@@ -792,7 +793,7 @@ namespace fre
 				pipeline.mPipelineLayout,
 				VK_SHADER_STAGE_VERTEX_BIT,
 				0,
-				sizeof(ModelMatrix),	//Size of data being pushed
+				sizeof(glm::mat4),	//Size of data being pushed
 				&modelMatrix);	//Actual data being pushed (can be array)
 
 			for (size_t k = 0; k < thisModel.getMeshCount(); k++)
@@ -1168,7 +1169,7 @@ namespace fre
 		//Create staging buffer to hold loaded data, ready to copy to device
 		VkBuffer imageStagingBuffer;
 		VkDeviceMemory imageStagingBufferMemory;
-		createBuffer(mainDevice.physicalDevice, mainDevice.logicalDevice, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		createBuffer(mainDevice, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			&imageStagingBuffer, &imageStagingBufferMemory);
 
@@ -1291,7 +1292,7 @@ namespace fre
 		}
 
 		//Load all meshes
-		std::vector<Mesh> modelMeshes = MeshModel::loadNode(mainDevice.physicalDevice, mainDevice.logicalDevice, graphicsQueue, graphicsCommandPool,
+		std::vector<Mesh> modelMeshes = MeshModel::loadNode(mainDevice, graphicsQueue, graphicsCommandPool,
 			scene->mRootNode, scene, matToTex);
 
 		MeshModel meshModel = MeshModel(modelMeshes);

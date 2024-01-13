@@ -8,6 +8,8 @@
 
 namespace fre
 {
+	struct MainDevice;
+
 	class MeshModel
 	{
 	public:
@@ -19,12 +21,12 @@ namespace fre
 		glm::mat4 getModelMatrix();
 		void setModelMatrix(const glm::mat4& newModelMatrix);
 
-		void destroyMeshModel();
+		void destroyMeshModel(VkDevice logicalDevice);
 
 		static std::vector<std::string> loadMaterials(const aiScene* scene);
-		static std::vector<Mesh> loadNode(VkPhysicalDevice newPhysicalDevice, VkDevice newDevice, VkQueue transferQueue, VkCommandPool transferCommandPool,
+		static std::vector<Mesh> loadNode(const MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool,
 			aiNode* node, const aiScene* scene, std::vector<int> matToTex);
-		static Mesh loadMesh(VkPhysicalDevice newPhysicalDevice, VkDevice newDevice, VkQueue transferQueue, VkCommandPool transferCommandPool,
+		static Mesh loadMesh(const MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool,
 			aiMesh * mesh, const aiScene* scene, std::vector<int> matToTex);
 
 		~MeshModel();

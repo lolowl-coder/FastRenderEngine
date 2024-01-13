@@ -6,18 +6,20 @@ namespace fre
 	{
 	}
 
-	Mesh::Mesh(VkPhysicalDevice newPhysicalDevice, VkDevice newDevice, VkQueue transferQueue,
-		VkCommandPool transferCommandPool, std::vector<Vertex>* vertices, std::vector<uint32_t>* indices,
+	Mesh::Mesh(
+		const MainDevice& mainDevice,
+		VkQueue transferQueue,
+		VkCommandPool transferCommandPool,
+		std::vector<Vertex>* vertices,
+		std::vector<uint32_t>* indices,
 		int newTexId)
 	{
 		indexCount = indices->size();
 		vertexCount = vertices->size();
-		physicalDevice = newPhysicalDevice;
-		device = newDevice;
-		createVertexBuffer(transferQueue, transferCommandPool, vertices);
-		createIndexBuffer(transferQueue, transferCommandPool, indices);
+		createVertexBuffer(mainDevice, transferQueue, transferCommandPool, vertices);
+		createIndexBuffer(mainDevice, transferQueue, transferCommandPool, indices);
 
-		model.modelMatrix = glm::mat4(1.0f);
+		modelMatrix = glm::mat4(1.0f);
 		texId = newTexId;
 	}
 
@@ -27,12 +29,12 @@ namespace fre
 
 	void Mesh::setModelMatrix(glm::mat4 newModelMatrix)
 	{
-		model.modelMatrix = newModelMatrix;
+		modelMatrix = newModelMatrix;
 	}
 
-	ModelMatrix Mesh::getModelMatrix()
+	glm::mat4 Mesh::getModelMatrix()
 	{
-		return model;
+		return modelMatrix;
 	}
 
 	int Mesh::getTexId()
@@ -60,15 +62,15 @@ namespace fre
 		return vertexBuffer;
 	}
 
-	void Mesh::destroyBuffers()
+	void Mesh::destroyBuffers(VkDevice logicalDevice)
 	{
-		vkDestroyBuffer(device, vertexBuffer, nullptr);
-		vkFreeMemory(device, vertexBufferMemory, nullptr);
-		vkDestroyBuffer(device, indexBuffer, nullptr);
-		vkFreeMemory(device, indexBufferMemory, nullptr);
+		vkDestroyBuffer(logicalDevice, vertexBuffer, nullptr);
+		vkFreeMemory(logicalDevice, vertexBufferMemory, nullptr);
+		vkDestroyBuffer(logicalDevice, indexBuffer, nullptr);
+		vkFreeMemory(logicalDevice, indexBufferMemory, nullptr);
 	}
 
-	void Mesh::createVertexBuffer(VkQueue transferQueue, VkCommandPool transferCommandPool, std::vector<Vertex>* vertices)
+	void Mesh::createVertexBuffer(const MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool, std::vector<Vertex>* vertices)
 	{
 		//Size of buffer in bytes
 		VkDeviceSize bufferSize = sizeof(Vertex) * vertices->size();
@@ -78,29 +80,29 @@ namespace fre
 		VkDeviceMemory stagingBufferMemory;
 
 		//Create buffer and allocate memory for it
-		createBuffer(physicalDevice, device, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		createBuffer(mainDevice, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			&stagingBuffer, &stagingBufferMemory);
 
 		//MAP MEMORY TO VERTEX BUFFER
 		void* data;		//1. Create pointer to a point in normal memory
-		vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);	//Map the vertex buffer memory to that point
+		vkMapMemory(mainDevice.logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);	//Map the vertex buffer memory to that point
 		memcpy(data, vertices->data(), (size_t)bufferSize);	//Copy memory from vertices vector to the point
-		vkUnmapMemory(device, stagingBufferMemory);	//Unamp vertex buffer memory
+		vkUnmapMemory(mainDevice.logicalDevice, stagingBufferMemory);	//Unamp vertex buffer memory
 
 		//Create destination vertex buffer for GPU memory
-		createBuffer(physicalDevice, device, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		createBuffer(mainDevice, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &vertexBuffer, &vertexBufferMemory);
 
 		//Copy staging buffer to vertex buffer on GPU
-		copyBuffer(device, transferQueue, transferCommandPool, stagingBuffer, vertexBuffer, bufferSize);
+		copyBuffer(mainDevice.logicalDevice, transferQueue, transferCommandPool, stagingBuffer, vertexBuffer, bufferSize);
 
 		//Clean up staging buffer parts
-		vkDestroyBuffer(device, stagingBuffer, nullptr);
-		vkFreeMemory(device, stagingBufferMemory, nullptr);
+		vkDestroyBuffer(mainDevice.logicalDevice, stagingBuffer, nullptr);
+		vkFreeMemory(mainDevice.logicalDevice, stagingBufferMemory, nullptr);
 	}
 
-	void Mesh::createIndexBuffer(VkQueue transferQueue, VkCommandPool transferCommandPool, std::vector<uint32_t>* indices)
+	void Mesh::createIndexBuffer(const MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool, std::vector<uint32_t>* indices)
 	{
 		//Get size of buffer for indices
 		VkDeviceSize bufferSize = sizeof(uint32_t) * indices->size();
@@ -109,25 +111,25 @@ namespace fre
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
 
-		createBuffer(physicalDevice, device, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		createBuffer(mainDevice, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			&stagingBuffer, &stagingBufferMemory);
 
 		//MAP MEMORY TO INDEX BUFFER
 		void* data;		//1. Create pointer to a point in normal memory
-		vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);	//Map the buffer memory to that point
+		vkMapMemory(mainDevice.logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);	//Map the buffer memory to that point
 		memcpy(data, indices->data(), (size_t)bufferSize);	//Copy memory from indices vector to the point
-		vkUnmapMemory(device, stagingBufferMemory);	//Unamp buffer memory
+		vkUnmapMemory(mainDevice.logicalDevice, stagingBufferMemory);	//Unamp buffer memory
 
 		//Create destination vertex buffer for GPU memory
-		createBuffer(physicalDevice, device, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+		createBuffer(mainDevice, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &indexBuffer, &indexBufferMemory);
 
 		//Copy staging buffer to vertex buffer on GPU
-		copyBuffer(device, transferQueue, transferCommandPool, stagingBuffer, indexBuffer, bufferSize);
+		copyBuffer(mainDevice.logicalDevice, transferQueue, transferCommandPool, stagingBuffer, indexBuffer, bufferSize);
 
 		//Clean up staging buffer parts
-		vkDestroyBuffer(device, stagingBuffer, nullptr);
-		vkFreeMemory(device, stagingBufferMemory, nullptr);
+		vkDestroyBuffer(mainDevice.logicalDevice, stagingBuffer, nullptr);
+		vkFreeMemory(mainDevice.logicalDevice, stagingBufferMemory, nullptr);
 	}
 }

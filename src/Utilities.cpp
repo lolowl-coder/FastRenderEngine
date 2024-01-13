@@ -39,7 +39,7 @@ namespace fre
 		return std::numeric_limits<uint32_t>::max();
 	}
 
-    void createBuffer(VkPhysicalDevice physicalDevice, VkDevice device, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage,
+    void createBuffer(const MainDevice& mainDevice, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage,
 		VkMemoryPropertyFlags bufferProperties, VkBuffer* buffer, VkDeviceMemory* bufferMemory)
 	{
 		//Information to create a buffer (doesn't include assigning memory)
@@ -49,7 +49,7 @@ namespace fre
 		bufferInfo.usage = bufferUsage;	//Multiple types of buffers possible
 		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;		//Similar to swap chain images can share vertex buffers
 
-		VkResult result = vkCreateBuffer(device, &bufferInfo, nullptr, buffer);
+		VkResult result = vkCreateBuffer(mainDevice.logicalDevice, &bufferInfo, nullptr, buffer);
 		if (result != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create a Vertex Buffer!");
@@ -57,27 +57,27 @@ namespace fre
 
 		//Get buffer memory requirements
 		VkMemoryRequirements memRequirements;
-		vkGetBufferMemoryRequirements(device, *buffer, &memRequirements);
+		vkGetBufferMemoryRequirements(mainDevice.logicalDevice, *buffer, &memRequirements);
 
 		//ALLOCATE MEMORY TO BUFFER
 		VkMemoryAllocateInfo memoryAllocInfo = {};
 		memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		memoryAllocInfo.allocationSize = memRequirements.size;
 		//index of memory type on Physical Device that has required bit flags
-		memoryAllocInfo.memoryTypeIndex = findMemoryTypeIndex(physicalDevice, memRequirements.memoryTypeBits,
+		memoryAllocInfo.memoryTypeIndex = findMemoryTypeIndex(mainDevice.physicalDevice, memRequirements.memoryTypeBits,
 			bufferProperties);
 		//VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT - CPU can interact with memory
 		//VK_MEMORY_PROPERTY_HOST_COHERENT_BIT - Allows placement of data straight into buffer after mapping (otherwise would have to specify manually)
 
 		//Allocate memory to VkDeviceMemory
-		result = vkAllocateMemory(device, &memoryAllocInfo, nullptr, bufferMemory);
+		result = vkAllocateMemory(mainDevice.logicalDevice, &memoryAllocInfo, nullptr, bufferMemory);
 		if (result != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to allocate Vertex Buffer Memory!");
 		}
 
 		//Allocate memory for given vertex buffer
-		vkBindBufferMemory(device, *buffer, *bufferMemory, 0);
+		vkBindBufferMemory(mainDevice.logicalDevice, *buffer, *bufferMemory, 0);
 	}
 
     VkCommandBuffer beginCommandBuffer(VkDevice device, VkCommandPool commandPool)

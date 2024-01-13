@@ -1,4 +1,5 @@
 #include "MeshModel.hpp"
+#include "Utilities.hpp"
 
 namespace fre
 {
@@ -33,11 +34,11 @@ namespace fre
 		modelMatrix = newModelMatrix;
 	}
 
-	void MeshModel::destroyMeshModel()
+	void MeshModel::destroyMeshModel(VkDevice logicalDevice)
 	{
 		for (auto& mesh : meshList)
 		{
-			mesh.destroyBuffers();
+			mesh.destroyBuffers(logicalDevice);
 		}
 	}
 
@@ -69,29 +70,31 @@ namespace fre
 		return textureList;
 	}
 
-	std::vector<Mesh> MeshModel::loadNode(VkPhysicalDevice newPhysicalDevice, VkDevice newDevice, VkQueue transferQueue, VkCommandPool transferCommandPool,
-		aiNode* node, const aiScene* scene, std::vector<int> matToTex)
+	std::vector<Mesh> MeshModel::loadNode(
+		const MainDevice& mainDevice, VkQueue transferQueue,
+		VkCommandPool transferCommandPool, aiNode* node,
+		const aiScene* scene, std::vector<int> matToTex)
 	{
 		std::vector<Mesh> meshList;
 
 		for (size_t i = 0; i < node->mNumMeshes; i++)
 		{
 			meshList.push_back(
-				loadMesh(newPhysicalDevice, newDevice, transferQueue, transferCommandPool, scene->mMeshes[node->mMeshes[i]], scene, matToTex)
+				loadMesh(mainDevice, transferQueue, transferCommandPool, scene->mMeshes[node->mMeshes[i]], scene, matToTex)
 			);
 		}
 
 		//Go through each node attached to this node and load it, then append their meshes to this node's mesh lest
 		for (size_t i = 0; i < node->mNumChildren; i++)
 		{
-			std::vector<Mesh> newList = loadNode(newPhysicalDevice, newDevice, transferQueue, transferCommandPool, node->mChildren[i], scene, matToTex);
+			std::vector<Mesh> newList = loadNode(mainDevice, transferQueue, transferCommandPool, node->mChildren[i], scene, matToTex);
 			meshList.insert(meshList.end(), newList.begin(), newList.end());
 		}
 
 		return meshList;
 	}
 
-	Mesh MeshModel::loadMesh(VkPhysicalDevice newPhysicalDevice, VkDevice newDevice, VkQueue transferQueue, VkCommandPool transferCommandPool,
+	Mesh MeshModel::loadMesh(const MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool,
 		aiMesh * mesh, const aiScene* scene, std::vector<int> matToTex)
 	{
 		std::vector<Vertex> vertices;
@@ -128,7 +131,7 @@ namespace fre
 			}
 		}
 
-		Mesh newMesh = Mesh(newPhysicalDevice, newDevice, transferQueue, transferCommandPool, &vertices, &indices, matToTex[mesh->mMaterialIndex]);
+		Mesh newMesh = Mesh(mainDevice, transferQueue, transferCommandPool, &vertices, &indices, matToTex[mesh->mMaterialIndex]);
 
 		return newMesh;
 	}

@@ -7,22 +7,21 @@
 
 namespace fre
 {
-	struct ModelMatrix
-	{
-		glm::mat4 modelMatrix;
-	};
-
 	class Mesh
 	{
 	public:
 		Mesh();
-		Mesh(VkPhysicalDevice newPhysicalDevice, VkDevice newDevice, VkQueue transferQueue,
-			VkCommandPool transferCommandPool, std::vector<Vertex>* vertices, std::vector<uint32_t>* indices,
+		Mesh(
+			const MainDevice& mainDevice,
+			VkQueue transferQueue,
+			VkCommandPool transferCommandPool,
+			std::vector<Vertex>* vertices,
+			std::vector<uint32_t>* indices,
 			int newTexId);
 		~Mesh();
 
 		void setModelMatrix(glm::mat4 newModelMatrix);
-		ModelMatrix getModelMatrix();
+		glm::mat4 getModelMatrix();
 
 		int getTexId();
 
@@ -30,9 +29,9 @@ namespace fre
 		int getIndexCount();
 		VkBuffer getVertexBuffer();
 		VkBuffer getIndexBuffer();
-		void destroyBuffers();
+		void destroyBuffers(VkDevice logicalDevice);
 	private:
-		ModelMatrix model;
+		glm::mat4 modelMatrix;
 
 		int texId;
 
@@ -44,10 +43,7 @@ namespace fre
 		VkBuffer indexBuffer;
 		VkDeviceMemory indexBufferMemory;
 
-		VkPhysicalDevice physicalDevice;
-		VkDevice device;
-
-		void createVertexBuffer(VkQueue transferQueue, VkCommandPool transferCommandPool, std::vector<Vertex>* vertices);
-		void createIndexBuffer(VkQueue transferQueue, VkCommandPool transferCommandPool, std::vector<uint32_t>* indices);
+		void createVertexBuffer(const MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool, std::vector<Vertex>* vertices);
+		void createIndexBuffer(const MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool, std::vector<uint32_t>* indices);
 	};
 }
