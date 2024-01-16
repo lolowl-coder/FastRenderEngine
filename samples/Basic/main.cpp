@@ -33,7 +33,10 @@ protected:
             VK_TRUE,
             mRenderPass.mRenderPass,
             0,
-            {descriptorSetLayout, samplerSetLayout},
+            {
+                mUniformDescriptorSetLayout.mDescriptorSetLayout,
+                mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout
+            },
             {pushConstantRange});
 
         VulkanShader fogVertexShader;
@@ -50,7 +53,7 @@ protected:
             VK_FALSE,
             mRenderPass.mRenderPass,
             1,
-            {inputSetLayout},
+            {mInputDescriptorSetLayout.mDescriptorSetLayout},
             {});
 
         //2 sub passes each using 1 pipeline

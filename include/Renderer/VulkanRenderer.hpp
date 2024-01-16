@@ -6,6 +6,17 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "Renderer/VulkanCommandBuffer.hpp"
+#include "Renderer/VulkanDescriptorPool.hpp"
+#include "Renderer/VulkanDescriptorSet.hpp"
+#include "Renderer/VulkanDescriptorSetLayout.hpp"
+#include "Renderer/VulkanFrameBuffer.hpp"
+#include "Renderer/VulkanRenderPass.hpp"
+#include "Renderer/VulkanSwapchain.hpp"
+#include "Renderer/VulkanTextureManager.hpp"
+#include "Utilities.hpp"
+#include "MeshModel.hpp"
+
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -14,14 +25,6 @@
 #include <set>
 #include <iostream>
 #include <algorithm>
-
-#include "Renderer/VulkanRenderPass.hpp"
-#include "Renderer/VulkanCommandBuffer.hpp"
-#include "Renderer/VulkanFrameBuffer.hpp"
-#include "Renderer/VulkanSwapchain.hpp"
-#include "Utilities.hpp"
-#include "stb_image.h"
-#include "MeshModel.hpp"
 
 namespace fre
 {
@@ -56,11 +59,18 @@ namespace fre
 		VulkanRenderPass mRenderPass;
 
 		// - Descriptors
-		VkDescriptorSetLayout descriptorSetLayout;
-		VkDescriptorSetLayout samplerSetLayout;
-		VkDescriptorSetLayout inputSetLayout;
+		VulkanDescriptorSetLayout mUniformDescriptorSetLayout;
+		VulkanDescriptorSetLayout mInputDescriptorSetLayout;
 
-		// - inputs
+		VulkanDescriptorPool mUniformDescriptorPool;
+		VulkanDescriptorPool mInputDescriptorPool;
+
+		std::vector<VulkanDescriptorSet> mUniformDescriptorSets;
+		std::vector<VulkanDescriptorSet> mInputDescriptorSets;
+
+		VulkanTextureManager mTextureManager;
+
+		// - Push constants
 		VkPushConstantRange pushConstantRange;
 
 		// - Dynamic data update functions
@@ -93,15 +103,6 @@ namespace fre
 		VkSurfaceKHR surface;
 		std::vector<VulkanCommandBuffer> mCommandBuffers;
 
-		VkSampler textureSampler;
-
-		VkDescriptorPool descriptorPool;
-		VkDescriptorPool samplerDescriptorPool;
-		VkDescriptorPool inputDescriptorPool;
-		std::vector<VkDescriptorSet> descriptorSets;
-		std::vector<VkDescriptorSet> samplerDescriptorSets;
-		std::vector<VkDescriptorSet> inputDescriptorSets;
-
 		std::vector<VkBuffer> vpUniformBuffer;
 		std::vector<VkDeviceMemory> vpUniformBufferMemory;
 
@@ -114,10 +115,6 @@ namespace fre
 
 		// - Assets
 		std::vector<MeshModel> modelList;
-
-		std::vector<VkImage> textureImages;
-		std::vector<VkDeviceMemory> textureImageMemory;
-		std::vector<VkImageView> textureImageViews;
 
 		VulkanSwapChain mSwapChain;
 		std::vector<VulkanFrameBuffer> mFrameBuffers;
@@ -139,17 +136,17 @@ namespace fre
 		void createLogicalDevice();
 		void createSwapChainFrameBuffers();
 		void createSurface();
-		void createDescriptorSetLayout();
+		void createUniformDescriptorPool();
+		void createInputDescriptorPool();
+		void createUniformDescriptorSetLayout();
 		void createInputDescriptorSetLayout();
 		void createPushConstantRange();
 		void createCommandPool();
 		void createCommandBuffers();
 
 		void createUniformBuffers();
-		void createDescriptorPool();
-		void createInputDescriptorPool();
-		void createDescriptorSets();
-		void createInputDescriptorSets();
+		void allocateUniformDescriptorSets();
+		void allocateInputDescriptorSets();
 
 		void updateUniformBuffers(uint32_t imageIndex);
 
@@ -186,13 +183,5 @@ namespace fre
 		void createRenderFinishedSemaphores();
 		void createDrawFences();
 		void createSynchronisation();
-		void createTextureSampler();
-
-		int createTextureImage(std::string fileName);
-		int createTexture(std::string fileName);
-		int createTextureDescriptor(VkImageView textureImage);
-
-		// -- Loader functions --
-		stbi_uc* loatTextureFile(std::string fileName, int* width, int* height, VkDeviceSize* imageSize);
 	};
 }
