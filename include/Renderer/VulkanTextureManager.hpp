@@ -27,13 +27,15 @@ namespace fre
     private:
         void createTextureSampler(VkDevice logicalDevice);
 
-    public:
+    private:
 		VulkanDescriptorPool mSamplerDescriptorPool;
-		VulkanDescriptorSetLayout mSamplerDescriptorSetLayout;
-		std::vector<VulkanDescriptorSet> mSamplerDescriptorSets;
 		VkSampler mTextureSampler;
 		std::vector<VkImage> mTextureImages;
 		std::vector<VkDeviceMemory> mTextureImageMemory;
 		std::vector<VkImageView> mTextureImageViews;
+
+    public:
+		VulkanDescriptorSetLayout mSamplerDescriptorSetLayout;
+		std::vector<VulkanDescriptorSet> mSamplerDescriptorSets;
     };
 }

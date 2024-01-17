@@ -591,7 +591,7 @@ namespace fre
 	{
 		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
 
-		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.mPipeline);
+		bindPipeline(imageIndex, pipeline);
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.mPipelineLayout,
 			0, 1, &mInputDescriptorSets[imageIndex].mDescriptorSet, 0, nullptr);
 		vkCmdDraw(commandBuffer, 3, 1, 0, 0);

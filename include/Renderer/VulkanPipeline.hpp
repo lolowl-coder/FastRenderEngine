@@ -27,8 +27,5 @@ namespace fre
 
         VkPipeline mPipeline = VK_NULL_HANDLE;
         VkPipelineLayout mPipelineLayout = VK_NULL_HANDLE;
-    private:
-
-        std::vector<VulkanShader> mShaders; 
     };
 }

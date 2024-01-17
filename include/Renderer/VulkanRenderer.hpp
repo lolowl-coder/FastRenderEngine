@@ -46,7 +46,6 @@ namespace fre
 
 		void setFramebufferResized(bool resized);
 
-
 	protected:
 		virtual void createGraphicsPipelines();
 

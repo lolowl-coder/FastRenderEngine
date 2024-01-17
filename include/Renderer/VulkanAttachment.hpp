@@ -19,9 +19,9 @@ namespace fre
         void create(const MainDevice& mainDevice, EAttachmentKind attachmentKind, VkExtent2D swapChainExtent);
         void destroy(VkDevice logicalDevice);
 
-        VkImage mImage = VK_NULL_HANDLE;
         VkImageView mImageView = VK_NULL_HANDLE;
     private:
+        VkImage mImage = VK_NULL_HANDLE;
         VkDeviceMemory mImageMemory = VK_NULL_HANDLE;
     };
 }

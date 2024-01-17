@@ -18,8 +18,6 @@ namespace fre
 		std::vector<VkDescriptorSetLayout> descriptorSetLayouts,
 		std::vector<VkPushConstantRange> pushConstantRanges)
     {
-        mShaders = shaders;
-
         //Put shader stage creation info in to container
 		//Graphics Pipeline creation info requires array of shader stage creates
         std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
