@@ -155,8 +155,8 @@ namespace fre
         VkExtent2D swapChainExtent, VkCommandBuffer commandBuffer)
     {
         std::array<VkClearValue, 3> clearValues = {};
-		clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
-		clearValues[1].color = { 0.6f, 0.65f, 0.4f, 1.0f };
+		clearValues[0].color = { 0.77f, 0.85f, 0.88f, 1.0f };
+		clearValues[1].color = { 0.77f, 0.85f, 0.88f, 0.0f };
 		clearValues[2].depthStencil.depth = 1.0f;
 
 		//Information about how to begin render pass (only need for graphical applications)
