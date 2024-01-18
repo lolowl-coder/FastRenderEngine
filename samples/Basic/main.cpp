@@ -54,7 +54,7 @@ protected:
             mRenderPass.mRenderPass,
             1,
             {mInputDescriptorSetLayout.mDescriptorSetLayout},
-            {});
+            {pushConstantRangeNearFar});
 
         //2 sub passes each using 1 pipeline
         mSubPassesCount = 2;
@@ -66,6 +66,20 @@ protected:
         mFogPipeline.destroy(logicalDevice);
     }
 
+    virtual void onRenderModel(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout,
+			const MeshModel& meshModel) override
+    {
+        const glm::mat4& modelMatrix = meshModel.getModelMatrix();
+		//"Push" constants to given hader stage directly (no buffer)
+		vkCmdPushConstants(
+			commandBuffer,
+			pipelineLayout,
+			VK_SHADER_STAGE_VERTEX_BIT,
+			0,
+			sizeof(glm::mat4),	//Size of data being pushed
+			&modelMatrix);	//Actual data being pushed (can be array)
+    }
+
     virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex) override
     {
         setViewport(imageIndex);
@@ -75,14 +89,22 @@ protected:
         {
         case 0:
             {
-                bindPipeline(imageIndex, mTexturedPipeline);
-                renderScene(imageIndex, mTexturedPipeline);
+                bindPipeline(imageIndex, mTexturedPipeline.mPipeline);
+                renderScene(imageIndex, mTexturedPipeline.mPipelineLayout);
             }
             break;
         case 1:
             {
-                bindPipeline(imageIndex, mFogPipeline);
-                renderTexturedRect(imageIndex, mFogPipeline);
+                bindPipeline(imageIndex, mFogPipeline.mPipeline);
+                glm::vec2 nearFar(mNear, mFar);
+                vkCmdPushConstants(
+                    mCommandBuffers[imageIndex].mCommandBuffer,
+                    mFogPipeline.mPipelineLayout,
+                    VK_SHADER_STAGE_FRAGMENT_BIT,
+                    0,
+                    sizeof(glm::vec2),
+                    &nearFar);
+                renderTexturedRect(imageIndex, mFogPipeline.mPipelineLayout);
             }
             break;
         }

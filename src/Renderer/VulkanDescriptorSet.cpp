@@ -30,7 +30,8 @@ namespace fre
 		}
     }
 
-    void VulkanDescriptorSet::update(VkDevice logicalDevice, const std::vector<VkImageView>& imageViews,
+    void VulkanDescriptorSet::update(VkDevice logicalDevice,
+        const std::vector<VkImageView>& imageViews,
         VkDescriptorType descriptorType,
         VkSampler sampler)
     {

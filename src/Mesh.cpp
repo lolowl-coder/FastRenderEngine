@@ -32,32 +32,32 @@ namespace fre
 		modelMatrix = newModelMatrix;
 	}
 
-	glm::mat4 Mesh::getModelMatrix()
+	const glm::mat4& Mesh::getModelMatrix() const
 	{
 		return modelMatrix;
 	}
 
-	int Mesh::getTexId()
+	int Mesh::getTexId() const
 	{
 		return texId;
 	}
 
-	int Mesh::getVertexCount()
+	int Mesh::getVertexCount() const
 	{
 		return vertexCount;
 	}
 
-	int Mesh::getIndexCount()
+	int Mesh::getIndexCount() const
 	{
 		return indexCount;
 	}
 
-	VkBuffer Mesh::getIndexBuffer()
+	VkBuffer Mesh::getIndexBuffer() const
 	{
 		return indexBuffer;
 	}
 
-	VkBuffer Mesh::getVertexBuffer()
+	VkBuffer Mesh::getVertexBuffer() const
 	{
 		return vertexBuffer;
 	}

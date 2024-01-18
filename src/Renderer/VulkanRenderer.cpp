@@ -425,6 +425,11 @@ namespace fre
 		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;	//Shader stage push constant will go to
 		pushConstantRange.offset = 0;
 		pushConstantRange.size = sizeof(glm::mat4);
+
+		//Define push constant value (no "create" need!)
+		pushConstantRangeNearFar.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;	//Shader stage push constant will go to
+		pushConstantRangeNearFar.offset = 0;
+		pushConstantRangeNearFar.size = sizeof(glm::vec2);
 	}
 
 	void VulkanRenderer::createGraphicsPipelines()
@@ -545,21 +550,20 @@ namespace fre
 		vkUnmapMemory(mainDevice.logicalDevice, modelDUniformBufferMemory[imageIndex]);*/
 	}
 
-	void VulkanRenderer::renderScene(uint32_t imageIndex, const VulkanPipeline& pipeline)
+	void VulkanRenderer::onRenderModel(VkCommandBuffer commandBuffer,
+		VkPipelineLayout pipelineLayout, const MeshModel& meshModel)
+	{
+		
+	}
+
+	void VulkanRenderer::renderScene(uint32_t imageIndex, VkPipelineLayout pipelineLayout)
 	{
 		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
 		for (size_t j = 0; j < modelList.size(); j++)
 		{
-			MeshModel thisModel = modelList[j];
-			const auto& modelMatrix = thisModel.getModelMatrix();
-			//"Push" constants to given hader stage directly (no buffer)
-			vkCmdPushConstants(
-				commandBuffer,
-				pipeline.mPipelineLayout,
-				VK_SHADER_STAGE_VERTEX_BIT,
-				0,
-				sizeof(glm::mat4),	//Size of data being pushed
-				&modelMatrix);	//Actual data being pushed (can be array)
+			const MeshModel& thisModel = modelList[j];
+			
+			onRenderModel(commandBuffer, pipelineLayout, thisModel);
 
 			for (size_t k = 0; k < thisModel.getMeshCount(); k++)
 			{
@@ -579,7 +583,7 @@ namespace fre
 					};
 
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-					pipeline.mPipelineLayout, 0, static_cast<uint32_t>(descriptorSetGroup.size()),
+					pipelineLayout, 0, static_cast<uint32_t>(descriptorSetGroup.size()),
 					descriptorSetGroup.data(), 0, nullptr);
 
 				vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(thisModel.getMesh(k)->getIndexCount()), 1, 0, 0, 0);
@@ -587,12 +591,11 @@ namespace fre
 		}
 	}
 
-	void VulkanRenderer::renderTexturedRect(uint32_t imageIndex, VulkanPipeline& pipeline)
+	void VulkanRenderer::renderTexturedRect(uint32_t imageIndex, VkPipelineLayout pipelineLayout)
 	{
 		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
 
-		bindPipeline(imageIndex, pipeline);
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.mPipelineLayout,
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
 			0, 1, &mInputDescriptorSets[imageIndex].mDescriptorSet, 0, nullptr);
 		vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 	}
@@ -602,12 +605,12 @@ namespace fre
 		
 	}
 
-	void VulkanRenderer::bindPipeline(uint32_t imageIndex, const VulkanPipeline& pipeline)
+	void VulkanRenderer::bindPipeline(uint32_t imageIndex, VkPipeline pipeline)
 	{
 		vkCmdBindPipeline(
 				mCommandBuffers[imageIndex].mCommandBuffer,
 				VK_PIPELINE_BIND_POINT_GRAPHICS,
-				pipeline.mPipeline);
+				pipeline);
 	}
 
 	void VulkanRenderer::recordCommands(uint32_t imageIndex)
@@ -898,7 +901,7 @@ namespace fre
 		uboViewProjection.projection = glm::perspective(
 			glm::radians(45.0f),
 			(float)mSwapChain.mSwapChainExtent.width / (float)mSwapChain.mSwapChainExtent.height,
-			0.1f, 100.0f);
+			mNear, mFar);
 		//In Vulkan Up direction points down
 		uboViewProjection.projection[1][1] *= -1.0f;
 	}

@@ -9,12 +9,12 @@ namespace fre
 		modelMatrix = glm::mat4(1.0f);
 	}
 
-	size_t MeshModel::getMeshCount()
+	size_t MeshModel::getMeshCount() const
 	{
 		return meshList.size();
 	}
 
-	Mesh* MeshModel::getMesh(size_t index)
+	const Mesh* MeshModel::getMesh(size_t index) const
 	{
 		if (index >= meshList.size())
 		{
@@ -24,7 +24,7 @@ namespace fre
 		return &meshList[index];
 	}
 
-	glm::mat4 MeshModel::getModelMatrix()
+	const glm::mat4& MeshModel::getModelMatrix() const
 	{
 		return modelMatrix;
 	}

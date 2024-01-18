@@ -21,14 +21,14 @@ namespace fre
 		~Mesh();
 
 		void setModelMatrix(glm::mat4 newModelMatrix);
-		glm::mat4 getModelMatrix();
+		const glm::mat4& getModelMatrix() const;
 
-		int getTexId();
+		int getTexId() const;
 
-		int getVertexCount();
-		int getIndexCount();
-		VkBuffer getVertexBuffer();
-		VkBuffer getIndexBuffer();
+		int getVertexCount() const;
+		int getIndexCount() const;
+		VkBuffer getVertexBuffer() const;
+		VkBuffer getIndexBuffer() const;
 		void destroyBuffers(VkDevice logicalDevice);
 	private:
 		glm::mat4 modelMatrix;

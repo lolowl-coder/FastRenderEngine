@@ -16,9 +16,9 @@ namespace fre
 		MeshModel();
 		MeshModel(std::vector<Mesh> newMeshList);
 
-		size_t getMeshCount();
-		Mesh* getMesh(size_t index);
-		glm::mat4 getModelMatrix();
+		size_t getMeshCount() const;
+		const Mesh* getMesh(size_t index) const;
+		const glm::mat4& getModelMatrix() const;
 		void setModelMatrix(const glm::mat4& newModelMatrix);
 
 		void destroyMeshModel(VkDevice logicalDevice);

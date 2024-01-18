@@ -57,6 +57,8 @@ namespace fre
 
 		VulkanRenderPass mRenderPass;
 
+		std::vector<VulkanCommandBuffer> mCommandBuffers;
+
 		// - Descriptors
 		VulkanDescriptorSetLayout mUniformDescriptorSetLayout;
 		VulkanDescriptorSetLayout mInputDescriptorSetLayout;
@@ -71,15 +73,21 @@ namespace fre
 
 		// - Push constants
 		VkPushConstantRange pushConstantRange;
+		VkPushConstantRange pushConstantRangeNearFar;
+
+		float mNear = 0.1f;
+		float mFar = 100.0f;
 
 		// - Dynamic data update functions
 		void setViewport(uint32_t imageIndex);
 		void setScissor(uint32_t imageIndex);
 
 		// - Render
-		void bindPipeline(uint32_t imageIndex, const VulkanPipeline& pipeline);
-		void renderScene(uint32_t imageIndex, const VulkanPipeline& pipeline);
-		void renderTexturedRect(uint32_t imageIndex, VulkanPipeline& pipeline);
+		void bindPipeline(uint32_t imageIndex, VkPipeline pipeline);
+		virtual void onRenderModel(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout,
+			const MeshModel& meshModel);
+		void renderScene(uint32_t imageIndex, VkPipelineLayout pipelineLayout);
+		void renderTexturedRect(uint32_t imageIndex, VkPipelineLayout pipelineLayout);
 		virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex);
 
 	private:
@@ -100,15 +108,14 @@ namespace fre
 		VkQueue graphicsQueue;
 		VkQueue presentationQueue;
 		VkSurfaceKHR surface;
-		std::vector<VulkanCommandBuffer> mCommandBuffers;
 
 		std::vector<VkBuffer> vpUniformBuffer;
 		std::vector<VkDeviceMemory> vpUniformBufferMemory;
 
-		std::vector<VkBuffer> modelDUniformBuffer;
+		/*std::vector<VkBuffer> modelDUniformBuffer;
 		std::vector<VkDeviceMemory> modelDUniformBufferMemory;
 
-		/*VkDeviceSize minUniformBufferOffset;
+		VkDeviceSize minUniformBufferOffset;
 		size_t modelUniformAlignment;
 		ModelMatrix* modetTransferSpace;*/
 
