@@ -4,6 +4,7 @@ set(LIBRARY_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Mesh.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/MeshModel.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Utilities.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/Camera.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanAttachment.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanCommandBuffer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanDescriptorPool.cpp"
@@ -19,12 +20,14 @@ set(LIBRARY_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanTextureManager.cpp")
 set(LIBRARY_HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Engine.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Material.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Mesh.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/MeshModel.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Utilities.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Hash/Hash.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Macros/Class.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Macros/Member.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/Camera.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanAttachment.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanCommandBuffer.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanDescriptorPool.hpp"

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Mesh.hpp"
+#include "Material.hpp"
 
 #include <glm/glm.hpp>
 #include <assimp/scene.h>
@@ -23,14 +24,15 @@ namespace fre
 
 		void destroyMeshModel(VkDevice logicalDevice);
 
-		static std::vector<std::string> loadMaterials(const aiScene* scene);
-		static std::vector<Mesh> loadNode(const MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool,
-			aiNode* node, const aiScene* scene, std::vector<int> matToTex);
-		static Mesh loadMesh(const MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool,
-			aiMesh * mesh, const aiScene* scene, std::vector<int> matToTex);
+		static std::vector<std::vector<std::string>> loadMaterials(const aiScene* scene);
+		static std::vector<Mesh> loadNode(const MainDevice& mainDevice, VkQueue transferQueue,
+			VkCommandPool transferCommandPool, aiNode* node, const aiScene* scene);
+		static Mesh loadMesh(const MainDevice& mainDevice, VkQueue transferQueue,
+			VkCommandPool transferCommandPool, aiMesh * mesh, const aiScene* scene);
 
 		~MeshModel();
 	private:
+		std::vector<Material> mMaterials;
 		std::vector<Mesh> meshList;
 		glm::mat4 modelMatrix;
 	};

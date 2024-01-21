@@ -1,6 +1,8 @@
 #include "MeshModel.hpp"
 #include "Utilities.hpp"
 
+#include <set>
+
 namespace fre
 {
 	MeshModel::MeshModel(std::vector<Mesh> newMeshList)
@@ -42,60 +44,69 @@ namespace fre
 		}
 	}
 
-	std::vector<std::string> MeshModel::loadMaterials(const aiScene* scene)
+	std::vector<std::vector<std::string>> MeshModel::loadMaterials(const aiScene* scene)
 	{
-		std::vector<std::string> textureList(scene->mNumMaterials);
-
-		for (size_t i = 0; i < scene->mNumMaterials; i++)
+		std::vector<std::vector<std::string>> result(scene->mNumMaterials);
+		std::set<std::string> unifqueTextureFilePaths;
+		for (size_t m = 0; m < scene->mNumMaterials; m++)
 		{
-			aiMaterial* material = scene->mMaterials[i];
+			aiMaterial* material = scene->mMaterials[m];
+			std::vector<std::string> textureFilePaths;
 
-			textureList[i] = "";
 			//Check for diffuse texture
-			if (material->GetTextureCount(aiTextureType_DIFFUSE))
+			//uint32_t texturesCount = material->GetTextureCount(aiTextureType_DIFFUSE);
+			for(uint32_t i = 1; i < aiTextureType_UNKNOWN; i++)
 			{
 				//Get texture file path
 				aiString path;
-				if (material->GetTexture(aiTextureType_DIFFUSE, 0, &path) == AI_SUCCESS)
+				if (material->GetTexture(static_cast<aiTextureType>(i), 0, &path) == AI_SUCCESS)
 				{
 					//get file name
-					int idx = std::string(path.data).rfind("\\");
+					auto idx = std::string(path.data).rfind("\\");
+					if(idx == -1)
+					{
+						idx = std::string(path.data).rfind("/");
+					}
 					std::string fileName = std::string(path.data).substr(idx + 1);
 
-					textureList[i] = fileName;
+					textureFilePaths.push_back(fileName);
 				}
 			}
+			result[m] = textureFilePaths;
 		}
 
-		return textureList;
+		return result;
 	}
 
 	std::vector<Mesh> MeshModel::loadNode(
 		const MainDevice& mainDevice, VkQueue transferQueue,
 		VkCommandPool transferCommandPool, aiNode* node,
-		const aiScene* scene, std::vector<int> matToTex)
+		const aiScene* scene)
 	{
 		std::vector<Mesh> meshList;
 
 		for (size_t i = 0; i < node->mNumMeshes; i++)
 		{
 			meshList.push_back(
-				loadMesh(mainDevice, transferQueue, transferCommandPool, scene->mMeshes[node->mMeshes[i]], scene, matToTex)
+				loadMesh(mainDevice, transferQueue, transferCommandPool,
+					scene->mMeshes[node->mMeshes[i]], scene)
 			);
 		}
 
-		//Go through each node attached to this node and load it, then append their meshes to this node's mesh lest
+		//Go through each node attached to this node and load it,
+		//then append their meshes to this node's mesh list
 		for (size_t i = 0; i < node->mNumChildren; i++)
 		{
-			std::vector<Mesh> newList = loadNode(mainDevice, transferQueue, transferCommandPool, node->mChildren[i], scene, matToTex);
+			std::vector<Mesh> newList = loadNode(mainDevice, transferQueue, transferCommandPool,
+				node->mChildren[i], scene);
 			meshList.insert(meshList.end(), newList.begin(), newList.end());
 		}
 
 		return meshList;
 	}
 
-	Mesh MeshModel::loadMesh(const MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool,
-		aiMesh * mesh, const aiScene* scene, std::vector<int> matToTex)
+	Mesh MeshModel::loadMesh(const MainDevice& mainDevice, VkQueue transferQueue,
+		VkCommandPool transferCommandPool, aiMesh * mesh, const aiScene* scene)
 	{
 		std::vector<Vertex> vertices;
 		std::vector<uint32_t> indices;
@@ -131,7 +142,8 @@ namespace fre
 			}
 		}
 
-		Mesh newMesh = Mesh(mainDevice, transferQueue, transferCommandPool, &vertices, &indices, matToTex[mesh->mMaterialIndex]);
+		Mesh newMesh = Mesh(mainDevice, transferQueue, transferCommandPool, &vertices,
+			&indices, mesh->mMaterialIndex);
 
 		return newMesh;
 	}

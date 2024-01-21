@@ -52,8 +52,7 @@ namespace fre
 			createCommandBuffers();
 			createSynchronisation();
 
-			updateProjectionMatrix();
-			uboViewProjection.view = glm::lookAt(glm::vec3(30.0f, 30.0f, 0.0f), glm::vec3(0.0f, 5.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+			createCamera();
 		}
 		catch (std::runtime_error& e)
 		{
@@ -71,9 +70,9 @@ namespace fre
 
 		//_aligned_free(modetTransferSpace);
 
-		for (size_t i = 0; i < modelList.size(); i++)
+		for (size_t i = 0; i < mMeshModels.size(); i++)
 		{
-			modelList[i].destroyMeshModel(mainDevice.logicalDevice);
+			mMeshModels[i].destroyMeshModel(mainDevice.logicalDevice);
 		}
 
 		cleanupInputDescriptorPool();
@@ -111,9 +110,9 @@ namespace fre
 
 	void VulkanRenderer::updateModel(int modelId, glm::mat4 newModelMatrix)
 	{
-		if (modelId < modelList.size())
+		if (modelId < mMeshModels.size())
 		{
-			modelList[modelId].setModelMatrix(newModelMatrix);
+			mMeshModels[modelId].setModelMatrix(newModelMatrix);
 		}
 	}
 
@@ -534,8 +533,11 @@ namespace fre
 	{
 		//Copy VP data
 		void* data;
+		UboViewProjection vp;
+		vp.view = mCamera.mView;
+		vp.projection = mCamera.mProjection;
 		vkMapMemory(mainDevice.logicalDevice, vpUniformBufferMemory[imageIndex], 0, sizeof(UboViewProjection), 0, &data);
-		memcpy(data, &uboViewProjection, sizeof(UboViewProjection));
+		memcpy(data, &vp, sizeof(UboViewProjection));
 		vkUnmapMemory(mainDevice.logicalDevice, vpUniformBufferMemory[imageIndex]);
 
 		//Copy ModelMatrix data
@@ -559,9 +561,9 @@ namespace fre
 	void VulkanRenderer::renderScene(uint32_t imageIndex, VkPipelineLayout pipelineLayout)
 	{
 		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
-		for (size_t j = 0; j < modelList.size(); j++)
+		for (size_t j = 0; j < mMeshModels.size(); j++)
 		{
-			const MeshModel& thisModel = modelList[j];
+			const MeshModel& thisModel = mMeshModels[j];
 			
 			onRenderModel(commandBuffer, pipelineLayout, thisModel);
 
@@ -576,10 +578,11 @@ namespace fre
 				//Dynamic offset amount
 				//uint32_t dynamicOffset = static_cast<uint32_t>(modelUniformAlignment) * j;
 
+				auto textureId = mMaterials[thisModel.getMesh(k)->getMaterialId()].mTextureIds[0];
 				std::array<VkDescriptorSet, 2> descriptorSetGroup =
 					{
 						mUniformDescriptorSets[imageIndex].mDescriptorSet,
-						mTextureManager.mSamplerDescriptorSets[thisModel.getMesh(k)->getTexId()].mDescriptorSet
+						mTextureManager.mSamplerDescriptorSets[textureId].mDescriptorSet
 					};
 
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -699,7 +702,7 @@ namespace fre
 
 		createSwapchainImagesSemaphores();
 
-		updateProjectionMatrix();
+		createCamera();
 	}
 
 	bool VulkanRenderer::checkInstanceExtentionsSupport(std::vector<const char*>* checkExtentions)
@@ -837,6 +840,14 @@ namespace fre
 		}
 	}
 
+	void VulkanRenderer::createCamera()
+	{
+		float aspectRatio = (float)mSwapChain.mSwapChainExtent.width /
+			(float)mSwapChain.mSwapChainExtent.height;
+		mCamera.setPerspectiveProjection(45.0f, aspectRatio, 0.1f, 100.0f);
+		mCamera.set(glm::vec3(30.0f, 30.0f, 0.0f), glm::vec3(0.0f, 5.0f, 0.0f));
+	}
+
 	void VulkanRenderer::createRenderFinishedSemaphores()
 	{
 		renderFinished.resize(MAX_FRAME_DRAWS);
@@ -896,16 +907,6 @@ namespace fre
 		vkCmdSetScissor(mCommandBuffers[imageIndex].mCommandBuffer, 0, 1, &scissor);
     }
 
-	void VulkanRenderer::updateProjectionMatrix()
-	{
-		uboViewProjection.projection = glm::perspective(
-			glm::radians(45.0f),
-			(float)mSwapChain.mSwapChainExtent.width / (float)mSwapChain.mSwapChainExtent.height,
-			mNear, mFar);
-		//In Vulkan Up direction points down
-		uboViewProjection.projection[1][1] *= -1.0f;
-	}
-
 	int VulkanRenderer::createMeshModel(std::string modelFile)
 	{
 		//Import model scene
@@ -916,34 +917,50 @@ namespace fre
 			throw::std::runtime_error("Failed to load model! (" + modelFile + ")");
 		}
 
-		//Get vector of all materials with 1:1 ID placement
-		std::vector<std::string> textureNames = MeshModel::loadMaterials(scene);
-
-		//Convertion from material IDs to our Descriptor Array IDs
-		std::vector<int> matToTex(textureNames.size());
-
-		//Loop over textureNames and create textures for them
-		for (size_t i = 0; i < textureNames.size(); i++)
+		std::vector<std::vector<std::string>> materials = MeshModel::loadMaterials(scene);
+		//To prevent texture duplicates
+		//1. create unique list of texture file paths
+		std::set<std::string> uniqueTextureFilePathsTmp;
+		for(auto& material : materials)
 		{
-			if (textureNames[i].empty())
+			for(auto& textureFilePath : material)
 			{
-				//Map to default texture
-				matToTex[i] = 0;
-			}
-			else
-			{
-				matToTex[i] = mTextureManager.createTexture(mainDevice, graphicsQueue,
-					graphicsCommandPool, textureNames[i]);
+				uniqueTextureFilePathsTmp.insert(textureFilePath);
 			}
 		}
+		std::vector<std::string> uniqueTextureFilePaths(
+			uniqueTextureFilePathsTmp.begin(), uniqueTextureFilePathsTmp.end());
 
+		//2. load all unique textures
+		for(auto& textureFilePath : uniqueTextureFilePaths)
+		{
+			mTextureManager.createTexture(mainDevice, graphicsQueue,
+				graphicsCommandPool, textureFilePath);
+		}
+		//3. create materials that refer unique textures
+		for(auto& material : materials)
+		{
+			mMaterials.push_back(Material());
+			for(auto& textureFilePath : material)
+			{
+				//find index of texture inside unique list
+				auto found = std::find(
+					uniqueTextureFilePaths.begin(),
+					uniqueTextureFilePaths.end(),
+					textureFilePath);
+				auto textureIndex = found - uniqueTextureFilePaths.begin();
+				mMaterials.back().mTextureIds.push_back(static_cast<uint32_t>(textureIndex));
+			}
+		}
+ 
 		//Load all meshes
-		std::vector<Mesh> modelMeshes = MeshModel::loadNode(mainDevice, graphicsQueue, graphicsCommandPool,
-			scene->mRootNode, scene, matToTex);
+		std::vector<Mesh> modelMeshes = MeshModel::loadNode(
+			mainDevice, graphicsQueue, graphicsCommandPool,
+			scene->mRootNode, scene);
 
 		MeshModel meshModel = MeshModel(modelMeshes);
-		modelList.push_back(meshModel);
+		mMeshModels.push_back(meshModel);
 
-		return modelList.size() - 1;
+		return mMeshModels.size() - 1;
 	}
 }

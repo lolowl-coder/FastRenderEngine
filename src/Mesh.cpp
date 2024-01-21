@@ -12,7 +12,7 @@ namespace fre
 		VkCommandPool transferCommandPool,
 		std::vector<Vertex>* vertices,
 		std::vector<uint32_t>* indices,
-		int newTexId)
+		uint32_t newMaterialId)
 	{
 		indexCount = indices->size();
 		vertexCount = vertices->size();
@@ -20,7 +20,7 @@ namespace fre
 		createIndexBuffer(mainDevice, transferQueue, transferCommandPool, indices);
 
 		modelMatrix = glm::mat4(1.0f);
-		texId = newTexId;
+		mMaterialId = newMaterialId;
 	}
 
 	Mesh::~Mesh()
@@ -37,9 +37,9 @@ namespace fre
 		return modelMatrix;
 	}
 
-	int Mesh::getTexId() const
+	int Mesh::getMaterialId() const
 	{
-		return texId;
+		return mMaterialId;
 	}
 
 	int Mesh::getVertexCount() const

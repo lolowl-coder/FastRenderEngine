@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "Renderer/Camera.hpp"
 #include "Renderer/VulkanCommandBuffer.hpp"
 #include "Renderer/VulkanDescriptorPool.hpp"
 #include "Renderer/VulkanDescriptorSet.hpp"
@@ -40,7 +41,7 @@ namespace fre
 		void destroy();
 
 		int createMeshModel(std::string modelFile);
-		void updateModel(int mdoelId, glm::mat4 newModelMatrix);
+		void updateModel(int modelId, glm::mat4 newModelMatrix);
 
 		void draw();
 
@@ -75,8 +76,7 @@ namespace fre
 		VkPushConstantRange pushConstantRange;
 		VkPushConstantRange pushConstantRangeNearFar;
 
-		float mNear = 0.1f;
-		float mFar = 100.0f;
+		Camera mCamera;
 
 		// - Dynamic data update functions
 		void setViewport(uint32_t imageIndex);
@@ -89,6 +89,7 @@ namespace fre
 		void renderScene(uint32_t imageIndex, VkPipelineLayout pipelineLayout);
 		void renderTexturedRect(uint32_t imageIndex, VkPipelineLayout pipelineLayout);
 		virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex);
+		virtual void createCamera();
 
 	private:
 		GLFWwindow* window;
@@ -100,7 +101,7 @@ namespace fre
 		{
 			glm::mat4 projection;
 			glm::mat4 view;
-		} uboViewProjection;
+		};
 
 		//Vulkan components
 		VkInstance instance;
@@ -120,7 +121,8 @@ namespace fre
 		ModelMatrix* modetTransferSpace;*/
 
 		// - Assets
-		std::vector<MeshModel> modelList;
+		std::vector<MeshModel> mMeshModels;
+		std::vector<Material> mMaterials;
 
 		VulkanSwapChain mSwapChain;
 		std::vector<VulkanFrameBuffer> mFrameBuffers;
@@ -149,7 +151,6 @@ namespace fre
 		void createPushConstantRange();
 		void createCommandPool();
 		void createCommandBuffers();
-
 		void createUniformBuffers();
 		void allocateUniformDescriptorSets();
 		void allocateInputDescriptorSets();
@@ -174,9 +175,6 @@ namespace fre
 
 		// - Recreate methods
 		void recreateSwapChain();
-
-		// - Dynamic data update functions
-		void updateProjectionMatrix();
 
 		// -support functions
 		// --Checker functions

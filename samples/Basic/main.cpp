@@ -60,6 +60,12 @@ protected:
         mSubPassesCount = 2;
     }
 
+    virtual void createCamera()
+    {
+        VulkanRenderer::createCamera();
+        mCamera.set(glm::vec3(30.0f, 30.0f, 0.0f), glm::vec3(0.0f, 5.0f, 0.0f));
+    }
+
     virtual void cleanupGraphicsPipelines(VkDevice logicalDevice) override
     {
         mTexturedPipeline.destroy(logicalDevice);
@@ -96,7 +102,7 @@ protected:
         case 1:
             {
                 bindPipeline(imageIndex, mFogPipeline.mPipeline);
-                glm::vec2 nearFar(mNear, mFar);
+                glm::vec2 nearFar(mCamera.mNear, mCamera.mFar);
                 vkCmdPushConstants(
                     mCommandBuffers[imageIndex].mCommandBuffer,
                     mFogPipeline.mPipelineLayout,
@@ -127,7 +133,7 @@ public:
     {
         bool result = Engine::create(wName, width, height);
 
-        mSceneId = mRenderer->createMeshModel("Models/sea.obj");
+        mSceneId = mRenderer->createMeshModel("Models/scene.gltf");
 
         return result && mSceneId != -1;
     }
@@ -147,10 +153,10 @@ public:
             angle -= 360.0f;
         }
 
-        glm::mat4 testMat = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
-        //testMat = glm::rotate(testMat, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        testMat = glm::scale(testMat, glm::vec3(0.09f, 0.1f, 0.09f));
-        mRenderer->updateModel(mSceneId, testMat);
+        glm::mat4 sceneLocalMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
+        //sceneLocalMatrix = glm::rotate(sceneLocalMatrix, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        sceneLocalMatrix = glm::scale(sceneLocalMatrix, glm::vec3(0.09f, 0.1f, 0.09f));
+        mRenderer->updateModel(mSceneId, sceneLocalMatrix);
     }
 
 private:
