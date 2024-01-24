@@ -578,16 +578,27 @@ namespace fre
 				//Dynamic offset amount
 				//uint32_t dynamicOffset = static_cast<uint32_t>(modelUniformAlignment) * j;
 
-				auto textureId = mMaterials[thisModel.getMesh(k)->getMaterialId()].mTextureIds[0];
+				//Bind all textures of material
+				std::vector<VkDescriptorSet> descriptorSets;
+				descriptorSets.push_back(mUniformDescriptorSets[imageIndex].mDescriptorSet);
+				const auto& material = mMaterials[thisModel.getMesh(k)->getMaterialId()];
+				for(const auto textureId : material.mTextureIds)
+				{
+					descriptorSets.push_back(
+						mTextureManager.mSamplerDescriptorSets[textureId.second].mDescriptorSet
+					);
+				}
+				/*const auto diffuseIt = material.mTextureIds.find(aiTextureType_DIFFUSE);
+				const auto textureId = diffuseIt != material.mTextureIds.end() ? diffuseIt->second : 0;
 				std::array<VkDescriptorSet, 2> descriptorSetGroup =
 					{
 						mUniformDescriptorSets[imageIndex].mDescriptorSet,
 						mTextureManager.mSamplerDescriptorSets[textureId].mDescriptorSet
-					};
+					};*/
 
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-					pipelineLayout, 0, static_cast<uint32_t>(descriptorSetGroup.size()),
-					descriptorSetGroup.data(), 0, nullptr);
+					pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()),
+					descriptorSets.data(), 0, nullptr);
 
 				vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(thisModel.getMesh(k)->getIndexCount()), 1, 0, 0, 0);
 			}
@@ -917,7 +928,9 @@ namespace fre
 			throw::std::runtime_error("Failed to load model! (" + modelFile + ")");
 		}
 
-		std::vector<std::vector<std::string>> materials = MeshModel::loadMaterials(scene);
+		std::vector<std::map<aiTextureType, std::string>> materials =
+			MeshModel::loadMaterials(scene, static_cast<aiTextureType>(
+				aiTextureType_DIFFUSE | aiTextureType_NORMALS));
 		//To prevent texture duplicates
 		//1. create unique list of texture file paths
 		std::set<std::string> uniqueTextureFilePathsTmp;
@@ -925,7 +938,7 @@ namespace fre
 		{
 			for(auto& textureFilePath : material)
 			{
-				uniqueTextureFilePathsTmp.insert(textureFilePath);
+				uniqueTextureFilePathsTmp.insert(textureFilePath.second);
 			}
 		}
 		std::vector<std::string> uniqueTextureFilePaths(
@@ -947,9 +960,9 @@ namespace fre
 				auto found = std::find(
 					uniqueTextureFilePaths.begin(),
 					uniqueTextureFilePaths.end(),
-					textureFilePath);
+					textureFilePath.second);
 				auto textureIndex = found - uniqueTextureFilePaths.begin();
-				mMaterials.back().mTextureIds.push_back(static_cast<uint32_t>(textureIndex));
+				mMaterials.back().mTextureIds[textureFilePath.first] = static_cast<uint32_t>(textureIndex);
 			}
 		}
  

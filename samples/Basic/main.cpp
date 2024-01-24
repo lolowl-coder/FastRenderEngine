@@ -35,6 +35,7 @@ protected:
             0,
             {
                 mUniformDescriptorSetLayout.mDescriptorSetLayout,
+                mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout,
                 mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout
             },
             {pushConstantRange});
@@ -134,6 +135,7 @@ public:
         bool result = Engine::create(wName, width, height);
 
         mSceneId = mRenderer->createMeshModel("Models/scene.gltf");
+        //mSceneId = mRenderer->createMeshModel("Models/sea.obj");
 
         return result && mSceneId != -1;
     }

@@ -5,6 +5,7 @@
 
 #include <glm/glm.hpp>
 #include <assimp/scene.h>
+#include <map>
 #include <vector>
 
 namespace fre
@@ -24,7 +25,8 @@ namespace fre
 
 		void destroyMeshModel(VkDevice logicalDevice);
 
-		static std::vector<std::vector<std::string>> loadMaterials(const aiScene* scene);
+		static std::vector<std::map<aiTextureType, std::string>> loadMaterials(const aiScene* scene,
+			aiTextureType texturesLoadMask);
 		static std::vector<Mesh> loadNode(const MainDevice& mainDevice, VkQueue transferQueue,
 			VkCommandPool transferCommandPool, aiNode* node, const aiScene* scene);
 		static Mesh loadMesh(const MainDevice& mainDevice, VkQueue transferQueue,

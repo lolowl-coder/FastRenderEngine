@@ -12,9 +12,7 @@ newmtl 11112_sheet_Material__37
 	Kd 0.000000000000 0.000000000000 0.000000000000
 	Ks 0.500000000000 0.500000000000 0.500000000000
 	Ke 0.000000000000 0.000000000000 0.000000000000
-	map_Ka Textures\sea_11112_sheet_Material__37.png
 	map_Kd Textures\sea_11112_sheet_Material__37.png
-	map_Ke Textures\sea_11112_sheet_Material__37.png
 	
 newmtl 11112_sheet_Material__25
 	Ns 0.000000000000
@@ -27,9 +25,7 @@ newmtl 11112_sheet_Material__25
 	Kd 0.000000000000 0.000000000000 0.000000000000
 	Ks 0.500000000000 0.500000000000 0.500000000000
 	Ke 0.000000000000 0.000000000000 0.000000000000
-	map_Ka Textures\sea_11112_sheet_Material__25.png
 	map_Kd Textures\sea_11112_sheet_Material__25.png
-	map_Ke Textures\sea_11112_sheet_Material__25.png
 	
 newmtl default
 	Ns 0.000000000000
@@ -42,6 +38,4 @@ newmtl default
 	Kd 0.000000000000 0.000000000000 0.000000000000
 	Ks 0.500000000000 0.500000000000 0.500000000000
 	Ke 0.000000000000 0.000000000000 0.000000000000
-	map_Ka Textures\sea_default.png
 	map_Kd Textures\sea_default.png
-	map_Ke Textures\sea_default.png

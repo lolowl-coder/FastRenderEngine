@@ -2,6 +2,7 @@
 #include "Utilities.hpp"
 
 #include <set>
+#include <map>
 
 namespace fre
 {
@@ -44,18 +45,17 @@ namespace fre
 		}
 	}
 
-	std::vector<std::vector<std::string>> MeshModel::loadMaterials(const aiScene* scene)
+	std::vector<std::map<aiTextureType, std::string>> MeshModel::loadMaterials(
+		const aiScene* scene, aiTextureType texturesLoadMask)
 	{
-		std::vector<std::vector<std::string>> result(scene->mNumMaterials);
+		std::vector<std::map<aiTextureType, std::string>> result(scene->mNumMaterials);
 		std::set<std::string> unifqueTextureFilePaths;
-		for (size_t m = 0; m < scene->mNumMaterials; m++)
+		for (uint32_t m = 0; m < scene->mNumMaterials; m++)
 		{
 			aiMaterial* material = scene->mMaterials[m];
-			std::vector<std::string> textureFilePaths;
 
-			//Check for diffuse texture
-			//uint32_t texturesCount = material->GetTextureCount(aiTextureType_DIFFUSE);
-			for(uint32_t i = 1; i < aiTextureType_UNKNOWN; i++)
+			//Collect all textures
+			for(uint32_t i = 1; i < aiTextureType_UNKNOWN && (i & texturesLoadMask); i++)
 			{
 				//Get texture file path
 				aiString path;
@@ -69,10 +69,9 @@ namespace fre
 					}
 					std::string fileName = std::string(path.data).substr(idx + 1);
 
-					textureFilePaths.push_back(fileName);
+					result[m][static_cast<aiTextureType>(i)] = fileName;
 				}
 			}
-			result[m] = textureFilePaths;
 		}
 
 		return result;

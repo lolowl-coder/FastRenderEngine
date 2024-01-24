@@ -1,11 +1,13 @@
 #pragma once
 
-#include <vector>
+#include <assimp/scene.h>
+
+#include <map>
 
 namespace fre
 {
     struct Material
     {
-        std::vector<uint32_t> mTextureIds;
+        std::map<aiTextureType, uint32_t> mTextureIds;
     };
 }
