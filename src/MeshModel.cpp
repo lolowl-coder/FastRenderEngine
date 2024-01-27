@@ -1,6 +1,8 @@
 #include "MeshModel.hpp"
 #include "Utilities.hpp"
 
+#include <algorithm>
+#include <iostream>
 #include <set>
 #include <map>
 
@@ -80,7 +82,7 @@ namespace fre
 	std::vector<Mesh> MeshModel::loadNode(
 		const MainDevice& mainDevice, VkQueue transferQueue,
 		VkCommandPool transferCommandPool, aiNode* node,
-		const aiScene* scene)
+		const aiScene* scene, glm::vec3& mn, glm::vec3& mx)
 	{
 		std::vector<Mesh> meshList;
 
@@ -88,7 +90,7 @@ namespace fre
 		{
 			meshList.push_back(
 				loadMesh(mainDevice, transferQueue, transferCommandPool,
-					scene->mMeshes[node->mMeshes[i]], scene)
+					scene->mMeshes[node->mMeshes[i]], scene, mn, mx)
 			);
 		}
 
@@ -97,7 +99,7 @@ namespace fre
 		for (size_t i = 0; i < node->mNumChildren; i++)
 		{
 			std::vector<Mesh> newList = loadNode(mainDevice, transferQueue, transferCommandPool,
-				node->mChildren[i], scene);
+				node->mChildren[i], scene, mn, mx);
 			meshList.insert(meshList.end(), newList.begin(), newList.end());
 		}
 
@@ -105,7 +107,8 @@ namespace fre
 	}
 
 	Mesh MeshModel::loadMesh(const MainDevice& mainDevice, VkQueue transferQueue,
-		VkCommandPool transferCommandPool, aiMesh * mesh, const aiScene* scene)
+		VkCommandPool transferCommandPool, aiMesh * mesh, const aiScene* scene,
+		glm::vec3& mn, glm::vec3& mx)
 	{
 		std::vector<Vertex> vertices;
 		std::vector<uint32_t> indices;
@@ -117,6 +120,15 @@ namespace fre
 		{
 			//Set position
 			vertices[i].pos = { mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z };
+
+			mn.x = std::min(mn.x, vertices[i].pos.x);
+			mn.y = std::min(mn.y, vertices[i].pos.y);
+			mn.z = std::min(mn.z, vertices[i].pos.z);
+			
+			mx.x = std::max(mx.x, vertices[i].pos.x);
+			mx.y = std::max(mx.y, vertices[i].pos.y);
+			mx.z = std::max(mx.z, vertices[i].pos.z);
+
 			//Set tex coord (if exist)
 			if (mesh->mTextureCoords[0])
 			{
@@ -130,6 +142,9 @@ namespace fre
 			//Set white for now
 			vertices[i].col = { 1.0f, 1.0f, 1.0f };
 		}
+
+		std::cout << "mn: " << mn.x << " " << mn.y << " " << mn.z << std::endl;
+		std::cout << "mx: " << mx.x << " " << mx.y << " " << mx.z << std::endl;
 
 		//Iterate over indices through faces and copy across
 		for (size_t i = 0; i < mesh->mNumFaces; i++)

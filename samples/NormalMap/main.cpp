@@ -9,6 +9,16 @@
 
 using namespace fre;
 
+#define MODEL_SCALE 0.09f
+
+//shader input
+struct Lighting
+{
+    glm::vec4 cameraEye;
+    glm::vec4 lightPos;
+    glm::mat4 normalMatrix;
+};
+
 class MyRenderer : public VulkanRenderer
 {
 protected:
@@ -16,20 +26,24 @@ protected:
     {
         VulkanRenderer::createGraphicsPipelines();
 
-        mModelMatrixPCR.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;	//Shader stage push constant will go to
+        mModelMatrixPCR.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;//Shader stage push constant will go to
 		mModelMatrixPCR.offset = 0;
 		mModelMatrixPCR.size = sizeof(glm::mat4);
+
+        mLightingPCR.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;	//Shader stage push constant will go to
+		mLightingPCR.offset = sizeof(glm::mat4);
+		mLightingPCR.size = sizeof(Lighting);
 
         mNearFarPCR.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;	//Shader stage push constant will go to
 		mNearFarPCR.offset = 0;
 		mNearFarPCR.size = sizeof(glm::vec2);
 
         VulkanShader texturedVertexShader;
-        texturedVertexShader.create(mainDevice.logicalDevice, "Shaders/textured.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+        texturedVertexShader.create(mainDevice.logicalDevice, "Shaders/normalMap.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
         VulkanShader texturedFragShader;
-        texturedFragShader.create(mainDevice.logicalDevice, "Shaders/textured.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+        texturedFragShader.create(mainDevice.logicalDevice, "Shaders/normalMap.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-        mTexturedPipeline.create(
+        mNormalMapPipeline.create(
             mainDevice.logicalDevice,
             {texturedVertexShader, texturedFragShader},
             sizeof(Vertex),
@@ -42,10 +56,15 @@ protected:
             mRenderPass.mRenderPass,
             0,
             {
+                //All inputs used in render pass
+                //Uniforms (model matrix) in subpass 0
                 mUniformDescriptorSetLayout.mDescriptorSetLayout,
+                //Color texture for subpass 0
+                mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout,
+                //Normals texture for subpass 0
                 mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout
             },
-            {mModelMatrixPCR});
+            {mModelMatrixPCR, mLightingPCR});
 
         VulkanShader fogVertexShader;
         fogVertexShader.create(mainDevice.logicalDevice, "Shaders/fog.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
@@ -70,14 +89,13 @@ protected:
 
     virtual void createCamera() override
     {
-        mCamera.rotateBy(glm::vec3(14.0f, -204.0f, 0.0f));
-        mCamera.setEye(glm::vec3(14.0f, -14.0f, 30.0f));
+        mCamera.setEye(glm::vec3(0.0, 0.0, -60.0));
         VulkanRenderer::createCamera();
     }
 
     virtual void cleanupGraphicsPipelines(VkDevice logicalDevice) override
     {
-        mTexturedPipeline.destroy(logicalDevice);
+        mNormalMapPipeline.destroy(logicalDevice);
         mFogPipeline.destroy(logicalDevice);
     }
 
@@ -85,7 +103,7 @@ protected:
 			const MeshModel& meshModel) override
     {
         const glm::mat4& modelMatrix = meshModel.getModelMatrix();
-		//"Push" constants to given hader stage directly (no buffer)
+		//"Push" constants to given shader stage directly (no buffer)
 		vkCmdPushConstants(
 			commandBuffer,
 			pipelineLayout,
@@ -93,6 +111,28 @@ protected:
 			0,
 			sizeof(glm::mat4),	//Size of data being pushed
 			&modelMatrix);	//Actual data being pushed (can be array)
+        float sn = std::sin(glfwGetTime()) * 0.5 + 0.5;
+        float xSize = mModelMx.x - mModelMn.x;
+        float x = sn * xSize + mModelMn.x;
+        x = 0.0f;
+        //std::cout << x << std::endl;
+        glm::mat3 normalMatrix(modelMatrix);
+        normalMatrix = glm::transpose(glm::inverse(normalMatrix));
+        Lighting lighting;
+        lighting.normalMatrix = glm::mat4(normalMatrix);
+        lighting.cameraEye = glm::vec4(mCamera.getEye(), 0.0);
+        lighting.lightPos = glm::vec4(x * MODEL_SCALE, 0.0, mModelMx.z + 20.0, 0.0);
+        //std::cout << "mat3 size: " << sizeof(glm::mat3) << std::endl;
+        //std::cout << "Lighting.normalMatrix: " << offsetof(Lighting, normalMatrix) << std::endl;
+        //std::cout << "Lighting.cameraEye: " << offsetof(Lighting, cameraEye) << std::endl;
+        //std::cout << "Lighting.lightPos: " << offsetof(Lighting, lightPos) << std::endl;
+		vkCmdPushConstants(
+			commandBuffer,
+			pipelineLayout,
+			VK_SHADER_STAGE_FRAGMENT_BIT,
+			sizeof(glm::mat4),
+			sizeof(Lighting),
+			&lighting);
     }
 
     virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex) override
@@ -104,8 +144,8 @@ protected:
         {
         case 0:
             {
-                bindPipeline(imageIndex, mTexturedPipeline.mPipeline);
-                renderScene(imageIndex, mTexturedPipeline.mPipelineLayout);
+                bindPipeline(imageIndex, mNormalMapPipeline.mPipeline);
+                renderScene(imageIndex, mNormalMapPipeline.mPipelineLayout);
             }
             break;
         case 1:
@@ -126,9 +166,10 @@ protected:
     }
 
 private:
-    VulkanPipeline mTexturedPipeline;
+    VulkanPipeline mNormalMapPipeline;
     VulkanPipeline mFogPipeline;
     VkPushConstantRange mModelMatrixPCR;
+    VkPushConstantRange mLightingPCR;
     VkPushConstantRange mNearFarPCR;
 };
 
@@ -143,10 +184,9 @@ public:
     virtual bool create(std::string wName, const int width, const int height) override
     {
         bool result = Engine::create(wName, width, height);
-
         if(result)
         {
-            mModelId = mRenderer->createMeshModel("Models/sea.obj");
+            mModelId = mRenderer->createMeshModel("Models/scene.gltf");
         }
 
         return result && mModelId != -1;
@@ -162,7 +202,8 @@ public:
 
         glm::mat4 sceneLocalMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
         //sceneLocalMatrix = glm::rotate(sceneLocalMatrix, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        sceneLocalMatrix = glm::scale(sceneLocalMatrix, glm::vec3(0.09f));
+        sceneLocalMatrix = glm::mat4(1.0);
+        sceneLocalMatrix = glm::scale(sceneLocalMatrix, glm::vec3(MODEL_SCALE));
         mRenderer->updateModel(mModelId, sceneLocalMatrix);
     }
 

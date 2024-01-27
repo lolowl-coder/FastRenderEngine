@@ -28,4 +28,5 @@ void main()
 	float linearDepth = linearizeDepth(depth, nearFar.x, nearFar.y);
 	float alpha = 1.0 - smoothstep(FOG_NEAR, FOG_FAR, linearDepth);
 	colour = vec4(subpassLoad(inputColour).rgb, alpha);
+	colour.a = 1.0;
 }

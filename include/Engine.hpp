@@ -27,5 +27,7 @@ namespace fre
         void positionWindow(const int width, const int height);
     protected:
         std::shared_ptr<VulkanRenderer> mRenderer;
+        double mTime = 0.0;
+        float mTimeDelta = 0.0f;
     };
 }

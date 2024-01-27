@@ -28,11 +28,14 @@ namespace fre
 		static std::vector<std::map<aiTextureType, std::string>> loadMaterials(const aiScene* scene,
 			aiTextureType texturesLoadMask);
 		static std::vector<Mesh> loadNode(const MainDevice& mainDevice, VkQueue transferQueue,
-			VkCommandPool transferCommandPool, aiNode* node, const aiScene* scene);
+			VkCommandPool transferCommandPool, aiNode* node, const aiScene* scene,
+			glm::vec3& mn, glm::vec3& mx);
 		static Mesh loadMesh(const MainDevice& mainDevice, VkQueue transferQueue,
-			VkCommandPool transferCommandPool, aiMesh * mesh, const aiScene* scene);
+			VkCommandPool transferCommandPool, aiMesh * mesh, const aiScene* scene,
+			glm::vec3& mn, glm::vec3& mx);
 
 		~MeshModel();
+
 	private:
 		std::vector<Material> mMaterials;
 		std::vector<Mesh> meshList;

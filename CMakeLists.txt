@@ -28,7 +28,6 @@ option(ENABLE_LTO "Enable to add Link Time Optimization." ON)
 
 # Project/Library Names
 set(LIBRARY_NAME "fre")
-set(EXECUTABLE_NAME "Basic")
 
 # CMAKE MODULES
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/)
@@ -107,6 +106,39 @@ find_package(Vulkan REQUIRED)
 add_subdirectory(configured)
 #add_subdirectory(external)
 add_subdirectory(src)
+function(buildExample)
+    add_executable(${EXECUTABLE_NAME} ${APP_SOURCES})
+
+    target_link_libraries(
+        ${EXECUTABLE_NAME}
+        PRIVATE ${LIBRARY_NAME}
+                # nlohmann_json::nlohmann_json
+                # fmt::fmt
+                )
+
+    if(${ENABLE_WARNINGS})
+        target_set_warnings(
+            TARGET
+            ${EXECUTABLE_NAME}
+            ENABLE
+            ${ENABLE_WARNINGS}
+            AS_ERRORS
+            ${ENABLE_WARNINGS_AS_ERRORS})
+    endif()
+
+    if(${ENABLE_LTO})
+        target_enable_lto(
+            TARGET
+            ${EXECUTABLE_NAME}
+            ENABLE
+            ON)
+    endif()
+
+    if(${ENABLE_CLANG_TIDY})
+        add_clang_tidy_to_target(${EXECUTABLE_NAME})
+    endif()
+endfunction(buildSampe)
+
 add_subdirectory(samples)
 
 # Copy resources

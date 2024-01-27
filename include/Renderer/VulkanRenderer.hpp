@@ -22,10 +22,11 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-#include <vector>
-#include <set>
-#include <iostream>
 #include <algorithm>
+#include <iostream>
+#include <limits>
+#include <set>
+#include <vector>
 
 namespace fre
 {
@@ -42,10 +43,16 @@ namespace fre
 
 		int createMeshModel(std::string modelFile);
 		void updateModel(int modelId, glm::mat4 newModelMatrix);
+		// - input
+		void onTouch(float x, float y);
+		void onScroll(float xOffset, float yOffset);
 
+		void tick(double time, float timeDelta);
 		void draw();
 
 		void setFramebufferResized(bool resized);
+
+		Camera& getCamera();
 
 	protected:
 		virtual void createGraphicsPipelines();
@@ -72,11 +79,15 @@ namespace fre
 
 		VulkanTextureManager mTextureManager;
 
-		// - Push constants
-		VkPushConstantRange pushConstantRange;
-		VkPushConstantRange pushConstantRangeNearFar;
-
 		Camera mCamera;
+		float mCameraRotationSpeed = 0.4f;
+		float mCameraZoomSpeed = 1.0f;
+
+		glm::vec3 mModelMn = glm::vec3(std::numeric_limits<float>::max());
+    	glm::vec3 mModelMx = glm::vec3(std::numeric_limits<float>::min());
+
+		// - Assets
+		std::vector<MeshModel> mMeshModels;
 
 		// - Dynamic data update functions
 		void setViewport(uint32_t imageIndex);
@@ -121,7 +132,6 @@ namespace fre
 		ModelMatrix* modetTransferSpace;*/
 
 		// - Assets
-		std::vector<MeshModel> mMeshModels;
 		std::vector<Material> mMaterials;
 
 		VulkanSwapChain mSwapChain;
@@ -148,7 +158,6 @@ namespace fre
 		void createInputDescriptorPool();
 		void createUniformDescriptorSetLayout();
 		void createInputDescriptorSetLayout();
-		void createPushConstantRange();
 		void createCommandPool();
 		void createCommandBuffers();
 		void createUniformBuffers();

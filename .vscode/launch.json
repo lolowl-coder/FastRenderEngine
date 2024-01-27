@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(Windows) Launch",
+            "name": "(Windows) Launch Basic",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/samples/Basic/Debug/Basic.exe",
@@ -12,7 +12,18 @@
             "environment": [],
             //"console": "externalTerminal",
             "console": "integratedTerminal",
+        },
+        {
+            "name": "(Windows) Launch Normal Map",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/samples/NormalMap/Debug/NormalMap.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "D:/Projects/FastRenderEngine/Data",
+            "environment": [],
+            //"console": "externalTerminal",
+            "console": "integratedTerminal",
         }
-
     ]
 }

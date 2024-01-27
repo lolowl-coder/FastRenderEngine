@@ -45,7 +45,6 @@ namespace fre
 			createUniformBuffers();
 			allocateUniformDescriptorSets();
 			allocateInputDescriptorSets();
-			createPushConstantRange();
 
 			createGraphicsPipelines();
 			createCommandPool();
@@ -114,6 +113,11 @@ namespace fre
 		{
 			mMeshModels[modelId].setModelMatrix(newModelMatrix);
 		}
+	}
+
+	void VulkanRenderer::tick(double time, float timeDelta)
+	{
+        mCamera.update(time, timeDelta);
 	}
 
 	void VulkanRenderer::draw()
@@ -416,19 +420,6 @@ namespace fre
 			mainDevice.logicalDevice,
 			{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT},
 			VK_SHADER_STAGE_FRAGMENT_BIT);
-	}
-
-	void VulkanRenderer::createPushConstantRange()
-	{
-		//Define push constant value (no "create" need!)
-		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;	//Shader stage push constant will go to
-		pushConstantRange.offset = 0;
-		pushConstantRange.size = sizeof(glm::mat4);
-
-		//Define push constant value (no "create" need!)
-		pushConstantRangeNearFar.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;	//Shader stage push constant will go to
-		pushConstantRangeNearFar.offset = 0;
-		pushConstantRangeNearFar.size = sizeof(glm::vec2);
 	}
 
 	void VulkanRenderer::createGraphicsPipelines()
@@ -856,7 +847,8 @@ namespace fre
 		float aspectRatio = (float)mSwapChain.mSwapChainExtent.width /
 			(float)mSwapChain.mSwapChainExtent.height;
 		mCamera.setPerspectiveProjection(45.0f, aspectRatio, 0.1f, 100.0f);
-		mCamera.set(glm::vec3(30.0f, 30.0f, 0.0f), glm::vec3(0.0f, 5.0f, 0.0f));
+		mCamera.updateViewMatrix();
+		mCamera.updateVectors();
 	}
 
 	void VulkanRenderer::createRenderFinishedSemaphores()
@@ -969,11 +961,39 @@ namespace fre
 		//Load all meshes
 		std::vector<Mesh> modelMeshes = MeshModel::loadNode(
 			mainDevice, graphicsQueue, graphicsCommandPool,
-			scene->mRootNode, scene);
+			scene->mRootNode, scene, mModelMn, mModelMx);
 
 		MeshModel meshModel = MeshModel(modelMeshes);
 		mMeshModels.push_back(meshModel);
 
 		return mMeshModels.size() - 1;
+	}
+
+	void VulkanRenderer::onTouch(float x, float y)
+	{
+		static float lastX = x;
+        static float lastY = y;
+
+		float deltaX = static_cast<float>(x - lastX);
+        float deltaY = static_cast<float>(y - lastY);
+
+		//std::cout << deltaX << std::endl;
+
+		mCamera.rotateBy(glm::vec3(
+			mCameraRotationSpeed * deltaY, mCameraRotationSpeed * deltaX, 0.0));
+
+		lastX = x;
+        lastY = y;
+	}
+
+	void VulkanRenderer::onScroll(float xOffset, float yOffset)
+	{
+		const glm::vec3 forward = mCamera.getForward();
+		mCamera.translateBy(mCameraZoomSpeed * forward * yOffset);
+	}
+
+	Camera& VulkanRenderer::getCamera()
+	{
+		return mCamera;
 	}
 }
