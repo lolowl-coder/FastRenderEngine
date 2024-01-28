@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Camera.hpp"
+
 #include <cstdint>
 #include <string>
 #include <memory>
@@ -23,11 +25,20 @@ namespace fre
         virtual void run();
         virtual void tick();
         virtual void destroy();
+        std::shared_ptr<VulkanRenderer>& getRenderer();
+        virtual void setupCamera(int width, int height);
+        Camera& getCamera();
+        float getCameraRotationSpeed() const;
+        float getCameraZoomSpeed() const;
     private:
         void positionWindow(const int width, const int height);
     protected:
         std::shared_ptr<VulkanRenderer> mRenderer;
         double mTime = 0.0;
         float mTimeDelta = 0.0f;
+
+		Camera mCamera;
+		float mCameraRotationSpeed = 0.4f;
+		float mCameraZoomSpeed = 1.0f;
     };
 }

@@ -143,16 +143,25 @@ namespace fre
 			vertices[i].col = { 1.0f, 1.0f, 1.0f };
 		}
 
-		std::cout << "mn: " << mn.x << " " << mn.y << " " << mn.z << std::endl;
-		std::cout << "mx: " << mx.x << " " << mx.y << " " << mx.z << std::endl;
+		//std::cout << "mn: " << mn.x << " " << mn.y << " " << mn.z << std::endl;
+		//std::cout << "mx: " << mx.x << " " << mx.y << " " << mx.z << std::endl;
+
+		std::cout << "Tex coords components: " << mesh->mNumUVComponents[0] << std::endl;
 
 		//Iterate over indices through faces and copy across
 		for (size_t i = 0; i < mesh->mNumFaces; i++)
 		{
 			aiFace& face = mesh->mFaces[i];
-			for (size_t j = 0; j < face.mNumIndices; j++)
+			if(face.mNumIndices != 3)
 			{
-				indices.push_back(face.mIndices[j]);
+				std::cout << "num indices: " << face.mNumIndices << std::endl;
+			}
+			else
+			{
+				for (size_t j = 0; j < face.mNumIndices; j++)
+				{
+					indices.push_back(face.mIndices[j]);
+				}
 			}
 		}
 

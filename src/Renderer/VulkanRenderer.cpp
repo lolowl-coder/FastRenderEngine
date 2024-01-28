@@ -1,5 +1,6 @@
 #include "Renderer/VulkanRenderer.hpp"
 
+#include "Camera.hpp"
 #include "Renderer/VulkanPipeline.hpp"
 #include "Renderer/VulkanShader.hpp"
 #include "config.hpp"
@@ -50,8 +51,6 @@ namespace fre
 			createCommandPool();
 			createCommandBuffers();
 			createSynchronisation();
-
-			createCamera();
 		}
 		catch (std::runtime_error& e)
 		{
@@ -107,20 +106,19 @@ namespace fre
 		vkDestroyInstance(instance, nullptr);
 	}
 
-	void VulkanRenderer::updateModel(int modelId, glm::mat4 newModelMatrix)
+	MeshModel* VulkanRenderer::getMeshModel(int modelId)
 	{
+		MeshModel* result = nullptr;
+
 		if (modelId < mMeshModels.size())
 		{
-			mMeshModels[modelId].setModelMatrix(newModelMatrix);
+			result = &mMeshModels[modelId];
 		}
+
+		return result;
 	}
 
-	void VulkanRenderer::tick(double time, float timeDelta)
-	{
-        mCamera.update(time, timeDelta);
-	}
-
-	void VulkanRenderer::draw()
+	void VulkanRenderer::draw(const Camera& camera)
 	{
 		//Wait for given fence to signal (open) from last draw before continuing
 		vkWaitForFences(mainDevice.logicalDevice, 1, &drawFences[currentFrame], VK_TRUE, std::numeric_limits<uint32_t>::max());
@@ -143,9 +141,9 @@ namespace fre
 			//Manually reset (close) fences
 			vkResetFences(mainDevice.logicalDevice, 1, &drawFences[currentFrame]);
 
-			recordCommands(imageIndex);
+			recordCommands(imageIndex, camera);
 
-			updateUniformBuffers(imageIndex);
+			updateUniformBuffers(imageIndex, camera);
 
 			// -- SUBMIT COMMAND BUFFER TO RENDER --
 			//Queue submission info
@@ -520,13 +518,13 @@ namespace fre
 		}
 	}
 
-	void VulkanRenderer::updateUniformBuffers(uint32_t imageIndex)
+	void VulkanRenderer::updateUniformBuffers(uint32_t imageIndex, const Camera& camera)
 	{
 		//Copy VP data
 		void* data;
 		UboViewProjection vp;
-		vp.view = mCamera.mView;
-		vp.projection = mCamera.mProjection;
+		vp.view = camera.mView;
+		vp.projection = camera.mProjection;
 		vkMapMemory(mainDevice.logicalDevice, vpUniformBufferMemory[imageIndex], 0, sizeof(UboViewProjection), 0, &data);
 		memcpy(data, &vp, sizeof(UboViewProjection));
 		vkUnmapMemory(mainDevice.logicalDevice, vpUniformBufferMemory[imageIndex]);
@@ -544,19 +542,20 @@ namespace fre
 	}
 
 	void VulkanRenderer::onRenderModel(VkCommandBuffer commandBuffer,
-		VkPipelineLayout pipelineLayout, const MeshModel& meshModel)
+		VkPipelineLayout pipelineLayout, const MeshModel& meshModel, const Camera& camera)
 	{
 		
 	}
 
-	void VulkanRenderer::renderScene(uint32_t imageIndex, VkPipelineLayout pipelineLayout)
+	void VulkanRenderer::renderScene(uint32_t imageIndex, VkPipelineLayout pipelineLayout,
+		const Camera& camera)
 	{
 		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
 		for (size_t j = 0; j < mMeshModels.size(); j++)
 		{
 			const MeshModel& thisModel = mMeshModels[j];
 			
-			onRenderModel(commandBuffer, pipelineLayout, thisModel);
+			onRenderModel(commandBuffer, pipelineLayout, thisModel, camera);
 
 			for (size_t k = 0; k < thisModel.getMeshCount(); k++)
 			{
@@ -605,7 +604,7 @@ namespace fre
 		vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 	}
 
-	void VulkanRenderer::renderSubPass(uint32_t imageIndex, uint32_t subPassIndex)
+	void VulkanRenderer::renderSubPass(uint32_t imageIndex, uint32_t subPassIndex, const Camera& camera)
 	{
 		
 	}
@@ -618,7 +617,7 @@ namespace fre
 				pipeline);
 	}
 
-	void VulkanRenderer::recordCommands(uint32_t imageIndex)
+	void VulkanRenderer::recordCommands(uint32_t imageIndex, const Camera& camera)
 	{
 		mCommandBuffers[imageIndex].begin();
 		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
@@ -626,7 +625,7 @@ namespace fre
 
 		for(int32_t i = 0; i < mSubPassesCount; i++)
 		{
-			renderSubPass(imageIndex, i);
+			renderSubPass(imageIndex, i, camera);
 
 			if(i < mSubPassesCount - 1)
 			{
@@ -703,8 +702,6 @@ namespace fre
 		allocateInputDescriptorSets();
 
 		createSwapchainImagesSemaphores();
-
-		createCamera();
 	}
 
 	bool VulkanRenderer::checkInstanceExtentionsSupport(std::vector<const char*>* checkExtentions)
@@ -842,15 +839,6 @@ namespace fre
 		}
 	}
 
-	void VulkanRenderer::createCamera()
-	{
-		float aspectRatio = (float)mSwapChain.mSwapChainExtent.width /
-			(float)mSwapChain.mSwapChainExtent.height;
-		mCamera.setPerspectiveProjection(45.0f, aspectRatio, 0.1f, 100.0f);
-		mCamera.updateViewMatrix();
-		mCamera.updateVectors();
-	}
-
 	void VulkanRenderer::createRenderFinishedSemaphores()
 	{
 		renderFinished.resize(MAX_FRAME_DRAWS);
@@ -914,7 +902,7 @@ namespace fre
 	{
 		//Import model scene
 		Assimp::Importer importer;
-		const aiScene* scene = importer.ReadFile(modelFile, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices);
+		const aiScene* scene = importer.ReadFile(modelFile, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices | aiProcess_SortByPType);
 		if (!scene)
 		{
 			throw::std::runtime_error("Failed to load model! (" + modelFile + ")");
@@ -967,33 +955,5 @@ namespace fre
 		mMeshModels.push_back(meshModel);
 
 		return mMeshModels.size() - 1;
-	}
-
-	void VulkanRenderer::onTouch(float x, float y)
-	{
-		static float lastX = x;
-        static float lastY = y;
-
-		float deltaX = static_cast<float>(x - lastX);
-        float deltaY = static_cast<float>(y - lastY);
-
-		//std::cout << deltaX << std::endl;
-
-		mCamera.rotateBy(glm::vec3(
-			mCameraRotationSpeed * deltaY, mCameraRotationSpeed * deltaX, 0.0));
-
-		lastX = x;
-        lastY = y;
-	}
-
-	void VulkanRenderer::onScroll(float xOffset, float yOffset)
-	{
-		const glm::vec3 forward = mCamera.getForward();
-		mCamera.translateBy(mCameraZoomSpeed * forward * yOffset);
-	}
-
-	Camera& VulkanRenderer::getCamera()
-	{
-		return mCamera;
 	}
 }

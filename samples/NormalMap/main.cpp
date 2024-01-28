@@ -9,7 +9,7 @@
 
 using namespace fre;
 
-#define MODEL_SCALE 0.09f
+#define MODEL_SCALE 80.0f
 
 //shader input
 struct Lighting
@@ -87,12 +87,6 @@ protected:
         mSubPassesCount = 2;
     }
 
-    virtual void createCamera() override
-    {
-        mCamera.setEye(glm::vec3(0.0, 0.0, -60.0));
-        VulkanRenderer::createCamera();
-    }
-
     virtual void cleanupGraphicsPipelines(VkDevice logicalDevice) override
     {
         mNormalMapPipeline.destroy(logicalDevice);
@@ -100,7 +94,7 @@ protected:
     }
 
     virtual void onRenderModel(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout,
-			const MeshModel& meshModel) override
+			const MeshModel& meshModel, const Camera& camera) override
     {
         const glm::mat4& modelMatrix = meshModel.getModelMatrix();
 		//"Push" constants to given shader stage directly (no buffer)
@@ -120,7 +114,7 @@ protected:
         normalMatrix = glm::transpose(glm::inverse(normalMatrix));
         Lighting lighting;
         lighting.normalMatrix = glm::mat4(normalMatrix);
-        lighting.cameraEye = glm::vec4(mCamera.getEye(), 0.0);
+        lighting.cameraEye = glm::vec4(camera.getEye(), 0.0);
         lighting.lightPos = glm::vec4(x * MODEL_SCALE, 0.0, mModelMx.z + 20.0, 0.0);
         //std::cout << "mat3 size: " << sizeof(glm::mat3) << std::endl;
         //std::cout << "Lighting.normalMatrix: " << offsetof(Lighting, normalMatrix) << std::endl;
@@ -135,7 +129,7 @@ protected:
 			&lighting);
     }
 
-    virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex) override
+    virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex, const Camera& camera) override
     {
         setViewport(imageIndex);
         setScissor(imageIndex);
@@ -145,13 +139,13 @@ protected:
         case 0:
             {
                 bindPipeline(imageIndex, mNormalMapPipeline.mPipeline);
-                renderScene(imageIndex, mNormalMapPipeline.mPipelineLayout);
+                renderScene(imageIndex, mNormalMapPipeline.mPipelineLayout, camera);
             }
             break;
         case 1:
             {
                 bindPipeline(imageIndex, mFogPipeline.mPipeline);
-                glm::vec2 nearFar(mCamera.mNear, mCamera.mFar);
+                glm::vec2 nearFar(camera.mNear, camera.mFar);
                 vkCmdPushConstants(
                     mCommandBuffers[imageIndex].mCommandBuffer,
                     mFogPipeline.mPipelineLayout,
@@ -184,6 +178,9 @@ public:
     virtual bool create(std::string wName, const int width, const int height) override
     {
         bool result = Engine::create(wName, width, height);
+        
+        mCamera.setEye(glm::vec3(0.0, 0.0, -60.0));
+
         if(result)
         {
             mModelId = mRenderer->createMeshModel("Models/scene.gltf");
@@ -204,7 +201,11 @@ public:
         //sceneLocalMatrix = glm::rotate(sceneLocalMatrix, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         sceneLocalMatrix = glm::mat4(1.0);
         sceneLocalMatrix = glm::scale(sceneLocalMatrix, glm::vec3(MODEL_SCALE));
-        mRenderer->updateModel(mModelId, sceneLocalMatrix);
+        MeshModel* meshModel = mRenderer->getMeshModel(mModelId);
+        if(meshModel != nullptr)
+        {
+            meshModel->setModelMatrix(sceneLocalMatrix);
+        }
     }
 
 private:

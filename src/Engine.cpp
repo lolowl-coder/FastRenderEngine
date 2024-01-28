@@ -26,20 +26,38 @@ namespace fre
 
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
     {
-        auto renderer = reinterpret_cast<VulkanRenderer*>(glfwGetWindowUserPointer(window));
+        Engine* engine = reinterpret_cast<Engine*>(glfwGetWindowUserPointer(window));
+        engine->setupCamera(width, height);
+        auto& renderer = engine->getRenderer();
         renderer->setFramebufferResized(true);
     }
 
-    void mouseCallback(GLFWwindow* window, double xpos, double ypos)
+    void mouseCallback(GLFWwindow* window, double x, double y)
     {
-        auto renderer = reinterpret_cast<VulkanRenderer*>(glfwGetWindowUserPointer(window));
-        renderer->onTouch(static_cast<float>(xpos), static_cast<float>(ypos));
+        static float lastX = x;
+        static float lastY = y;
+
+		float deltaX = static_cast<float>(x - lastX);
+        float deltaY = static_cast<float>(y - lastY);
+
+		//std::cout << deltaX << std::endl;
+
+        Engine* engine = reinterpret_cast<Engine*>(glfwGetWindowUserPointer(window));
+        auto& camera = engine->getCamera();
+		camera.rotateBy(glm::vec3(
+			engine->getCameraRotationSpeed() * deltaY,
+            engine->getCameraRotationSpeed() * deltaX, 0.0));
+
+		lastX = x;
+        lastY = y;
     }
 
     void scrollCallback(GLFWwindow* window, double xOffset, double yOffset)
     {
-        auto renderer = reinterpret_cast<VulkanRenderer*>(glfwGetWindowUserPointer(window));
-        renderer->onScroll(static_cast<float>(xOffset), static_cast<float>(yOffset));
+        Engine* engine = reinterpret_cast<Engine*>(glfwGetWindowUserPointer(window));
+        auto& camera = engine->getCamera();
+		const glm::vec3 forward = camera.getForward();
+		camera.translateBy(engine->getCameraZoomSpeed() * forward * static_cast<float>(yOffset));
     }
 
     void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -47,8 +65,8 @@ namespace fre
         if (action == GLFW_PRESS || action == GLFW_RELEASE)
         {
             bool movementEnabled = action == GLFW_PRESS;
-            auto renderer = reinterpret_cast<VulkanRenderer*>(glfwGetWindowUserPointer(window));
-            Camera& camera = renderer->getCamera();
+            Engine* engine = reinterpret_cast<Engine*>(glfwGetWindowUserPointer(window));
+            Camera& camera = engine->getCamera();
             switch (key) {
                 case GLFW_KEY_W:
                     camera.setMovement(Camera::M_FORWARD, movementEnabled);
@@ -76,7 +94,7 @@ namespace fre
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
         window = glfwCreateWindow(width, height, wName.c_str(), nullptr, nullptr);
-        glfwSetWindowUserPointer(window, mRenderer.get());
+        glfwSetWindowUserPointer(window, this);
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 
         glfwSetCursorPos(window, width / 2, height / 2);
@@ -85,6 +103,8 @@ namespace fre
         glfwSetKeyCallback(window, keyCallback);
 
         positionWindow(width, height);
+
+        setupCamera(width, height);
 
         return window != nullptr && mRenderer != nullptr && mRenderer->create(window) == 0;
     }
@@ -100,7 +120,7 @@ namespace fre
 
             if(mRenderer != nullptr)
             {
-                mRenderer->draw();
+                mRenderer->draw(mCamera);
             }
         }
     }
@@ -111,7 +131,8 @@ namespace fre
         mTime = glfwGetTime();
         mTimeDelta = static_cast<float>(mTime - lastTime);
         lastTime = mTime;
-        mRenderer->tick(mTime, mTimeDelta);
+        
+        mCamera.update(mTime, mTimeDelta);
     }
 
     void Engine::destroy()
@@ -123,5 +144,30 @@ namespace fre
         //Destroy window
         glfwDestroyWindow(window);
         glfwTerminate();
+    }
+
+    std::shared_ptr<VulkanRenderer>& Engine::getRenderer()
+    {
+        return mRenderer;
+    }
+
+    void Engine::setupCamera(int width, int height)
+	{
+		float aspectRatio = (float)width / (float)height;
+		mCamera.setPerspectiveProjection(45.0f, aspectRatio, 0.1f, 100.0f);
+	}
+
+    Camera& Engine::getCamera()
+    {
+        return mCamera;
+    }
+
+    float Engine::getCameraRotationSpeed() const
+    {
+        return mCameraRotationSpeed;
+    }
+    float Engine::getCameraZoomSpeed() const
+    {
+        return mCameraZoomSpeed;
     }
 }

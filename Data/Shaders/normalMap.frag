@@ -33,10 +33,11 @@ void main()
 	vec3 specularColor = vec3(1.0);
 	vec3 reflectedDir = reflect(-fragLightDir, normal);
 	vec3 fragEyeDir = normalize(lighting.cameraEye.xyz - fragPos);
-	float shininess = 32.0;
+	float shininess = 8.0;
 	float specularFactor = pow(max(0.0, dot(-fragEyeDir, reflectedDir)), shininess);
 	outColour = vec4(
 		diffuseColor * diffuseFactor +
 		specularColor * specularFactor,
 		alpha);
+	//outColour = vec4(normal, 1.0);
 }

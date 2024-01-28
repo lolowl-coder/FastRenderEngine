@@ -68,13 +68,6 @@ protected:
         mSubPassesCount = 2;
     }
 
-    virtual void createCamera() override
-    {
-        mCamera.rotateBy(glm::vec3(14.0f, -204.0f, 0.0f));
-        mCamera.setEye(glm::vec3(14.0f, -14.0f, 30.0f));
-        VulkanRenderer::createCamera();
-    }
-
     virtual void cleanupGraphicsPipelines(VkDevice logicalDevice) override
     {
         mTexturedPipeline.destroy(logicalDevice);
@@ -82,7 +75,7 @@ protected:
     }
 
     virtual void onRenderModel(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout,
-			const MeshModel& meshModel) override
+			const MeshModel& meshModel, const Camera& camera) override
     {
         const glm::mat4& modelMatrix = meshModel.getModelMatrix();
 		//"Push" constants to given hader stage directly (no buffer)
@@ -95,7 +88,7 @@ protected:
 			&modelMatrix);	//Actual data being pushed (can be array)
     }
 
-    virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex) override
+    virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex, const Camera& camera) override
     {
         setViewport(imageIndex);
         setScissor(imageIndex);
@@ -105,13 +98,13 @@ protected:
         case 0:
             {
                 bindPipeline(imageIndex, mTexturedPipeline.mPipeline);
-                renderScene(imageIndex, mTexturedPipeline.mPipelineLayout);
+                renderScene(imageIndex, mTexturedPipeline.mPipelineLayout, camera);
             }
             break;
         case 1:
             {
                 bindPipeline(imageIndex, mFogPipeline.mPipeline);
-                glm::vec2 nearFar(mCamera.mNear, mCamera.mFar);
+                glm::vec2 nearFar(camera.mNear, camera.mFar);
                 vkCmdPushConstants(
                     mCommandBuffers[imageIndex].mCommandBuffer,
                     mFogPipeline.mPipelineLayout,
@@ -144,6 +137,9 @@ public:
     {
         bool result = Engine::create(wName, width, height);
 
+        mCamera.rotateBy(glm::vec3(14.0f, -204.0f, 0.0f));
+        mCamera.setEye(glm::vec3(14.0f, -14.0f, 30.0f));
+
         if(result)
         {
             mModelId = mRenderer->createMeshModel("Models/sea.obj");
@@ -163,7 +159,11 @@ public:
         glm::mat4 sceneLocalMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
         //sceneLocalMatrix = glm::rotate(sceneLocalMatrix, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         sceneLocalMatrix = glm::scale(sceneLocalMatrix, glm::vec3(0.09f));
-        mRenderer->updateModel(mModelId, sceneLocalMatrix);
+        MeshModel* meshModel = mRenderer->getMeshModel(mModelId);
+        if(meshModel != nullptr)
+        {
+            meshModel->setModelMatrix(sceneLocalMatrix);
+        }
     }
 
 private:

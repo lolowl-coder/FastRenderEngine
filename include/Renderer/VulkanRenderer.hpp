@@ -6,7 +6,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "Renderer/Camera.hpp"
 #include "Renderer/VulkanCommandBuffer.hpp"
 #include "Renderer/VulkanDescriptorPool.hpp"
 #include "Renderer/VulkanDescriptorSet.hpp"
@@ -31,6 +30,7 @@
 namespace fre
 {
 	struct VulkanPipeline;
+	struct Camera;
 
 	class VulkanRenderer
 	{
@@ -42,17 +42,11 @@ namespace fre
 		void destroy();
 
 		int createMeshModel(std::string modelFile);
-		void updateModel(int modelId, glm::mat4 newModelMatrix);
-		// - input
-		void onTouch(float x, float y);
-		void onScroll(float xOffset, float yOffset);
+		MeshModel* getMeshModel(int modelId);
 
-		void tick(double time, float timeDelta);
-		void draw();
+		void draw(const Camera& camera);
 
 		void setFramebufferResized(bool resized);
-
-		Camera& getCamera();
 
 	protected:
 		virtual void createGraphicsPipelines();
@@ -79,10 +73,6 @@ namespace fre
 
 		VulkanTextureManager mTextureManager;
 
-		Camera mCamera;
-		float mCameraRotationSpeed = 0.4f;
-		float mCameraZoomSpeed = 1.0f;
-
 		glm::vec3 mModelMn = glm::vec3(std::numeric_limits<float>::max());
     	glm::vec3 mModelMx = glm::vec3(std::numeric_limits<float>::min());
 
@@ -96,11 +86,10 @@ namespace fre
 		// - Render
 		void bindPipeline(uint32_t imageIndex, VkPipeline pipeline);
 		virtual void onRenderModel(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout,
-			const MeshModel& meshModel);
-		void renderScene(uint32_t imageIndex, VkPipelineLayout pipelineLayout);
+			const MeshModel& meshModel, const Camera& camera);
+		void renderScene(uint32_t imageIndex, VkPipelineLayout pipelineLayout, const Camera& camera);
 		void renderTexturedRect(uint32_t imageIndex, VkPipelineLayout pipelineLayout);
-		virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex);
-		virtual void createCamera();
+		virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex, const Camera& camera);
 
 	private:
 		GLFWwindow* window;
@@ -164,10 +153,10 @@ namespace fre
 		void allocateUniformDescriptorSets();
 		void allocateInputDescriptorSets();
 
-		void updateUniformBuffers(uint32_t imageIndex);
+		void updateUniformBuffers(uint32_t imageIndex, const Camera& camera);
 
 		// - Record functions
-		void recordCommands(uint32_t imageIndex);
+		void recordCommands(uint32_t imageIndex, const Camera& camera);
 			
 		// - Get functions
 		void getPhysicalDevice();
