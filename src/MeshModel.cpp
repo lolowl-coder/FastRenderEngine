@@ -146,7 +146,7 @@ namespace fre
 		//std::cout << "mn: " << mn.x << " " << mn.y << " " << mn.z << std::endl;
 		//std::cout << "mx: " << mx.x << " " << mx.y << " " << mx.z << std::endl;
 
-		std::cout << "Tex coords components: " << mesh->mNumUVComponents[0] << std::endl;
+		//std::cout << "Tex coords components: " << mesh->mNumUVComponents[0] << std::endl;
 
 		//Iterate over indices through faces and copy across
 		for (size_t i = 0; i < mesh->mNumFaces; i++)
@@ -154,7 +154,8 @@ namespace fre
 			aiFace& face = mesh->mFaces[i];
 			if(face.mNumIndices != 3)
 			{
-				std::cout << "num indices: " << face.mNumIndices << std::endl;
+				std::cout << "Non-triangle face encountered. Num indices: " <<
+					face.mNumIndices << std::endl;
 			}
 			else
 			{

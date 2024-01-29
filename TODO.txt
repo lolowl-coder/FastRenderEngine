@@ -1,0 +1,16 @@
+2024-01-28
+Refactor shaders and materials
+  Material should refer a shader.
+  Material contains all the input for shader (uniforms, textures, attachments from previous steps)
+  Each material should have it's own class with all shader inputs passing logic.
+
+Decouple Vulkan code from resources like MeshModel, Shader.
+  Engine should load those objects but do not create Vulkan resources. This should be done in renderer.
+  MeshModel should containt vertex/index arrays only.
+    When renderer renders it it should create corresponding Vulkan rosources.
+    Each MeshModel should have it's id so renderer could associate resources with that MeshModel.
+  Same for textures. Material can have texture paths only.
+    Loading can happen in different thread.
+    Each texture should have it's id so renderer could associate resources with that texture.
+So decoupling MeshModels and Textures will lead to following classes:
+Mesh, Texture for abstracting and VulkanMesh, VulkanTexture for renderer side resources.
