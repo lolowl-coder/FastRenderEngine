@@ -9,143 +9,35 @@
 
 using namespace fre;
 
-class MyRenderer : public VulkanRenderer
-{
-protected:
-    virtual void createGraphicsPipelines() override
-    {
-        VulkanRenderer::createGraphicsPipelines();
-
-        mModelMatrixPCR.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;	//Shader stage push constant will go to
-		mModelMatrixPCR.offset = 0;
-		mModelMatrixPCR.size = sizeof(glm::mat4);
-
-        mNearFarPCR.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;	//Shader stage push constant will go to
-		mNearFarPCR.offset = 0;
-		mNearFarPCR.size = sizeof(glm::vec2);
-
-        VulkanShader texturedVertexShader;
-        texturedVertexShader.create(mainDevice.logicalDevice, "Shaders/textured.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-        VulkanShader texturedFragShader;
-        texturedFragShader.create(mainDevice.logicalDevice, "Shaders/textured.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-
-        mTexturedPipeline.create(
-            mainDevice.logicalDevice,
-            {texturedVertexShader, texturedFragShader},
-            sizeof(Vertex),
-            {
-                {VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
-                {VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, col)},
-                {VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tex)}
-            },
-            VK_TRUE,
-            mRenderPass.mRenderPass,
-            0,
-            {
-                mUniformDescriptorSetLayout.mDescriptorSetLayout,
-                mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout
-            },
-            {mModelMatrixPCR});
-
-        VulkanShader fogVertexShader;
-        fogVertexShader.create(mainDevice.logicalDevice, "Shaders/fog.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-        VulkanShader fogFragShader;
-        fogFragShader.create(mainDevice.logicalDevice, "Shaders/fog.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-
-        mFogPipeline.create(
-            mainDevice.logicalDevice,
-            {fogVertexShader, fogFragShader},
-            0,
-            //no attributes for fog pass
-            {},
-            VK_FALSE,
-            mRenderPass.mRenderPass,
-            1,
-            {mInputDescriptorSetLayout.mDescriptorSetLayout},
-            {mNearFarPCR});
-
-        //2 sub passes each using 1 pipeline
-        mSubPassesCount = 2;
-    }
-
-    virtual void cleanupGraphicsPipelines(VkDevice logicalDevice) override
-    {
-        mTexturedPipeline.destroy(logicalDevice);
-        mFogPipeline.destroy(logicalDevice);
-    }
-
-    virtual void onRenderModel(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout,
-			const MeshModel& meshModel, const Camera& camera) override
-    {
-        const glm::mat4& modelMatrix = meshModel.getModelMatrix();
-		//"Push" constants to given hader stage directly (no buffer)
-		vkCmdPushConstants(
-			commandBuffer,
-			pipelineLayout,
-			VK_SHADER_STAGE_VERTEX_BIT,
-			0,
-			sizeof(glm::mat4),	//Size of data being pushed
-			&modelMatrix);	//Actual data being pushed (can be array)
-    }
-
-    virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex, const Camera& camera) override
-    {
-        setViewport(imageIndex);
-        setScissor(imageIndex);
-
-        switch(subPassIndex)
-        {
-        case 0:
-            {
-                bindPipeline(imageIndex, mTexturedPipeline.mPipeline);
-                renderScene(imageIndex, mTexturedPipeline.mPipelineLayout, camera);
-            }
-            break;
-        case 1:
-            {
-                bindPipeline(imageIndex, mFogPipeline.mPipeline);
-                glm::vec2 nearFar(camera.mNear, camera.mFar);
-                vkCmdPushConstants(
-                    mCommandBuffers[imageIndex].mCommandBuffer,
-                    mFogPipeline.mPipelineLayout,
-                    VK_SHADER_STAGE_FRAGMENT_BIT,
-                    0,
-                    sizeof(glm::vec2),
-                    &nearFar);
-                renderTexturedRect(imageIndex, mFogPipeline.mPipelineLayout);
-            }
-            break;
-        }
-    }
-
-private:
-    VulkanPipeline mTexturedPipeline;
-    VulkanPipeline mFogPipeline;
-    VkPushConstantRange mModelMatrixPCR;
-    VkPushConstantRange mNearFarPCR;
-};
+#define MODEL_SCALE 0.09f
 
 class MyEngine : public Engine
 {
 public:
     MyEngine()
     {
-        mRenderer.reset(new MyRenderer);
+        mRenderer.reset(new VulkanRenderer);
     }
 
     virtual bool create(std::string wName, const int width, const int height) override
     {
-        bool result = Engine::create(wName, width, height);
+        mModelId = mRenderer->createMeshModel("Models/island/scene.gltf",
+            {aiTextureType_DIFFUSE, aiTextureType_NORMALS});
 
-        mCamera.rotateBy(glm::vec3(14.0f, -204.0f, 0.0f));
-        mCamera.setEye(glm::vec3(14.0f, -14.0f, 30.0f));
-
+        bool result = mModelId != -1;
         if(result)
         {
-            mModelId = mRenderer->createMeshModel("Models/sea.obj");
+            result = Engine::create(wName, width, height);
+        
+            mCamera.rotateBy(glm::vec3(14.0f, -204.0f, 0.0f));
+            mCamera.setEye(glm::vec3(14.0f, -14.0f, 30.0f));
+
+            glm::mat4 sceneLocalMatrix = glm::scale(glm::mat4(1.0f), glm::vec3(MODEL_SCALE));
+            MeshModel* meshModel = mRenderer->getMeshModel(mModelId);
+            meshModel->setModelMatrix(sceneLocalMatrix);
         }
 
-        return result && mModelId != -1;
+        return result;
     }
     
     virtual void tick()
@@ -156,9 +48,11 @@ public:
         float fractPart = static_cast<float>(std::modf(mTime / 360.0f, &intPart));
         float angle = fractPart * 360.0f * 10.0f;
 
-        glm::mat4 sceneLocalMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat4 sceneLocalMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        sceneLocalMatrix = glm::rotate(sceneLocalMatrix, glm::radians(angle), glm::vec3(0.0f, 0.0f, 1.0f));
         //sceneLocalMatrix = glm::rotate(sceneLocalMatrix, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         sceneLocalMatrix = glm::scale(sceneLocalMatrix, glm::vec3(0.09f));
+        //sceneLocalMatrix = glm::mat4(1.0f);
         MeshModel* meshModel = mRenderer->getMeshModel(mModelId);
         if(meshModel != nullptr)
         {

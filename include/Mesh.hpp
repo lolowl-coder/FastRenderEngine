@@ -14,14 +14,16 @@ namespace fre
 	{
 	public:
 		Mesh();
-		Mesh(
+		Mesh(uint32_t materialId);
+		~Mesh();
+
+		void addVertex(const Vertex& vertex);
+		void addIndex(const uint32_t index);
+
+		void sync(
 			const MainDevice& mainDevice,
 			VkQueue transferQueue,
-			VkCommandPool transferCommandPool,
-			std::vector<Vertex>* vertices,
-			std::vector<uint32_t>* indices,
-			uint32_t newMaterialId);
-		~Mesh();
+			VkCommandPool transferCommandPool);
 
 		void setModelMatrix(glm::mat4 newModelMatrix);
 		const glm::mat4& getModelMatrix() const;
@@ -34,19 +36,20 @@ namespace fre
 		VkBuffer getIndexBuffer() const;
 		void destroyBuffers(VkDevice logicalDevice);
 	private:
-		glm::mat4 modelMatrix;
+		glm::mat4 mModelMatrix;
 
 		uint32_t mMaterialId = std::numeric_limits<uint32_t>::max();
 
-		int vertexCount;
-		VkBuffer vertexBuffer;
-		VkDeviceMemory vertexBufferMemory;
+		std::vector<Vertex> mVertices;
+		std::vector<uint32_t> mIndices;
 
-		int indexCount;
-		VkBuffer indexBuffer;
-		VkDeviceMemory indexBufferMemory;
+		VkBuffer mVertexBuffer;
+		VkDeviceMemory mVertexBufferMemory;
 
-		void createVertexBuffer(const MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool, std::vector<Vertex>* vertices);
-		void createIndexBuffer(const MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool, std::vector<uint32_t>* indices);
+		VkBuffer mIndexBuffer;
+		VkDeviceMemory mIndexBufferMemory;
+
+		void createVertexBuffer(const MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool);
+		void createIndexBuffer(const MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool);
 	};
 }

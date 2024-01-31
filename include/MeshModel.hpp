@@ -18,6 +18,10 @@ namespace fre
 		MeshModel();
 		MeshModel(std::vector<Mesh> newMeshList);
 
+		void sync(const MainDevice& mainDevice,
+			VkQueue transferQueue,
+			VkCommandPool transferCommandPool);
+
 		size_t getMeshCount() const;
 		const Mesh* getMesh(size_t index) const;
 		const glm::mat4& getModelMatrix() const;
@@ -25,19 +29,12 @@ namespace fre
 
 		void destroyMeshModel(VkDevice logicalDevice);
 
-		static std::vector<std::map<aiTextureType, std::string>> loadMaterials(const aiScene* scene,
-			aiTextureType texturesLoadMask);
-		static std::vector<Mesh> loadNode(const MainDevice& mainDevice, VkQueue transferQueue,
-			VkCommandPool transferCommandPool, aiNode* node, const aiScene* scene,
-			glm::vec3& mn, glm::vec3& mx);
-		static Mesh loadMesh(const MainDevice& mainDevice, VkQueue transferQueue,
-			VkCommandPool transferCommandPool, aiMesh * mesh, const aiScene* scene,
-			glm::vec3& mn, glm::vec3& mx);
+		static std::vector<Mesh> loadNode(aiNode* node, const aiScene* scene, glm::vec3& mn, glm::vec3& mx);
+		static Mesh loadMesh(aiMesh * mesh, const aiScene* scene, glm::vec3& mn, glm::vec3& mx);
 
 		~MeshModel();
 
 	private:
-		std::vector<Material> mMaterials;
 		std::vector<Mesh> meshList;
 		glm::mat4 modelMatrix;
 	};

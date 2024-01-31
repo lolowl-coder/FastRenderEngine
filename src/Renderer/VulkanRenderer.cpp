@@ -1,6 +1,7 @@
 #include "Renderer/VulkanRenderer.hpp"
 
 #include "Camera.hpp"
+#include "Shader.hpp"
 #include "Renderer/VulkanPipeline.hpp"
 #include "Renderer/VulkanShader.hpp"
 #include "config.hpp"
@@ -17,8 +18,19 @@ const bool enableValidationLayers = true;
 
 namespace fre
 {
-	VulkanRenderer::VulkanRenderer()
+	//shader input
+	struct Lighting
 	{
+		glm::vec4 cameraEye;
+		glm::vec4 lightPos;
+		glm::mat4 normalMatrix;
+	};
+
+	VulkanRenderer::VulkanRenderer()
+		: mFogShaderName("fog")
+	{
+		mRegisteredShaders = {"colored", "textured", "normalMap", mFogShaderName};
+		mFogShaderId = getIndexOf(mRegisteredShaders, mFogShaderName);
 	}
 
 	VulkanRenderer::~VulkanRenderer()
@@ -46,11 +58,17 @@ namespace fre
 			createUniformBuffers();
 			allocateUniformDescriptorSets();
 			allocateInputDescriptorSets();
-
+			loadUsedShaders();
 			createGraphicsPipelines();
 			createCommandPool();
 			createCommandBuffers();
 			createSynchronisation();
+
+			loadTextures();
+			for(auto& meshModel : mMeshModels)
+			{
+				meshModel.sync(mainDevice, graphicsQueue, graphicsCommandPool);
+			}
 		}
 		catch (std::runtime_error& e)
 		{
@@ -118,7 +136,7 @@ namespace fre
 		return result;
 	}
 
-	void VulkanRenderer::draw(const Camera& camera)
+	void VulkanRenderer::draw(const Camera& camera, const glm::vec3& lightPosition)
 	{
 		//Wait for given fence to signal (open) from last draw before continuing
 		vkWaitForFences(mainDevice.logicalDevice, 1, &drawFences[currentFrame], VK_TRUE, std::numeric_limits<uint32_t>::max());
@@ -141,7 +159,7 @@ namespace fre
 			//Manually reset (close) fences
 			vkResetFences(mainDevice.logicalDevice, 1, &drawFences[currentFrame]);
 
-			recordCommands(imageIndex, camera);
+			recordCommands(imageIndex, camera, lightPosition);
 
 			updateUniformBuffers(imageIndex, camera);
 
@@ -422,12 +440,63 @@ namespace fre
 
 	void VulkanRenderer::createGraphicsPipelines()
 	{
+		mModelMatrixPCR.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;//Shader stage push constant will go to
+		mModelMatrixPCR.offset = 0;
+		mModelMatrixPCR.size = sizeof(glm::mat4);
+
+        mLightingPCR.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;	//Shader stage push constant will go to
+		mLightingPCR.offset = sizeof(glm::mat4);
+		mLightingPCR.size = sizeof(Lighting);
+
+        mNearFarPCR.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;	//Shader stage push constant will go to
+		mNearFarPCR.offset = 0;
+		mNearFarPCR.size = sizeof(glm::vec2);
+
+		mScenePipeline.create(
+            mainDevice.logicalDevice,
+            {mShaders[0].mVertexShader, mShaders[0].mFragmentShader},
+            sizeof(Vertex),
+            {
+                {VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
+                {VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
+                {VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
+                {VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tex)}
+            },
+            VK_TRUE,
+            mRenderPass.mRenderPass,
+            0,
+            {
+                //All inputs used in render pass
+                //Uniforms (model matrix) in subpass 0
+                mUniformDescriptorSetLayout.mDescriptorSetLayout,
+                //Color texture for subpass 0
+                mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout,
+                //Normals texture for subpass 0
+                mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout
+            },
+            {mModelMatrixPCR, mLightingPCR});
+
+		const auto& fogShader = mShaders[mFogShaderIndex];
+		mFogPipeline.create(
+            mainDevice.logicalDevice,
+            {fogShader.mVertexShader, fogShader.mFragmentShader},
+            0,
+            //no attributes for fog pass
+            {},
+            VK_FALSE,
+            mRenderPass.mRenderPass,
+            1,
+            {mInputDescriptorSetLayout.mDescriptorSetLayout},
+            {mNearFarPCR});
 		
+		//2 sub passes each using 1 pipeline
+        mSubPassesCount = 2;
 	}
 
 	void VulkanRenderer::cleanupGraphicsPipelines(VkDevice logicalDevice)
 	{
-		
+		mScenePipeline.destroy(logicalDevice);
+        mFogPipeline.destroy(logicalDevice);
 	}
 
 	void VulkanRenderer::createCommandPool()
@@ -542,55 +611,91 @@ namespace fre
 	}
 
 	void VulkanRenderer::onRenderModel(VkCommandBuffer commandBuffer,
-		VkPipelineLayout pipelineLayout, const MeshModel& meshModel, const Camera& camera)
+		VkPipelineLayout pipelineLayout, const MeshModel& model, const Camera& camera,
+		const glm::vec3& lightPosition)
 	{
-		
+		const glm::mat4& modelMatrix = model.getModelMatrix();
+		//"Push" constants to given shader stage directly (no buffer)
+		vkCmdPushConstants(
+			commandBuffer,
+			pipelineLayout,
+			VK_SHADER_STAGE_VERTEX_BIT,
+			0,
+			sizeof(glm::mat4),	//Size of data being pushed
+			&modelMatrix);	//Actual data being pushed (can be array)
+	}
+
+	void VulkanRenderer::onRenderMesh(uint32_t imageIndex, VkCommandBuffer commandBuffer,
+		VkPipelineLayout pipelineLayout, const MeshModel& model, const Mesh& mesh,
+		const Camera& camera, const glm::vec3& lightPosition)
+	{
+        float sn = std::sin(glfwGetTime()) * 0.5 + 0.5;
+        float xSize = mModelMx.x - mModelMn.x;
+        float x = sn * xSize + mModelMn.x;
+        x = 0.0f;
+        //std::cout << x << std::endl;
+
+		const glm::mat4& modelMatrix = model.getModelMatrix();
+        glm::mat3 normalMatrix(modelMatrix);
+        normalMatrix = glm::transpose(glm::inverse(normalMatrix));
+        Lighting lighting;
+        lighting.normalMatrix = glm::mat4(normalMatrix);
+        lighting.cameraEye = glm::vec4(camera.getEye(), 0.0);
+        Material& material = mMaterials[mesh.getMaterialId()];
+        lighting.lightPos = glm::vec4(lightPosition, material.mShininess);
+        //std::cout << "mat3 size: " << sizeof(glm::mat3) << std::endl;
+        //std::cout << "Lighting.normalMatrix: " << offsetof(Lighting, normalMatrix) << std::endl;
+        //std::cout << "Lighting.cameraEye: " << offsetof(Lighting, cameraEye) << std::endl;
+        //std::cout << "Lighting.lightPos: " << offsetof(Lighting, lightPos) << std::endl;
+		vkCmdPushConstants(
+			commandBuffer,
+			pipelineLayout,
+			VK_SHADER_STAGE_FRAGMENT_BIT,
+			sizeof(glm::mat4),
+			sizeof(Lighting),
+			&lighting);
+
+		VkBuffer vertexBuffers[] = { mesh.getVertexBuffer()};	//Buffers to bind
+		VkDeviceSize offsets[] = { 0 };		//Offsets into buffers being bound
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);	//Command to bind vertex buffer before drawing with them
+
+		vkCmdBindIndexBuffer(commandBuffer, mesh.getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);	//Command to bind index buffer before drawing with them
+
+		//Dynamic offset amount
+		//uint32_t dynamicOffset = static_cast<uint32_t>(modelUniformAlignment) * j;
+
+		//Bind all textures of material
+		std::vector<VkDescriptorSet> descriptorSets;
+		descriptorSets.push_back(mUniformDescriptorSets[imageIndex].mDescriptorSet);
+		for(const auto textureId : material.mTextureIds)
+		{
+			descriptorSets.push_back(
+				mTextureManager.mSamplerDescriptorSets[textureId.second].mDescriptorSet
+			);
+		}
+
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()),
+			descriptorSets.data(), 0, nullptr);
+
+		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.getIndexCount()), 1, 0, 0, 0);
 	}
 
 	void VulkanRenderer::renderScene(uint32_t imageIndex, VkPipelineLayout pipelineLayout,
-		const Camera& camera)
+		const Camera& camera, const glm::vec3& lightPosition)
 	{
 		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
 		for (size_t j = 0; j < mMeshModels.size(); j++)
 		{
-			const MeshModel& thisModel = mMeshModels[j];
+			const MeshModel& model = mMeshModels[j];
 			
-			onRenderModel(commandBuffer, pipelineLayout, thisModel, camera);
+			onRenderModel(commandBuffer, pipelineLayout, model, camera, lightPosition);
 
-			for (size_t k = 0; k < thisModel.getMeshCount(); k++)
+			for (size_t k = 0; k < model.getMeshCount(); k++)
 			{
-				VkBuffer vertexBuffers[] = { thisModel.getMesh(k)->getVertexBuffer()};	//Buffers to bind
-				VkDeviceSize offsets[] = { 0 };		//Offsets into buffers being bound
-				vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);	//Command to bind vertex buffer before drawing with them
-
-				vkCmdBindIndexBuffer(commandBuffer, thisModel.getMesh(k)->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);	//Command to bind index buffer before drawing with them
-
-				//Dynamic offset amount
-				//uint32_t dynamicOffset = static_cast<uint32_t>(modelUniformAlignment) * j;
-
-				//Bind all textures of material
-				std::vector<VkDescriptorSet> descriptorSets;
-				descriptorSets.push_back(mUniformDescriptorSets[imageIndex].mDescriptorSet);
-				const auto& material = mMaterials[thisModel.getMesh(k)->getMaterialId()];
-				for(const auto textureId : material.mTextureIds)
-				{
-					descriptorSets.push_back(
-						mTextureManager.mSamplerDescriptorSets[textureId.second].mDescriptorSet
-					);
-				}
-				/*const auto diffuseIt = material.mTextureIds.find(aiTextureType_DIFFUSE);
-				const auto textureId = diffuseIt != material.mTextureIds.end() ? diffuseIt->second : 0;
-				std::array<VkDescriptorSet, 2> descriptorSetGroup =
-					{
-						mUniformDescriptorSets[imageIndex].mDescriptorSet,
-						mTextureManager.mSamplerDescriptorSets[textureId].mDescriptorSet
-					};*/
-
-				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-					pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()),
-					descriptorSets.data(), 0, nullptr);
-
-				vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(thisModel.getMesh(k)->getIndexCount()), 1, 0, 0, 0);
+				const Mesh& mesh = *model.getMesh(k);
+				onRenderMesh(imageIndex, commandBuffer, pipelineLayout, model, mesh, camera,
+					lightPosition);
 			}
 		}
 	}
@@ -604,9 +709,110 @@ namespace fre
 		vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 	}
 
-	void VulkanRenderer::renderSubPass(uint32_t imageIndex, uint32_t subPassIndex, const Camera& camera)
+	void VulkanRenderer::renderSubPass(uint32_t imageIndex, uint32_t subPassIndex, const Camera& camera,
+		const glm::vec3& lightPosition)
 	{
-		
+		setViewport(imageIndex);
+        setScissor(imageIndex);
+
+        switch(subPassIndex)
+        {
+        case 0:
+            {
+                bindPipeline(imageIndex, mScenePipeline.mPipeline);
+                renderScene(imageIndex, mScenePipeline.mPipelineLayout, camera, lightPosition);
+            }
+            break;
+        case 1:
+            {
+                bindPipeline(imageIndex, mFogPipeline.mPipeline);
+                glm::vec2 nearFar(camera.mNear, camera.mFar);
+                vkCmdPushConstants(
+                    mCommandBuffers[imageIndex].mCommandBuffer,
+                    mFogPipeline.mPipelineLayout,
+                    VK_SHADER_STAGE_FRAGMENT_BIT,
+                    0,
+                    sizeof(glm::vec2),
+                    &nearFar);
+                renderTexturedRect(imageIndex, mFogPipeline.mPipelineLayout);
+            }
+            break;
+        }
+	}
+
+	const Shader& VulkanRenderer::getShader(const Material& material) const
+	{
+		const auto foundIt = mMaterialToShaderMap.find(material.mId);
+		if(foundIt == mMaterialToShaderMap.end())
+		{
+			throw std::runtime_error("Can't find shader");
+		}
+		uint32_t shaderIndex = foundIt->second;
+		return mShaders[shaderIndex];
+	}
+
+	void VulkanRenderer::buildMaterialToShaderMap()
+	{
+		mMaterialToShaderMap.clear();
+
+		//Here we buil map that links material to shader
+		//Material's texture types define the key to select a shader
+
+		for(const auto& material : mMaterials)
+		{
+			if(!material.mTextureIds.empty())
+			{
+				int shaderId = -1;
+				if(material.hasTextureTypes({aiTextureType_DIFFUSE, aiTextureType_NORMALS}))
+				{
+					shaderId = getIndexOf<std::string>(mRegisteredShaders, "normalMap");
+				}
+				else if(material.hasTextureTypes({aiTextureType_DIFFUSE}))
+				{
+					shaderId = getIndexOf<std::string>(mRegisteredShaders, "textured");
+				}
+				else
+				{
+					shaderId = getIndexOf<std::string>(mRegisteredShaders, "colored");
+				}
+				
+				if(shaderId != -1)
+				{
+					mMaterialToShaderMap[material.mId] = shaderId;
+				}
+			}
+		}
+	}
+
+	void VulkanRenderer::loadShader(uint32_t shaderIndex)
+	{
+		const std::string& shaderName = mRegisteredShaders[shaderIndex];
+		Shader shader;
+		shader.mVertexShader.create(mainDevice.logicalDevice, "Shaders/" + shaderName + ".vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+		shader.mFragmentShader.create(mainDevice.logicalDevice, "Shaders/" + shaderName + ".frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+		mShaders.push_back(shader);
+	}
+
+	void VulkanRenderer::loadUsedShaders()
+	{
+		std::set<uint32_t> loadedShaders;
+		for(auto& materialToShader : mMaterialToShaderMap)
+		{
+			if(loadedShaders.find(materialToShader.second) == loadedShaders.end())
+			{
+				uint32_t tmp = materialToShader.second;
+				//Turn shader id to shader index
+				materialToShader.second = mShaders.size();
+				loadShader(tmp);
+				loadedShaders.insert(tmp);
+			}
+		}
+
+		if(loadedShaders.find(mFogShaderId) == loadedShaders.end())
+		{
+			mFogShaderIndex = mShaders.size();
+			loadShader(mFogShaderId);
+		}
 	}
 
 	void VulkanRenderer::bindPipeline(uint32_t imageIndex, VkPipeline pipeline)
@@ -617,7 +823,8 @@ namespace fre
 				pipeline);
 	}
 
-	void VulkanRenderer::recordCommands(uint32_t imageIndex, const Camera& camera)
+	void VulkanRenderer::recordCommands(uint32_t imageIndex, const Camera& camera,
+		const glm::vec3& lightPosition)
 	{
 		mCommandBuffers[imageIndex].begin();
 		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
@@ -625,7 +832,7 @@ namespace fre
 
 		for(int32_t i = 0; i < mSubPassesCount; i++)
 		{
-			renderSubPass(imageIndex, i, camera);
+			renderSubPass(imageIndex, i, camera, lightPosition);
 
 			if(i < mSubPassesCount - 1)
 			{
@@ -898,57 +1105,88 @@ namespace fre
 		vkCmdSetScissor(mCommandBuffers[imageIndex].mCommandBuffer, 0, 1, &scissor);
     }
 
-	int VulkanRenderer::createMeshModel(std::string modelFile)
+	void VulkanRenderer::loadTextures()
+	{
+		//Convert to id to textureFileName map
+		std::map<uint32_t, std::string> idToTextureFileNameMap;
+		for(const auto& textureFileNameIndex : mTextureFileNameToIdMap)
+		{
+			idToTextureFileNameMap[textureFileNameIndex.second] = textureFileNameIndex.first;
+		}
+		//Having sorted by id texture file names we can load them in proper order
+		//and materials will refer proper texture Vulkan-resource indices
+		for(const auto& idToTextureFileName : idToTextureFileNameMap)
+		{
+			mTextureManager.createTexture(mainDevice, graphicsQueue,
+				graphicsCommandPool, idToTextureFileName.second);
+		}
+	}
+
+	int VulkanRenderer::createMeshModel(std::string modelFile,
+		const std::vector<aiTextureType>& texturesLoadTypes)
 	{
 		//Import model scene
 		Assimp::Importer importer;
-		const aiScene* scene = importer.ReadFile(modelFile, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices | aiProcess_SortByPType);
+		const aiScene* scene = importer.ReadFile(modelFile,
+			aiProcess_Triangulate | aiProcess_CalcTangentSpace |
+			aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices |
+			aiProcess_SortByPType);
 		if (!scene)
 		{
 			throw::std::runtime_error("Failed to load model! (" + modelFile + ")");
 		}
 
-		std::vector<std::map<aiTextureType, std::string>> materials =
-			MeshModel::loadMaterials(scene, static_cast<aiTextureType>(
-				aiTextureType_DIFFUSE | aiTextureType_NORMALS));
-		//To prevent texture duplicates
-		//1. create unique list of texture file paths
-		std::set<std::string> uniqueTextureFilePathsTmp;
-		for(auto& material : materials)
+		//Load materials
+		mMaterials.resize(scene->mNumMaterials);
+		for (uint32_t m = 0; m < scene->mNumMaterials; m++)
 		{
-			for(auto& textureFilePath : material)
+			aiMaterial* material = scene->mMaterials[m];
+			material->Get(AI_MATKEY_SHININESS, mMaterials[m].mShininess);
+			if(areEqual(mMaterials[m].mShininess, 0.0f))
 			{
-				uniqueTextureFilePathsTmp.insert(textureFilePath.second);
+				mMaterials[m].mShininess = 32.0f;
 			}
-		}
-		std::vector<std::string> uniqueTextureFilePaths(
-			uniqueTextureFilePathsTmp.begin(), uniqueTextureFilePathsTmp.end());
 
-		//2. load all unique textures
-		for(auto& textureFilePath : uniqueTextureFilePaths)
-		{
-			mTextureManager.createTexture(mainDevice, graphicsQueue,
-				graphicsCommandPool, textureFilePath);
-		}
-		//3. create materials that refer unique textures
-		for(auto& material : materials)
-		{
-			mMaterials.push_back(Material());
-			for(auto& textureFilePath : material)
+			//Look at textures we are interested in
+			for(uint32_t i = 1; i < aiTextureType_UNKNOWN; i++)
 			{
-				//find index of texture inside unique list
-				auto found = std::find(
-					uniqueTextureFilePaths.begin(),
-					uniqueTextureFilePaths.end(),
-					textureFilePath.second);
-				auto textureIndex = found - uniqueTextureFilePaths.begin();
-				mMaterials.back().mTextureIds[textureFilePath.first] = static_cast<uint32_t>(textureIndex);
+				aiTextureType textureType = static_cast<aiTextureType>(i);
+				auto foundIt = std::find(texturesLoadTypes.begin(),
+					texturesLoadTypes.end(), textureType);
+				bool found = foundIt != texturesLoadTypes.end();
+				if(found)
+				{
+					//Get texture file path
+					aiString path;
+					if (material->GetTexture(textureType, 0, &path) == AI_SUCCESS)
+					{
+						//Get file name
+						auto idx = std::string(path.data).rfind("\\");
+						if(idx == -1)
+						{
+							idx = std::string(path.data).rfind("/");
+						}
+						std::string textureFileName = std::string(path.data).substr(idx + 1);
+						static uint32_t textureId = 0;
+						const auto foundTexIt = mTextureFileNameToIdMap.find(textureFileName);
+						if(foundTexIt == mTextureFileNameToIdMap.end())
+						{
+							mMaterials[m].mTextureIds[textureType] = textureId;
+							mTextureFileNameToIdMap[textureFileName] = textureId++;
+						}
+						else
+						{
+							mMaterials[m].mTextureIds[textureType] = foundTexIt->second;
+						}
+					}
+				}
 			}
 		}
- 
+
+		buildMaterialToShaderMap();
+
 		//Load all meshes
 		std::vector<Mesh> modelMeshes = MeshModel::loadNode(
-			mainDevice, graphicsQueue, graphicsCommandPool,
 			scene->mRootNode, scene, mModelMn, mModelMx);
 
 		MeshModel meshModel = MeshModel(modelMeshes);

@@ -80,6 +80,9 @@ namespace fre
                 case GLFW_KEY_D:
                     camera.setMovement(Camera::M_RIGHT, movementEnabled);
                     break;
+                case GLFW_KEY_L:
+                    engine->setLightPosition(camera.mEye);
+                    break;
             }
         }
     }
@@ -120,7 +123,7 @@ namespace fre
 
             if(mRenderer != nullptr)
             {
-                mRenderer->draw(mCamera);
+                mRenderer->draw(mCamera, mLightPosition);
             }
         }
     }
@@ -153,13 +156,21 @@ namespace fre
 
     void Engine::setupCamera(int width, int height)
 	{
-		float aspectRatio = (float)width / (float)height;
-		mCamera.setPerspectiveProjection(45.0f, aspectRatio, 0.1f, 100.0f);
+        if(width != 0 && height != 0)
+		{
+            float aspectRatio = (float)width / (float)height;
+		    mCamera.setPerspectiveProjection(45.0f, aspectRatio, 0.1f, 100.0f);
+        }
 	}
 
     Camera& Engine::getCamera()
     {
         return mCamera;
+    }
+
+    void Engine::setLightPosition(const glm::vec3& lightPosition)
+    {
+        mLightPosition = lightPosition;
     }
 
     float Engine::getCameraRotationSpeed() const

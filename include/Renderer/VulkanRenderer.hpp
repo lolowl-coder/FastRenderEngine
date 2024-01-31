@@ -11,6 +11,7 @@
 #include "Renderer/VulkanDescriptorSet.hpp"
 #include "Renderer/VulkanDescriptorSetLayout.hpp"
 #include "Renderer/VulkanFrameBuffer.hpp"
+#include "Renderer/VulkanPipeline.hpp"
 #include "Renderer/VulkanRenderPass.hpp"
 #include "Renderer/VulkanSwapchain.hpp"
 #include "Renderer/VulkanTextureManager.hpp"
@@ -31,6 +32,7 @@ namespace fre
 {
 	struct VulkanPipeline;
 	struct Camera;
+	struct Shader;
 
 	class VulkanRenderer
 	{
@@ -41,10 +43,11 @@ namespace fre
 		int create(GLFWwindow* newWindow);
 		void destroy();
 
-		int createMeshModel(std::string modelFile);
+		int createMeshModel(std::string modelFile,
+			const std::vector<aiTextureType>& texturesLoadTypes);
 		MeshModel* getMeshModel(int modelId);
 
-		void draw(const Camera& camera);
+		void draw(const Camera& camera, const glm::vec3& lightPosition);
 
 		void setFramebufferResized(bool resized);
 
@@ -60,6 +63,10 @@ namespace fre
 		VulkanRenderPass mRenderPass;
 
 		std::vector<VulkanCommandBuffer> mCommandBuffers;
+		
+		VkPushConstantRange mModelMatrixPCR;
+		VkPushConstantRange mLightingPCR;
+		VkPushConstantRange mNearFarPCR;
 
 		// - Descriptors
 		VulkanDescriptorSetLayout mUniformDescriptorSetLayout;
@@ -78,6 +85,8 @@ namespace fre
 
 		// - Assets
 		std::vector<MeshModel> mMeshModels;
+		std::vector<Material> mMaterials;
+		std::map<std::string, uint32_t> mTextureFileNameToIdMap;
 
 		// - Dynamic data update functions
 		void setViewport(uint32_t imageIndex);
@@ -86,10 +95,22 @@ namespace fre
 		// - Render
 		void bindPipeline(uint32_t imageIndex, VkPipeline pipeline);
 		virtual void onRenderModel(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout,
-			const MeshModel& meshModel, const Camera& camera);
-		void renderScene(uint32_t imageIndex, VkPipelineLayout pipelineLayout, const Camera& camera);
+			const MeshModel& model, const Camera& camera, const glm::vec3& lightPosition);
+		virtual void onRenderMesh(uint32_t imageIndex, VkCommandBuffer commandBuffer,
+			VkPipelineLayout pipelineLayout, const MeshModel& model, const Mesh& mesh,
+			const Camera& camera, const glm::vec3& lightPosition);
+		void renderScene(uint32_t imageIndex, VkPipelineLayout pipelineLayout, const Camera& camera,
+			const glm::vec3& lightPosition);
 		void renderTexturedRect(uint32_t imageIndex, VkPipelineLayout pipelineLayout);
-		virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex, const Camera& camera);
+		virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex, const Camera& camera,
+			const glm::vec3& lightPosition);
+
+	private:
+		const Shader& getShader(const Material& material) const;
+		void buildMaterialToShaderMap();
+		void loadShader(uint32_t shaderIndex);
+		void loadUsedShaders();
+		void loadTextures();
 
 	private:
 		GLFWwindow* window;
@@ -110,6 +131,20 @@ namespace fre
 		VkQueue presentationQueue;
 		VkSurfaceKHR surface;
 
+		//List of possible shaders
+		std::vector<std::string> mRegisteredShaders;
+		//Loaded shaders
+		std::vector<Shader> mShaders;
+		int mSceneShaderIndex = -1;
+		std::string mFogShaderName;
+		int mFogShaderId = -1;
+		int mFogShaderIndex = -1;
+		//To find shader by material
+		std::map<uint32_t, uint32_t> mMaterialToShaderMap;
+
+		VulkanPipeline mScenePipeline;
+		VulkanPipeline mFogPipeline;
+
 		std::vector<VkBuffer> vpUniformBuffer;
 		std::vector<VkDeviceMemory> vpUniformBufferMemory;
 
@@ -119,9 +154,6 @@ namespace fre
 		VkDeviceSize minUniformBufferOffset;
 		size_t modelUniformAlignment;
 		ModelMatrix* modetTransferSpace;*/
-
-		// - Assets
-		std::vector<Material> mMaterials;
 
 		VulkanSwapChain mSwapChain;
 		std::vector<VulkanFrameBuffer> mFrameBuffers;
@@ -156,7 +188,8 @@ namespace fre
 		void updateUniformBuffers(uint32_t imageIndex, const Camera& camera);
 
 		// - Record functions
-		void recordCommands(uint32_t imageIndex, const Camera& camera);
+		void recordCommands(uint32_t imageIndex, const Camera& camera,
+			const glm::vec3& lightPosition);
 			
 		// - Get functions
 		void getPhysicalDevice();

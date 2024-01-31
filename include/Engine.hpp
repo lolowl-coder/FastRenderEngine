@@ -28,6 +28,7 @@ namespace fre
         std::shared_ptr<VulkanRenderer>& getRenderer();
         virtual void setupCamera(int width, int height);
         Camera& getCamera();
+        void setLightPosition(const glm::vec3& lightPosition);
         float getCameraRotationSpeed() const;
         float getCameraZoomSpeed() const;
     private:
@@ -40,5 +41,7 @@ namespace fre
 		Camera mCamera;
 		float mCameraRotationSpeed = 0.4f;
 		float mCameraZoomSpeed = 1.0f;
+
+        glm::vec3 mLightPosition = glm::vec3(100.0f);
     };
 }

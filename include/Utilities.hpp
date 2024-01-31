@@ -26,7 +26,8 @@ namespace fre
 	struct Vertex
 	{
 		glm::vec3 pos;
-		glm::vec3 col;
+		glm::vec3 normal;
+		glm::vec3 tangent;
 		glm::vec2 tex;
 	};
 
@@ -71,4 +72,23 @@ namespace fre
 		VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize bufferSize);
 
 	QueueFamilyIndices getQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
+
+	template<typename T>
+	int getIndexOf(const std::vector<T>& v, const T& value)
+	{
+		int result = -1;
+		const auto& foundIt = std::find(v.begin(), v.end(), value);
+		if(foundIt != v.end())
+		{
+			result = std::distance(v.begin(), foundIt);
+		}
+
+		return result;
+	}
+
+	template<typename T>
+	bool areEqual(T a, T b, T epsilon = std::numeric_limits<T>::epsilon())
+	{
+		return std::abs(a - b) < epsilon;
+	}
 }

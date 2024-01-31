@@ -2,6 +2,7 @@
 set(LIBRARY_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Camera.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Engine.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Material.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Mesh.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/MeshModel.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Utilities.cpp"
@@ -24,6 +25,7 @@ set(LIBRARY_HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Material.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Mesh.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/MeshModel.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Shader.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Utilities.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Hash/Hash.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Macros/Class.hpp"
