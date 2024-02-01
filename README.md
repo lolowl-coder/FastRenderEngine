@@ -1,6 +1,6 @@
-# FSR - Fast render engine
+# FRE - Fast render engine
 
-Engine with amphasis on simplicity and optimum resource consumption.
+Engine with emphasis on simplicity and optimum resource consumption.
 
 **Values:**
 Simple
@@ -12,7 +12,7 @@ CMake
 
 **Platforms to support:**
 
-- Windows
+- Windows (primary)
 - Android
 - Linux
 - MacOS
@@ -36,15 +36,25 @@ CMake
 
 **Basic features to implement:**
 
-- Multithreading
-- Main thread for rendering
-- Other threads for loading, updating, collisions, etc.
+- Cube maps.
+- UI (imGui, etc.)
+- Animation.
+- Terrain.
+- Water.
+- Particle systems.
+- Instancing.
+- Shadows (including cascaded).
+- SSAO.
+- DOF.
+- Compute (animation), geometry (quads, lines), tesselation (terrain, water) shaders.
+- Multithreading. For what: rendering, loading, updating, collisions, etc.
 
 **Lighting:**
 
-- Blinn-Phong
-- PBR
-- Deferred
+- Blinn-Phong.
+- PBR.
+- IBL.
+- Deferred lighting.
 
 **Resources:**
 
