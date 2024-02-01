@@ -1,8 +1,6 @@
-# Directory structure
+**Directory structure:**
 
-external - external libraries
-include - headers
-src - engine sources
-    renderer
-    resources
-samples - examples of engine usage
+- external - external libraries
+- include - headers
+- samples - examples of engine usage
+- src - engine sources
