@@ -17,6 +17,7 @@ public:
     MyEngine()
     {
         mRenderer.reset(new VulkanRenderer);
+        mRenderer->setClearColor(glm::vec4(0.77f, 0.85f, 0.88f, 0.0f));
     }
 
     virtual bool create(std::string wName, const int width, const int height) override

@@ -29,8 +29,10 @@ namespace fre
 
 		void destroyMeshModel(VkDevice logicalDevice);
 
-		static std::vector<Mesh> loadNode(aiNode* node, const aiScene* scene, glm::vec3& mn, glm::vec3& mx);
-		static Mesh loadMesh(aiMesh * mesh, const aiScene* scene, glm::vec3& mn, glm::vec3& mx);
+		static std::vector<Mesh> loadNode(aiNode* node, const aiScene* scene, glm::vec3& mn,
+			glm::vec3& mx, uint32_t materialOffset);
+		static Mesh loadMesh(aiMesh * mesh, const aiScene* scene, glm::vec3& mn,
+			glm::vec3& mx, uint32_t materialOffset);
 
 		~MeshModel();
 

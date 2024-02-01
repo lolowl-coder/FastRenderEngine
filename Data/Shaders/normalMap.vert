@@ -24,7 +24,7 @@ void main()
 	vec4 worldPos = pushModel.model * vec4(pos, 1.0);
 	gl_Position = uboViewProjection.projection * uboViewProjection.view * worldPos;
 	fragPos = worldPos.xyz;
-	fragNormal = normal;
-	fragTangent = tangent;
+	fragNormal = mat3(pushModel.model) * normal;
+	fragTangent = mat3(pushModel.model) * tangent;
 	fragTex = tex;
 }

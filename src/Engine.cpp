@@ -81,7 +81,7 @@ namespace fre
                     camera.setMovement(Camera::M_RIGHT, movementEnabled);
                     break;
                 case GLFW_KEY_L:
-                    engine->setLightPosition(camera.mEye);
+                    engine->setLightPosition(-camera.getEye());
                     break;
             }
         }
@@ -171,6 +171,8 @@ namespace fre
     void Engine::setLightPosition(const glm::vec3& lightPosition)
     {
         mLightPosition = lightPosition;
+        std::cout << "Light position: " << mLightPosition.x << " "
+            << mLightPosition.y << " " << mLightPosition.z << std::endl;
     }
 
     float Engine::getCameraRotationSpeed() const

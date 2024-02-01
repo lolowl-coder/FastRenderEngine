@@ -152,11 +152,12 @@ namespace fre
 
     void VulkanRenderPass::begin(
         VkFramebuffer swapChainFrameBuffer,
-        VkExtent2D swapChainExtent, VkCommandBuffer commandBuffer)
+        VkExtent2D swapChainExtent, VkCommandBuffer commandBuffer,
+		const glm::vec4& clearColor)
     {
         std::array<VkClearValue, 3> clearValues = {};
-		clearValues[0].color = { 0.77f, 0.85f, 0.88f, 1.0f };
-		clearValues[1].color = { 0.77f, 0.85f, 0.88f, 0.0f };
+		clearValues[0].color = {clearColor.r, clearColor.g, clearColor.b, clearColor.a};
+		clearValues[1].color = {clearColor.r, clearColor.g, clearColor.b, clearColor.a};
 		clearValues[2].depthStencil.depth = 1.0f;
 
 		//Information about how to begin render pass (only need for graphical applications)

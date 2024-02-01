@@ -9,29 +9,34 @@
 
 using namespace fre;
 
-#define MODEL_SCALE 0.75f
-
 class MyEngine : public Engine
 {
 public:
     MyEngine()
     {
         mRenderer.reset(new VulkanRenderer);
+        mRenderer->setClearColor(glm::vec4(43.0f, 37.0f, 44.0f, 0.0f) / 256.0f);
     }
 
     virtual bool create(std::string wName, const int width, const int height) override
     {
-        mModelId = mRenderer->createMeshModel("Models/knightHelmPBR/scene.gltf",
+        /*mCoordSystemModelId = mRenderer->createMeshModel("Models/coordSystem/scene.obj",
+            {aiTextureType_DIFFUSE});*/
+        //mModelId = mRenderer->createMeshModel("Models/earth/scene.gltf",
+        mModelId = mRenderer->createMeshModel("Models/sciFiShip/scene.gltf",
+        //mModelId = mRenderer->createMeshModel("Models/coordSystem/scene.obj",
             {aiTextureType_DIFFUSE, aiTextureType_NORMALS});
 
-        bool result = mModelId != -1;
+        bool result = mModelId != -1/* && mCoordSystemModelId != -1*/;
         if(result)
         {
             result = Engine::create(wName, width, height);
         
             mCamera.setEye(glm::vec3(0.0, 0.0, -60.0));
 
-            glm::mat4 sceneLocalMatrix = glm::scale(glm::mat4(1.0f), glm::vec3(MODEL_SCALE));
+            glm::mat4 sceneLocalMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+            //glm::mat4 sceneLocalMatrix = glm::scale(glm::mat4(1.0f), glm::vec3(MODEL_SCALE));
+            sceneLocalMatrix = glm::scale(sceneLocalMatrix, glm::vec3(5.5));
             MeshModel* meshModel = mRenderer->getMeshModel(mModelId);
             meshModel->setModelMatrix(sceneLocalMatrix);
         }
@@ -40,6 +45,7 @@ public:
     }
 
 private:
+    int mCoordSystemModelId = -1;
     int mModelId = -1;
 };
 

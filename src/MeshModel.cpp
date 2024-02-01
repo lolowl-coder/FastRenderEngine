@@ -57,16 +57,15 @@ namespace fre
 		}
 	}
 
-	std::vector<Mesh> MeshModel::loadNode(
-		aiNode* node,
-		const aiScene* scene, glm::vec3& mn, glm::vec3& mx)
+	std::vector<Mesh> MeshModel::loadNode(aiNode* node, const aiScene* scene,
+		glm::vec3& mn, glm::vec3& mx, uint32_t materialOffset)
 	{
 		std::vector<Mesh> meshList;
 
 		for (size_t i = 0; i < node->mNumMeshes; i++)
 		{
 			meshList.push_back(
-				loadMesh(scene->mMeshes[node->mMeshes[i]], scene, mn, mx)
+				loadMesh(scene->mMeshes[node->mMeshes[i]], scene, mn, mx, materialOffset)
 			);
 		}
 
@@ -74,17 +73,18 @@ namespace fre
 		//then append their meshes to this node's mesh list
 		for (size_t i = 0; i < node->mNumChildren; i++)
 		{
-			std::vector<Mesh> newList = loadNode(node->mChildren[i], scene, mn, mx);
+			std::vector<Mesh> newList = loadNode(node->mChildren[i], scene, mn, mx, materialOffset);
 			meshList.insert(meshList.end(), newList.begin(), newList.end());
 		}
 
 		return meshList;
 	}
 
-	Mesh MeshModel::loadMesh(aiMesh * mesh, const aiScene* scene, glm::vec3& mn, glm::vec3& mx)
+	Mesh MeshModel::loadMesh(aiMesh * mesh, const aiScene* scene, glm::vec3& mn, glm::vec3& mx,
+		uint32_t materialOffset)
 	{
 		//sync with mesh vertex numbers
-		Mesh newMesh = Mesh(mesh->mMaterialIndex);
+		Mesh newMesh = Mesh(mesh->mMaterialIndex + materialOffset);
 		
 		for (size_t i = 0; i < mesh->mNumVertices; i++)
 		{

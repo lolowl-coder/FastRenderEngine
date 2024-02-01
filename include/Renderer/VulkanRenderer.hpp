@@ -51,6 +51,8 @@ namespace fre
 
 		void setFramebufferResized(bool resized);
 
+		void setClearColor(const glm::vec4& clearColor);
+
 	protected:
 		virtual void createGraphicsPipelines();
 
@@ -167,6 +169,8 @@ namespace fre
 		std::vector<VkFence> drawFences;
 
 		bool framebufferResized = false;
+
+		glm::vec4 mClearColor = glm::vec4(0.0f);
 
 		//Vulkan functions
 		// -create functions

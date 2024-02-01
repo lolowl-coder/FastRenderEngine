@@ -15,7 +15,7 @@ namespace fre
 			aspectRatio,
 			mNear, mFar);
 		//In Vulkan Up direction points down
-		mProjection[1][1] *= -1.0f;
+        mProjection[1][1] *= -1.0f;
     }
 
     void Camera::setOrthogonalProjection(float l, float r, float b, float t, float near, float far)
@@ -23,6 +23,7 @@ namespace fre
         mNear = near;
         mFar = far;
         mProjection = glm::ortho(l, r, b, t, mNear, mFar);
+		mProjection[1][1] *= -1.0f;
     }
 
     void Camera::rotateBy(const glm::vec3& rotationAngles)

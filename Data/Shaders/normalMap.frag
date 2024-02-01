@@ -27,13 +27,11 @@ void main()
 	vec3 n = normalize(fragNormal);
 	vec3 t = normalize(fragTangent);
 	vec3 b = normalize(cross(n, t));
-	mat3 tbn = mat3(t, b, n);
-	vec3 normal = normalize(texture(normalsSampler, fragTex).xyz);
+	mat3 tbn = (mat3(t, b, n));
+	vec3 normal = normalize(texture(normalsSampler, fragTex).xyz * 2.0 - 1.0);
 	normal = tbn * normal;
-	//normal = normalize(transpose(inverse(mat3(lighting.normalMatrix))) * normal);
-	//normal = normalize(mat3(lighting.normalMatrix) * normal);
-	//normal = vec3(0.0, 0.0, 1.0);
 	vec3 fragLightDir = normalize(lighting.lightPos.xyz - fragPos);
+	//fragLightDir = normalize(vec3(60.0, 0.0, 0.0) - fragPos);
 	float diffuseFactor = max(0.0, dot(normal, fragLightDir));
 
 	//specular
@@ -41,9 +39,10 @@ void main()
 	vec3 reflectedDir = reflect(-fragLightDir, normal);
 	vec3 fragEyeDir = normalize(lighting.cameraEye.xyz - fragPos);
 	float shininess = lighting.lightPos.w;
-	float specularFactor = pow(max(0.0, dot(-fragEyeDir, reflectedDir)), shininess);
+	float specularFactor = pow(max(0.0, dot(fragEyeDir, reflectedDir)), shininess);
 	outColour = vec4(
 		diffuseColor * diffuseFactor +
 		specularColor * specularFactor,
 		alpha);
+	//outColour = vec4(vec3(normal), 1.0);
 }

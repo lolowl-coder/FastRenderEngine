@@ -42,6 +42,7 @@ namespace fre
 		window = newWindow;
 
 		try {
+			buildMaterialToShaderMap();
 			createInstance();
 			createSurface();
 			getPhysicalDevice();
@@ -254,6 +255,11 @@ namespace fre
     {
 		framebufferResized = resized;
     }
+
+	void VulkanRenderer::setClearColor(const glm::vec4& clearColor)
+	{
+		mClearColor = clearColor;
+	}
 
     void VulkanRenderer::createInstance()
     {
@@ -640,7 +646,7 @@ namespace fre
         normalMatrix = glm::transpose(glm::inverse(normalMatrix));
         Lighting lighting;
         lighting.normalMatrix = glm::mat4(normalMatrix);
-        lighting.cameraEye = glm::vec4(camera.getEye(), 0.0);
+        lighting.cameraEye = glm::vec4(-camera.getEye(), 0.0);
         Material& material = mMaterials[mesh.getMaterialId()];
         lighting.lightPos = glm::vec4(lightPosition, material.mShininess);
         //std::cout << "mat3 size: " << sizeof(glm::mat3) << std::endl;
@@ -828,7 +834,8 @@ namespace fre
 	{
 		mCommandBuffers[imageIndex].begin();
 		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
-		mRenderPass.begin(mFrameBuffers[imageIndex].mFrameBuffer, mSwapChain.mSwapChainExtent, commandBuffer);
+		mRenderPass.begin(mFrameBuffers[imageIndex].mFrameBuffer, mSwapChain.mSwapChainExtent,
+			commandBuffer, mClearColor);
 
 		for(int32_t i = 0; i < mSubPassesCount; i++)
 		{
@@ -1137,14 +1144,15 @@ namespace fre
 		}
 
 		//Load materials
-		mMaterials.resize(scene->mNumMaterials);
+		uint32_t materialsOffset = mMaterials.size();
 		for (uint32_t m = 0; m < scene->mNumMaterials; m++)
 		{
 			aiMaterial* material = scene->mMaterials[m];
-			material->Get(AI_MATKEY_SHININESS, mMaterials[m].mShininess);
-			if(areEqual(mMaterials[m].mShininess, 0.0f))
+			mMaterials.push_back(Material());
+			material->Get(AI_MATKEY_SHININESS, mMaterials.back().mShininess);
+			if(areEqual(mMaterials.back().mShininess, 0.0f))
 			{
-				mMaterials[m].mShininess = 32.0f;
+				mMaterials.back().mShininess = 16.0f;
 			}
 
 			//Look at textures we are interested in
@@ -1171,23 +1179,21 @@ namespace fre
 						const auto foundTexIt = mTextureFileNameToIdMap.find(textureFileName);
 						if(foundTexIt == mTextureFileNameToIdMap.end())
 						{
-							mMaterials[m].mTextureIds[textureType] = textureId;
+							mMaterials.back().mTextureIds[textureType] = textureId;
 							mTextureFileNameToIdMap[textureFileName] = textureId++;
 						}
 						else
 						{
-							mMaterials[m].mTextureIds[textureType] = foundTexIt->second;
+							mMaterials.back().mTextureIds[textureType] = foundTexIt->second;
 						}
 					}
 				}
 			}
 		}
 
-		buildMaterialToShaderMap();
-
 		//Load all meshes
 		std::vector<Mesh> modelMeshes = MeshModel::loadNode(
-			scene->mRootNode, scene, mModelMn, mModelMx);
+			scene->mRootNode, scene, mModelMn, mModelMx, materialsOffset);
 
 		MeshModel meshModel = MeshModel(modelMeshes);
 		mMeshModels.push_back(meshModel);
