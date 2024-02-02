@@ -8,7 +8,7 @@ namespace fre
 		std::ifstream file(fileName, std::ios::binary | std::ios::ate);
 		if (!file.is_open())
 		{
-			throw std::runtime_error("Failed to open file!");
+			throw std::runtime_error("Failed to open file! " + fileName);
 		}
 
 		const auto fileSize = (size_t)file.tellg();

@@ -27,10 +27,7 @@ namespace fre
 	};
 
 	VulkanRenderer::VulkanRenderer()
-		: mFogShaderName("fog")
 	{
-		mRegisteredShaders = {"colored", "textured", "normalMap", mFogShaderName};
-		mFogShaderId = getIndexOf(mRegisteredShaders, mFogShaderName);
 	}
 
 	VulkanRenderer::~VulkanRenderer()
@@ -42,7 +39,6 @@ namespace fre
 		window = newWindow;
 
 		try {
-			buildMaterialToShaderMap();
 			createInstance();
 			createSurface();
 			getPhysicalDevice();
@@ -458,51 +454,65 @@ namespace fre
 		mNearFarPCR.offset = 0;
 		mNearFarPCR.size = sizeof(glm::vec2);
 
-		mScenePipeline.create(
-            mainDevice.logicalDevice,
-            {mShaders[0].mVertexShader, mShaders[0].mFragmentShader},
-            sizeof(Vertex),
-            {
-                {VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
-                {VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
-                {VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
-                {VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tex)}
-            },
-            VK_TRUE,
-            mRenderPass.mRenderPass,
-            0,
-            {
-                //All inputs used in render pass
-                //Uniforms (model matrix) in subpass 0
-                mUniformDescriptorSetLayout.mDescriptorSetLayout,
-                //Color texture for subpass 0
-                mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout,
-                //Normals texture for subpass 0
-                mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout
-            },
-            {mModelMatrixPCR, mLightingPCR});
+		for(auto& shader : mShaders)
+		{
+			shader.mPipelineId = mPipelines.size();
+			mPipelines.push_back(VulkanPipeline());
+			auto& pipeline = mPipelines.back();
+			if(shader.mId == mFogShaderId)
+			{
+				pipeline.create(
+					mainDevice.logicalDevice,
+					{shader.mVertexShader, shader.mFragmentShader},
+					0,
+					//no attributes for fog pass
+					{},
+					VK_FALSE,
+					mRenderPass.mRenderPass,
+					1,
+					{mInputDescriptorSetLayout.mDescriptorSetLayout},
+					{mNearFarPCR}
+				);
+			}
+			else
+			{
+				pipeline.create(
+					mainDevice.logicalDevice,
+					{shader.mVertexShader, shader.mFragmentShader},
+					sizeof(Vertex),
+					{
+						{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
+						{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
+						{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
+						{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tex)}
+					},
+					VK_TRUE,
+					mRenderPass.mRenderPass,
+					0,
+					{
+						//All inputs used in render pass
+						//Uniforms (model matrix) in subpass 0
+						mUniformDescriptorSetLayout.mDescriptorSetLayout,
+						//Color texture for subpass 0
+						mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout,
+						//Normals texture for subpass 0
+						mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout
+					},
+					{mModelMatrixPCR, mLightingPCR}
+				);
+			}
+		}
 
-		const auto& fogShader = mShaders[mFogShaderIndex];
-		mFogPipeline.create(
-            mainDevice.logicalDevice,
-            {fogShader.mVertexShader, fogShader.mFragmentShader},
-            0,
-            //no attributes for fog pass
-            {},
-            VK_FALSE,
-            mRenderPass.mRenderPass,
-            1,
-            {mInputDescriptorSetLayout.mDescriptorSetLayout},
-            {mNearFarPCR});
-		
 		//2 sub passes each using 1 pipeline
         mSubPassesCount = 2;
 	}
 
 	void VulkanRenderer::cleanupGraphicsPipelines(VkDevice logicalDevice)
 	{
-		mScenePipeline.destroy(logicalDevice);
-        mFogPipeline.destroy(logicalDevice);
+		for(auto& pipeline : mPipelines)
+		{
+			pipeline.destroy(logicalDevice);
+		}
 	}
 
 	void VulkanRenderer::createCommandPool()
@@ -616,38 +626,36 @@ namespace fre
 		vkUnmapMemory(mainDevice.logicalDevice, modelDUniformBufferMemory[imageIndex]);*/
 	}
 
-	void VulkanRenderer::onRenderModel(VkCommandBuffer commandBuffer,
-		VkPipelineLayout pipelineLayout, const MeshModel& model, const Camera& camera,
-		const glm::vec3& lightPosition)
+	void VulkanRenderer::onRenderMesh(uint32_t imageIndex, VkCommandBuffer commandBuffer,
+		const MeshModel& model, const Mesh& mesh,
+		const Camera& camera, const glm::vec3& lightPosition)
 	{
+		const auto& material = mMaterials[mesh.getMaterialId()];
+		const auto& shader = mShaders[material.mShaderId];
+		const auto& pipeline = mPipelines[shader.mPipelineId];
+		bindPipeline(imageIndex, pipeline.mPipeline);
+
 		const glm::mat4& modelMatrix = model.getModelMatrix();
 		//"Push" constants to given shader stage directly (no buffer)
 		vkCmdPushConstants(
 			commandBuffer,
-			pipelineLayout,
+			pipeline.mPipelineLayout,
 			VK_SHADER_STAGE_VERTEX_BIT,
 			0,
 			sizeof(glm::mat4),	//Size of data being pushed
 			&modelMatrix);	//Actual data being pushed (can be array)
-	}
 
-	void VulkanRenderer::onRenderMesh(uint32_t imageIndex, VkCommandBuffer commandBuffer,
-		VkPipelineLayout pipelineLayout, const MeshModel& model, const Mesh& mesh,
-		const Camera& camera, const glm::vec3& lightPosition)
-	{
         float sn = std::sin(glfwGetTime()) * 0.5 + 0.5;
         float xSize = mModelMx.x - mModelMn.x;
         float x = sn * xSize + mModelMn.x;
         x = 0.0f;
         //std::cout << x << std::endl;
 
-		const glm::mat4& modelMatrix = model.getModelMatrix();
         glm::mat3 normalMatrix(modelMatrix);
         normalMatrix = glm::transpose(glm::inverse(normalMatrix));
         Lighting lighting;
         lighting.normalMatrix = glm::mat4(normalMatrix);
         lighting.cameraEye = glm::vec4(-camera.getEye(), 0.0);
-        Material& material = mMaterials[mesh.getMaterialId()];
         lighting.lightPos = glm::vec4(lightPosition, material.mShininess);
         //std::cout << "mat3 size: " << sizeof(glm::mat3) << std::endl;
         //std::cout << "Lighting.normalMatrix: " << offsetof(Lighting, normalMatrix) << std::endl;
@@ -655,7 +663,7 @@ namespace fre
         //std::cout << "Lighting.lightPos: " << offsetof(Lighting, lightPos) << std::endl;
 		vkCmdPushConstants(
 			commandBuffer,
-			pipelineLayout,
+			pipeline.mPipelineLayout,
 			VK_SHADER_STAGE_FRAGMENT_BIT,
 			sizeof(glm::mat4),
 			sizeof(Lighting),
@@ -681,26 +689,23 @@ namespace fre
 		}
 
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()),
+			pipeline.mPipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()),
 			descriptorSets.data(), 0, nullptr);
 
 		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.getIndexCount()), 1, 0, 0, 0);
 	}
 
-	void VulkanRenderer::renderScene(uint32_t imageIndex, VkPipelineLayout pipelineLayout,
-		const Camera& camera, const glm::vec3& lightPosition)
+	void VulkanRenderer::renderScene(uint32_t imageIndex, const Camera& camera, const glm::vec3& lightPosition)
 	{
 		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
 		for (size_t j = 0; j < mMeshModels.size(); j++)
 		{
 			const MeshModel& model = mMeshModels[j];
-			
-			onRenderModel(commandBuffer, pipelineLayout, model, camera, lightPosition);
 
 			for (size_t k = 0; k < model.getMeshCount(); k++)
 			{
 				const Mesh& mesh = *model.getMesh(k);
-				onRenderMesh(imageIndex, commandBuffer, pipelineLayout, model, mesh, camera,
+				onRenderMesh(imageIndex, commandBuffer, model, mesh, camera,
 					lightPosition);
 			}
 		}
@@ -725,99 +730,50 @@ namespace fre
         {
         case 0:
             {
-                bindPipeline(imageIndex, mScenePipeline.mPipeline);
-                renderScene(imageIndex, mScenePipeline.mPipelineLayout, camera, lightPosition);
+                renderScene(imageIndex, camera, lightPosition);
             }
             break;
         case 1:
             {
-                bindPipeline(imageIndex, mFogPipeline.mPipeline);
+				const auto& fogShader = mShaders[mFogShaderId];
+				const auto& fogPipeline = mPipelines[fogShader.mPipelineId];
+                bindPipeline(imageIndex, fogPipeline.mPipeline);
                 glm::vec2 nearFar(camera.mNear, camera.mFar);
                 vkCmdPushConstants(
                     mCommandBuffers[imageIndex].mCommandBuffer,
-                    mFogPipeline.mPipelineLayout,
+                    fogPipeline.mPipelineLayout,
                     VK_SHADER_STAGE_FRAGMENT_BIT,
                     0,
                     sizeof(glm::vec2),
                     &nearFar);
-                renderTexturedRect(imageIndex, mFogPipeline.mPipelineLayout);
+                renderTexturedRect(imageIndex, fogPipeline.mPipelineLayout);
             }
             break;
         }
 	}
 
-	const Shader& VulkanRenderer::getShader(const Material& material) const
+	void VulkanRenderer::loadShader(const std::string& shaderFileName)
 	{
-		const auto foundIt = mMaterialToShaderMap.find(material.mId);
-		if(foundIt == mMaterialToShaderMap.end())
-		{
-			throw std::runtime_error("Can't find shader");
-		}
-		uint32_t shaderIndex = foundIt->second;
-		return mShaders[shaderIndex];
-	}
-
-	void VulkanRenderer::buildMaterialToShaderMap()
-	{
-		mMaterialToShaderMap.clear();
-
-		//Here we buil map that links material to shader
-		//Material's texture types define the key to select a shader
-
-		for(const auto& material : mMaterials)
-		{
-			if(!material.mTextureIds.empty())
-			{
-				int shaderId = -1;
-				if(material.hasTextureTypes({aiTextureType_DIFFUSE, aiTextureType_NORMALS}))
-				{
-					shaderId = getIndexOf<std::string>(mRegisteredShaders, "normalMap");
-				}
-				else if(material.hasTextureTypes({aiTextureType_DIFFUSE}))
-				{
-					shaderId = getIndexOf<std::string>(mRegisteredShaders, "textured");
-				}
-				else
-				{
-					shaderId = getIndexOf<std::string>(mRegisteredShaders, "colored");
-				}
-				
-				if(shaderId != -1)
-				{
-					mMaterialToShaderMap[material.mId] = shaderId;
-				}
-			}
-		}
-	}
-
-	void VulkanRenderer::loadShader(uint32_t shaderIndex)
-	{
-		const std::string& shaderName = mRegisteredShaders[shaderIndex];
 		Shader shader;
-		shader.mVertexShader.create(mainDevice.logicalDevice, "Shaders/" + shaderName + ".vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		shader.mFragmentShader.create(mainDevice.logicalDevice, "Shaders/" + shaderName + ".frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+		shader.mId = mShaders.size();
+		shader.mVertexShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+		shader.mFragmentShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 		mShaders.push_back(shader);
 	}
 
 	void VulkanRenderer::loadUsedShaders()
 	{
-		std::set<uint32_t> loadedShaders;
-		for(auto& materialToShader : mMaterialToShaderMap)
+		//Force to load fog shader
+		mFogShaderId = getIndexOf(mShaderFileNames, std::string("fog"));
+		if(mFogShaderId == -1)
 		{
-			if(loadedShaders.find(materialToShader.second) == loadedShaders.end())
-			{
-				uint32_t tmp = materialToShader.second;
-				//Turn shader id to shader index
-				materialToShader.second = mShaders.size();
-				loadShader(tmp);
-				loadedShaders.insert(tmp);
-			}
+			mFogShaderId = mShaderFileNames.size();
+			mShaderFileNames.push_back("fog");
 		}
 
-		if(loadedShaders.find(mFogShaderId) == loadedShaders.end())
+		for(auto& shaderFileName : mShaderFileNames)
 		{
-			mFogShaderIndex = mShaders.size();
-			loadShader(mFogShaderId);
+			loadShader(shaderFileName);
 		}
 	}
 
@@ -1114,18 +1070,10 @@ namespace fre
 
 	void VulkanRenderer::loadTextures()
 	{
-		//Convert to id to textureFileName map
-		std::map<uint32_t, std::string> idToTextureFileNameMap;
-		for(const auto& textureFileNameIndex : mTextureFileNameToIdMap)
-		{
-			idToTextureFileNameMap[textureFileNameIndex.second] = textureFileNameIndex.first;
-		}
-		//Having sorted by id texture file names we can load them in proper order
-		//and materials will refer proper texture Vulkan-resource indices
-		for(const auto& idToTextureFileName : idToTextureFileNameMap)
+		for(const auto& textureFileName : mTextureFileNames)
 		{
 			mTextureManager.createTexture(mainDevice, graphicsQueue,
-				graphicsCommandPool, idToTextureFileName.second);
+				graphicsCommandPool, textureFileName);
 		}
 	}
 
@@ -1147,9 +1095,10 @@ namespace fre
 		uint32_t materialsOffset = mMaterials.size();
 		for (uint32_t m = 0; m < scene->mNumMaterials; m++)
 		{
-			aiMaterial* material = scene->mMaterials[m];
+			aiMaterial* externalMaterial = scene->mMaterials[m];
 			mMaterials.push_back(Material());
-			material->Get(AI_MATKEY_SHININESS, mMaterials.back().mShininess);
+			auto& material = mMaterials.back();
+			externalMaterial->Get(AI_MATKEY_SHININESS, mMaterials.back().mShininess);
 			if(areEqual(mMaterials.back().mShininess, 0.0f))
 			{
 				mMaterials.back().mShininess = 16.0f;
@@ -1166,7 +1115,7 @@ namespace fre
 				{
 					//Get texture file path
 					aiString path;
-					if (material->GetTexture(textureType, 0, &path) == AI_SUCCESS)
+					if (externalMaterial->GetTexture(textureType, 0, &path) == AI_SUCCESS)
 					{
 						//Get file name
 						auto idx = std::string(path.data).rfind("\\");
@@ -1176,17 +1125,45 @@ namespace fre
 						}
 						std::string textureFileName = std::string(path.data).substr(idx + 1);
 						static uint32_t textureId = 0;
-						const auto foundTexIt = mTextureFileNameToIdMap.find(textureFileName);
-						if(foundTexIt == mTextureFileNameToIdMap.end())
+						const auto foundTexId = getIndexOf(mTextureFileNames, textureFileName);
+						if(foundTexId == -1)
 						{
-							mMaterials.back().mTextureIds[textureType] = textureId;
-							mTextureFileNameToIdMap[textureFileName] = textureId++;
+							mMaterials.back().mTextureIds[textureType] = mTextureFileNames.size();
+							mTextureFileNames.push_back(textureFileName);
 						}
 						else
 						{
-							mMaterials.back().mTextureIds[textureType] = foundTexIt->second;
+							mMaterials.back().mTextureIds[textureType] = foundTexId;
 						}
 					}
+				}
+			}
+
+			std::string shaderFileName;
+			if(material.hasTextureTypes({aiTextureType_DIFFUSE, aiTextureType_NORMALS}))
+			{
+				shaderFileName = "normalMap";
+			}
+			else if(material.hasTextureTypes({aiTextureType_DIFFUSE}))
+			{
+				shaderFileName = "textured";
+			}
+			else
+			{
+				//shaderFileName = "colored";
+			}
+
+			if(!shaderFileName.empty())
+			{
+				int foundShaderId = getIndexOf(mShaderFileNames, shaderFileName);
+				if(foundShaderId == -1)
+				{
+					material.mShaderId = mShaderFileNames.size();
+					mShaderFileNames.push_back(shaderFileName);
+				}
+				else
+				{
+					material.mShaderId = foundShaderId;
 				}
 			}
 		}

@@ -96,21 +96,17 @@ namespace fre
 
 		// - Render
 		void bindPipeline(uint32_t imageIndex, VkPipeline pipeline);
-		virtual void onRenderModel(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout,
-			const MeshModel& model, const Camera& camera, const glm::vec3& lightPosition);
 		virtual void onRenderMesh(uint32_t imageIndex, VkCommandBuffer commandBuffer,
-			VkPipelineLayout pipelineLayout, const MeshModel& model, const Mesh& mesh,
-			const Camera& camera, const glm::vec3& lightPosition);
-		void renderScene(uint32_t imageIndex, VkPipelineLayout pipelineLayout, const Camera& camera,
+			const MeshModel& model, const Mesh& mesh, const Camera& camera,
+			const glm::vec3& lightPosition);
+		void renderScene(uint32_t imageIndex, const Camera& camera,
 			const glm::vec3& lightPosition);
 		void renderTexturedRect(uint32_t imageIndex, VkPipelineLayout pipelineLayout);
 		virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex, const Camera& camera,
 			const glm::vec3& lightPosition);
 
 	private:
-		const Shader& getShader(const Material& material) const;
-		void buildMaterialToShaderMap();
-		void loadShader(uint32_t shaderIndex);
+		void loadShader(const std::string& shadeFilerName);
 		void loadUsedShaders();
 		void loadTextures();
 
@@ -133,19 +129,15 @@ namespace fre
 		VkQueue presentationQueue;
 		VkSurfaceKHR surface;
 
-		//List of possible shaders
-		std::vector<std::string> mRegisteredShaders;
 		//Loaded shaders
 		std::vector<Shader> mShaders;
-		int mSceneShaderIndex = -1;
-		std::string mFogShaderName;
-		int mFogShaderId = -1;
-		int mFogShaderIndex = -1;
-		//To find shader by material
-		std::map<uint32_t, uint32_t> mMaterialToShaderMap;
+		//Loaded resources
+		std::vector<std::string> mTextureFileNames;
+		std::vector<std::string> mShaderFileNames;
 
-		VulkanPipeline mScenePipeline;
-		VulkanPipeline mFogPipeline;
+		std::vector<VulkanPipeline> mPipelines;
+
+		int mFogShaderId = -1;
 
 		std::vector<VkBuffer> vpUniformBuffer;
 		std::vector<VkDeviceMemory> vpUniformBufferMemory;
