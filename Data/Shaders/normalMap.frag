@@ -10,28 +10,32 @@ layout(set = 2, binding = 0) uniform sampler2D normalsSampler;
 layout(push_constant) uniform Lighting {
 	layout(offset = 64) vec4 cameraEye;
 	layout(offset = 64 + 16) vec4 lightPos;
-	layout(offset = 64 + 32) mat4 normalMatrix;
+	layout(offset = 64 + 16 + 16) vec4 lightColor;
+	layout(offset = 64 + 16 + 16 + 16) mat4 normalMatrix;
 } lighting;
 
 layout(location = 0) out vec4 outColour;	//Final output colour (must also have location)	
 
-void main()
+vec3 getNormal()
 {
-	//outColour = vec4(fragCol, 1.0);
-
-	//diffuse
-	vec4 tmp = texture(diffuseSampler, fragTex);
-	vec3 diffuseColor = tmp.rgb;
-	//diffuseColor = vec3(1.0);
-	float alpha = tmp.a;
 	vec3 n = normalize(fragNormal);
 	vec3 t = normalize(fragTangent);
 	vec3 b = normalize(cross(n, t));
 	mat3 tbn = (mat3(t, b, n));
 	vec3 normal = normalize(texture(normalsSampler, fragTex).xyz * 2.0 - 1.0);
 	normal = tbn * normal;
+
+	return normal;
+}
+
+void main()
+{
+	//diffuse
+	vec4 tmp = texture(diffuseSampler, fragTex);
+	vec3 diffuseColor = tmp.rgb;
+	float alpha = tmp.a;
+	vec3 normal = getNormal();
 	vec3 fragLightDir = normalize(lighting.lightPos.xyz - fragPos);
-	//fragLightDir = normalize(vec3(60.0, 0.0, 0.0) - fragPos);
 	float diffuseFactor = max(0.0, dot(normal, fragLightDir));
 
 	//specular
@@ -41,8 +45,7 @@ void main()
 	float shininess = lighting.lightPos.w;
 	float specularFactor = pow(max(0.0, dot(fragEyeDir, reflectedDir)), shininess);
 	outColour = vec4(
-		diffuseColor * diffuseFactor +
-		specularColor * specularFactor,
+		diffuseColor * diffuseFactor * lighting.lightPos +
+		specularColor * specularFactor * lighting.lightPos,
 		alpha);
-	//outColour = vec4(vec3(normal), 1.0);
 }

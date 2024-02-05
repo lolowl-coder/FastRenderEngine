@@ -15,6 +15,7 @@
 #include "Renderer/VulkanRenderPass.hpp"
 #include "Renderer/VulkanSwapchain.hpp"
 #include "Renderer/VulkanTextureManager.hpp"
+#include "Shader.hpp"
 #include "Utilities.hpp"
 #include "MeshModel.hpp"
 
@@ -32,7 +33,7 @@ namespace fre
 {
 	struct VulkanPipeline;
 	struct Camera;
-	struct Shader;
+	struct Light;
 
 	class VulkanRenderer
 	{
@@ -47,7 +48,7 @@ namespace fre
 			const std::vector<aiTextureType>& texturesLoadTypes);
 		MeshModel* getMeshModel(int modelId);
 
-		void draw(const Camera& camera, const glm::vec3& lightPosition);
+		void draw(const Camera& camera, const Light& light);
 
 		void setFramebufferResized(bool resized);
 
@@ -98,14 +99,15 @@ namespace fre
 		void bindPipeline(uint32_t imageIndex, VkPipeline pipeline);
 		virtual void onRenderMesh(uint32_t imageIndex, VkCommandBuffer commandBuffer,
 			const MeshModel& model, const Mesh& mesh, const Camera& camera,
-			const glm::vec3& lightPosition);
+			const Light& light);
 		void renderScene(uint32_t imageIndex, const Camera& camera,
-			const glm::vec3& lightPosition);
+			const Light& light);
 		void renderTexturedRect(uint32_t imageIndex, VkPipelineLayout pipelineLayout);
 		virtual void renderSubPass(uint32_t imageIndex, uint32_t subPassIndex, const Camera& camera,
-			const glm::vec3& lightPosition);
+			const Light& light);
 
 	private:
+		ShaderMetaData getShaderMetaData(const std::string& shaderFileName) const;
 		void loadShader(const std::string& shadeFilerName);
 		void loadUsedShaders();
 		void loadTextures();
@@ -134,6 +136,7 @@ namespace fre
 		//Loaded resources
 		std::vector<std::string> mTextureFileNames;
 		std::vector<std::string> mShaderFileNames;
+		std::vector<ShaderMetaData> mShaderMetaData;
 
 		std::vector<VulkanPipeline> mPipelines;
 
@@ -185,7 +188,7 @@ namespace fre
 
 		// - Record functions
 		void recordCommands(uint32_t imageIndex, const Camera& camera,
-			const glm::vec3& lightPosition);
+			const Light& light);
 			
 		// - Get functions
 		void getPhysicalDevice();

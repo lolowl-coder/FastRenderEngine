@@ -34,8 +34,8 @@ namespace fre
 
     void mouseCallback(GLFWwindow* window, double x, double y)
     {
-        static float lastX = x;
-        static float lastY = y;
+        static float lastX = static_cast<float>(x);
+        static float lastY = static_cast<float>(y);
 
 		float deltaX = static_cast<float>(x - lastX);
         float deltaY = static_cast<float>(y - lastY);
@@ -48,8 +48,8 @@ namespace fre
 			engine->getCameraRotationSpeed() * deltaY,
             engine->getCameraRotationSpeed() * deltaX, 0.0));
 
-		lastX = x;
-        lastY = y;
+		lastX = static_cast<float>(x);
+        lastY = static_cast<float>(y);
     }
 
     void scrollCallback(GLFWwindow* window, double xOffset, double yOffset)
@@ -81,7 +81,12 @@ namespace fre
                     camera.setMovement(Camera::M_RIGHT, movementEnabled);
                     break;
                 case GLFW_KEY_L:
-                    engine->setLightPosition(-camera.getEye());
+                    Light& light = engine->getLight();
+                    light.mPosition = -camera.getEye();
+
+                    std::cout << "Light position: " << light.mPosition.x << " "
+                        << light.mPosition.y << " " << light.mPosition.z << std::endl;
+
                     break;
             }
         }
@@ -100,12 +105,12 @@ namespace fre
         glfwSetWindowUserPointer(window, this);
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 
+        positionWindow(width, height);
+
         glfwSetCursorPos(window, width / 2, height / 2);
         glfwSetCursorPosCallback(window, mouseCallback);
         glfwSetScrollCallback(window, scrollCallback);
         glfwSetKeyCallback(window, keyCallback);
-
-        positionWindow(width, height);
 
         setupCamera(width, height);
 
@@ -123,7 +128,7 @@ namespace fre
 
             if(mRenderer != nullptr)
             {
-                mRenderer->draw(mCamera, mLightPosition);
+                mRenderer->draw(mCamera, mLight);
             }
         }
     }
@@ -168,13 +173,6 @@ namespace fre
         return mCamera;
     }
 
-    void Engine::setLightPosition(const glm::vec3& lightPosition)
-    {
-        mLightPosition = lightPosition;
-        std::cout << "Light position: " << mLightPosition.x << " "
-            << mLightPosition.y << " " << mLightPosition.z << std::endl;
-    }
-
     float Engine::getCameraRotationSpeed() const
     {
         return mCameraRotationSpeed;
@@ -182,5 +180,10 @@ namespace fre
     float Engine::getCameraZoomSpeed() const
     {
         return mCameraZoomSpeed;
+    }
+
+    Light& Engine::getLight()
+    {
+        return mLight;
     }
 }

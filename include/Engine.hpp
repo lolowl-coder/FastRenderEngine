@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Camera.hpp"
+#include "Light.hpp"
 
 #include <cstdint>
 #include <string>
@@ -28,9 +29,9 @@ namespace fre
         std::shared_ptr<VulkanRenderer>& getRenderer();
         virtual void setupCamera(int width, int height);
         Camera& getCamera();
-        void setLightPosition(const glm::vec3& lightPosition);
         float getCameraRotationSpeed() const;
         float getCameraZoomSpeed() const;
+        Light& getLight();
     private:
         void positionWindow(const int width, const int height);
     protected:
@@ -42,6 +43,6 @@ namespace fre
 		float mCameraRotationSpeed = 0.4f;
 		float mCameraZoomSpeed = 1.0f;
 
-        glm::vec3 mLightPosition = glm::vec3(100.0f);
+        Light mLight;
     };
 }

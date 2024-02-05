@@ -65,7 +65,7 @@ namespace fre
 		for (size_t i = 0; i < node->mNumMeshes; i++)
 		{
 			meshList.push_back(
-				loadMesh(scene->mMeshes[node->mMeshes[i]], scene, mn, mx, materialOffset)
+				loadMesh(scene->mMeshes[node->mMeshes[i]], mn, mx, materialOffset)
 			);
 		}
 
@@ -80,8 +80,7 @@ namespace fre
 		return meshList;
 	}
 
-	Mesh MeshModel::loadMesh(aiMesh * mesh, const aiScene* scene, glm::vec3& mn, glm::vec3& mx,
-		uint32_t materialOffset)
+	Mesh MeshModel::loadMesh(aiMesh * mesh, glm::vec3& mn, glm::vec3& mx, uint32_t materialOffset)
 	{
 		//sync with mesh vertex numbers
 		Mesh newMesh = Mesh(mesh->mMaterialIndex + materialOffset);

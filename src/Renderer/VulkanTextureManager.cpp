@@ -133,7 +133,7 @@ namespace fre
 		vkFreeMemory(mainDevice.logicalDevice, imageStagingBufferMemory, nullptr);
 
 		//Return image index
-		return mTextureImages.size() - 1;
+		return static_cast<int>(mTextureImages.size()) - 1;
 	}
 
 	int VulkanTextureManager::createTexture(const MainDevice& mainDevice, VkQueue queue,
@@ -164,6 +164,6 @@ namespace fre
 
 		mSamplerDescriptorSets.push_back(textureDescriptorSet);
 
-		return mSamplerDescriptorSets.size() - 1;
+		return static_cast<int>(mSamplerDescriptorSets.size()) - 1;
 	}
 }

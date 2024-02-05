@@ -28,8 +28,10 @@ public:
             "Models/sciFiShip/scene.gltf",
             //mModelId = mRenderer->createMeshModel("Models/coordSystem/scene.obj",
             {
-                aiTextureType_DIFFUSE,
-                aiTextureType_NORMALS
+                aiTextureType_BASE_COLOR,
+                aiTextureType_NORMALS,
+                //r - metallness, g - roughness
+                aiTextureType_METALNESS
             }
         );
 

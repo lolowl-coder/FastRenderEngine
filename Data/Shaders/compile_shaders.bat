@@ -5,4 +5,6 @@ C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o fog.vert.spv -V fog.vert
 C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o fog.frag.spv -V fog.frag
 C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o normalMap.vert.spv -V normalMap.vert
 C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o normalMap.frag.spv -V normalMap.frag
+C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o pbr.vert.spv -V pbr.vert
+C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o pbr.frag.spv -V pbr.frag
 pause

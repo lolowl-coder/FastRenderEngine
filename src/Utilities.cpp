@@ -1,3 +1,4 @@
+#include "Shader.hpp"
 #include "Utilities.hpp"
 
 namespace fre

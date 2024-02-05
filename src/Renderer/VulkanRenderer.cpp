@@ -1,7 +1,7 @@
 #include "Renderer/VulkanRenderer.hpp"
 
 #include "Camera.hpp"
-#include "Shader.hpp"
+#include "Light.hpp"
 #include "Renderer/VulkanPipeline.hpp"
 #include "Renderer/VulkanShader.hpp"
 #include "config.hpp"
@@ -23,6 +23,7 @@ namespace fre
 	{
 		glm::vec4 cameraEye;
 		glm::vec4 lightPos;
+		glm::vec4 lightColor;
 		glm::mat4 normalMatrix;
 	};
 
@@ -133,7 +134,7 @@ namespace fre
 		return result;
 	}
 
-	void VulkanRenderer::draw(const Camera& camera, const glm::vec3& lightPosition)
+	void VulkanRenderer::draw(const Camera& camera, const Light& light)
 	{
 		//Wait for given fence to signal (open) from last draw before continuing
 		vkWaitForFences(mainDevice.logicalDevice, 1, &drawFences[currentFrame], VK_TRUE, std::numeric_limits<uint32_t>::max());
@@ -156,7 +157,7 @@ namespace fre
 			//Manually reset (close) fences
 			vkResetFences(mainDevice.logicalDevice, 1, &drawFences[currentFrame]);
 
-			recordCommands(imageIndex, camera, lightPosition);
+			recordCommands(imageIndex, camera, light);
 
 			updateUniformBuffers(imageIndex, camera);
 
@@ -442,65 +443,24 @@ namespace fre
 
 	void VulkanRenderer::createGraphicsPipelines()
 	{
-		mModelMatrixPCR.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;//Shader stage push constant will go to
-		mModelMatrixPCR.offset = 0;
-		mModelMatrixPCR.size = sizeof(glm::mat4);
-
-        mLightingPCR.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;	//Shader stage push constant will go to
-		mLightingPCR.offset = sizeof(glm::mat4);
-		mLightingPCR.size = sizeof(Lighting);
-
-        mNearFarPCR.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;	//Shader stage push constant will go to
-		mNearFarPCR.offset = 0;
-		mNearFarPCR.size = sizeof(glm::vec2);
-
 		for(auto& shader : mShaders)
 		{
-			shader.mPipelineId = mPipelines.size();
+			ShaderMetaData& shaderMetaData = mShaderMetaData[shader.mId];
+			shader.mPipelineId = static_cast<uint32_t>(mPipelines.size());
 			mPipelines.push_back(VulkanPipeline());
 			auto& pipeline = mPipelines.back();
-			if(shader.mId == mFogShaderId)
-			{
-				pipeline.create(
-					mainDevice.logicalDevice,
-					{shader.mVertexShader, shader.mFragmentShader},
-					0,
-					//no attributes for fog pass
-					{},
-					VK_FALSE,
-					mRenderPass.mRenderPass,
-					1,
-					{mInputDescriptorSetLayout.mDescriptorSetLayout},
-					{mNearFarPCR}
-				);
-			}
-			else
-			{
-				pipeline.create(
-					mainDevice.logicalDevice,
-					{shader.mVertexShader, shader.mFragmentShader},
-					sizeof(Vertex),
-					{
-						{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
-						{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
-						{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
-						{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tex)}
-					},
-					VK_TRUE,
-					mRenderPass.mRenderPass,
-					0,
-					{
-						//All inputs used in render pass
-						//Uniforms (model matrix) in subpass 0
-						mUniformDescriptorSetLayout.mDescriptorSetLayout,
-						//Color texture for subpass 0
-						mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout,
-						//Normals texture for subpass 0
-						mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout
-					},
-					{mModelMatrixPCR, mLightingPCR}
-				);
-			}
+			pipeline.create(
+				mainDevice.logicalDevice,
+				{shader.mVertexShader, shader.mFragmentShader},
+				shaderMetaData.mVertexSize,
+				//no attributes for fog pass
+				shaderMetaData.mVertexAttributes,
+				shaderMetaData.mDepthTestEnabled ? VK_TRUE : VK_FALSE,
+				mRenderPass.mRenderPass,
+				shaderMetaData.mSubPassIndex,
+				shaderMetaData.mDescriptorSetLayouts,
+				shaderMetaData.mPushConstantRanges
+			);
 		}
 
 		//2 sub passes each using 1 pipeline
@@ -628,7 +588,7 @@ namespace fre
 
 	void VulkanRenderer::onRenderMesh(uint32_t imageIndex, VkCommandBuffer commandBuffer,
 		const MeshModel& model, const Mesh& mesh,
-		const Camera& camera, const glm::vec3& lightPosition)
+		const Camera& camera, const Light& light)
 	{
 		const auto& material = mMaterials[mesh.getMaterialId()];
 		const auto& shader = mShaders[material.mShaderId];
@@ -645,7 +605,7 @@ namespace fre
 			sizeof(glm::mat4),	//Size of data being pushed
 			&modelMatrix);	//Actual data being pushed (can be array)
 
-        float sn = std::sin(glfwGetTime()) * 0.5 + 0.5;
+        float sn = static_cast<float>(std::sin(glfwGetTime()) * 0.5 + 0.5);
         float xSize = mModelMx.x - mModelMn.x;
         float x = sn * xSize + mModelMn.x;
         x = 0.0f;
@@ -656,7 +616,8 @@ namespace fre
         Lighting lighting;
         lighting.normalMatrix = glm::mat4(normalMatrix);
         lighting.cameraEye = glm::vec4(-camera.getEye(), 0.0);
-        lighting.lightPos = glm::vec4(lightPosition, material.mShininess);
+        lighting.lightPos = glm::vec4(light.mPosition, material.mShininess);
+		lighting.lightColor = glm::vec4(light.mColor, 1.0f);
         //std::cout << "mat3 size: " << sizeof(glm::mat3) << std::endl;
         //std::cout << "Lighting.normalMatrix: " << offsetof(Lighting, normalMatrix) << std::endl;
         //std::cout << "Lighting.cameraEye: " << offsetof(Lighting, cameraEye) << std::endl;
@@ -695,7 +656,7 @@ namespace fre
 		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.getIndexCount()), 1, 0, 0, 0);
 	}
 
-	void VulkanRenderer::renderScene(uint32_t imageIndex, const Camera& camera, const glm::vec3& lightPosition)
+	void VulkanRenderer::renderScene(uint32_t imageIndex, const Camera& camera, const Light& light)
 	{
 		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
 		for (size_t j = 0; j < mMeshModels.size(); j++)
@@ -706,7 +667,7 @@ namespace fre
 			{
 				const Mesh& mesh = *model.getMesh(k);
 				onRenderMesh(imageIndex, commandBuffer, model, mesh, camera,
-					lightPosition);
+					light);
 			}
 		}
 	}
@@ -721,7 +682,7 @@ namespace fre
 	}
 
 	void VulkanRenderer::renderSubPass(uint32_t imageIndex, uint32_t subPassIndex, const Camera& camera,
-		const glm::vec3& lightPosition)
+		const Light& light)
 	{
 		setViewport(imageIndex);
         setScissor(imageIndex);
@@ -730,7 +691,7 @@ namespace fre
         {
         case 0:
             {
-                renderScene(imageIndex, camera, lightPosition);
+                renderScene(imageIndex, camera, light);
             }
             break;
         case 1:
@@ -755,7 +716,7 @@ namespace fre
 	void VulkanRenderer::loadShader(const std::string& shaderFileName)
 	{
 		Shader shader;
-		shader.mId = mShaders.size();
+		shader.mId = static_cast<uint32_t>(mShaders.size());
 		shader.mVertexShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shader.mFragmentShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 		mShaders.push_back(shader);
@@ -763,16 +724,29 @@ namespace fre
 
 	void VulkanRenderer::loadUsedShaders()
 	{
+		mModelMatrixPCR.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;//Shader stage push constant will go to
+		mModelMatrixPCR.offset = 0;
+		mModelMatrixPCR.size = sizeof(glm::mat4);
+
+        mLightingPCR.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;	//Shader stage push constant will go to
+		mLightingPCR.offset = sizeof(glm::mat4);
+		mLightingPCR.size = sizeof(Lighting);
+
+        mNearFarPCR.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;	//Shader stage push constant will go to
+		mNearFarPCR.offset = 0;
+		mNearFarPCR.size = sizeof(glm::vec2);
+		
 		//Force to load fog shader
 		mFogShaderId = getIndexOf(mShaderFileNames, std::string("fog"));
 		if(mFogShaderId == -1)
 		{
-			mFogShaderId = mShaderFileNames.size();
+			mFogShaderId = static_cast<int>(mShaderFileNames.size());
 			mShaderFileNames.push_back("fog");
 		}
 
-		for(auto& shaderFileName : mShaderFileNames)
+		for(const auto& shaderFileName : mShaderFileNames)
 		{
+			mShaderMetaData.push_back(getShaderMetaData(shaderFileName));
 			loadShader(shaderFileName);
 		}
 	}
@@ -786,7 +760,7 @@ namespace fre
 	}
 
 	void VulkanRenderer::recordCommands(uint32_t imageIndex, const Camera& camera,
-		const glm::vec3& lightPosition)
+		const Light& light)
 	{
 		mCommandBuffers[imageIndex].begin();
 		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
@@ -795,7 +769,7 @@ namespace fre
 
 		for(int32_t i = 0; i < mSubPassesCount; i++)
 		{
-			renderSubPass(imageIndex, i, camera, lightPosition);
+			renderSubPass(imageIndex, i, camera, light);
 
 			if(i < mSubPassesCount - 1)
 			{
@@ -1076,6 +1050,94 @@ namespace fre
 				graphicsCommandPool, textureFileName);
 		}
 	}
+	
+	ShaderMetaData VulkanRenderer::getShaderMetaData(const std::string& shaderFileName) const
+	{
+		ShaderMetaData shaderMetaData;
+
+		if(shaderFileName == "pbr")
+		{
+			shaderMetaData.mVertexAttributes =
+			{
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tex)}
+			};
+			shaderMetaData.mDescriptorSetLayouts =
+			{
+				//All inputs used in render pass
+				//Uniforms (model matrix) in subpass 0
+				mUniformDescriptorSetLayout.mDescriptorSetLayout,
+				//Color texture for subpass 0
+				mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout,
+				//Normals texture for subpass 0
+				mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout,
+				//Matallic texture for subpass 0
+				mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout,
+			};
+			shaderMetaData.mPushConstantRanges = {mModelMatrixPCR, mLightingPCR};
+			shaderMetaData.mDepthTestEnabled = true;
+			shaderMetaData.mVertexSize = sizeof(Vertex);
+			shaderMetaData.mSubPassIndex = 0;
+		}
+		else if(shaderFileName == "normalMap")
+		{
+			shaderMetaData.mVertexAttributes =
+			{
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tex)}
+			};
+			shaderMetaData.mDescriptorSetLayouts =
+			{
+				//All inputs used in render pass
+				//Uniforms (model matrix) in subpass 0
+				mUniformDescriptorSetLayout.mDescriptorSetLayout,
+				//Color texture for subpass 0
+				mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout,
+				//Normals texture for subpass 0
+				mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout
+			};
+			shaderMetaData.mPushConstantRanges = {mModelMatrixPCR, mLightingPCR};
+			shaderMetaData.mDepthTestEnabled = true;
+			shaderMetaData.mVertexSize = sizeof(Vertex);
+			shaderMetaData.mSubPassIndex = 0;
+		}
+		else if(shaderFileName == "textured")
+		{
+			shaderMetaData.mVertexAttributes =
+			{
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tex)}
+			};
+			shaderMetaData.mDescriptorSetLayouts =
+			{
+				//All inputs used in render pass
+				//Uniforms (model matrix) in subpass 0
+				mUniformDescriptorSetLayout.mDescriptorSetLayout,
+				//Color texture for subpass 0
+				mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout
+			};
+			shaderMetaData.mPushConstantRanges = {mModelMatrixPCR, mLightingPCR};
+			shaderMetaData.mDepthTestEnabled = true;
+			shaderMetaData.mVertexSize = sizeof(Vertex);
+			shaderMetaData.mSubPassIndex = 0;
+		}
+		else if(shaderFileName == "fog")
+		{
+			shaderMetaData.mDescriptorSetLayouts = {mInputDescriptorSetLayout.mDescriptorSetLayout};
+			shaderMetaData.mPushConstantRanges = {mNearFarPCR};
+			shaderMetaData.mDepthTestEnabled = false;
+			shaderMetaData.mVertexSize = 0;
+			shaderMetaData.mSubPassIndex = 1;
+		}
+		
+		return shaderMetaData;
+	}
 
 	int VulkanRenderer::createMeshModel(std::string modelFile,
 		const std::vector<aiTextureType>& texturesLoadTypes)
@@ -1092,7 +1154,7 @@ namespace fre
 		}
 
 		//Load materials
-		uint32_t materialsOffset = mMaterials.size();
+		uint32_t materialsOffset = static_cast<uint32_t>(mMaterials.size());
 		for (uint32_t m = 0; m < scene->mNumMaterials; m++)
 		{
 			aiMaterial* externalMaterial = scene->mMaterials[m];
@@ -1128,7 +1190,8 @@ namespace fre
 						const auto foundTexId = getIndexOf(mTextureFileNames, textureFileName);
 						if(foundTexId == -1)
 						{
-							mMaterials.back().mTextureIds[textureType] = mTextureFileNames.size();
+							mMaterials.back().mTextureIds[textureType] =
+								static_cast<uint32_t>(mTextureFileNames.size());
 							mTextureFileNames.push_back(textureFileName);
 						}
 						else
@@ -1140,7 +1203,11 @@ namespace fre
 			}
 
 			std::string shaderFileName;
-			if(material.hasTextureTypes({aiTextureType_DIFFUSE, aiTextureType_NORMALS}))
+			if(material.hasTextureTypes({aiTextureType_BASE_COLOR, aiTextureType_NORMALS, aiTextureType_METALNESS}))
+			{
+				shaderFileName = "pbr";
+			}
+			else if(material.hasTextureTypes({aiTextureType_DIFFUSE, aiTextureType_NORMALS}))
 			{
 				shaderFileName = "normalMap";
 			}
@@ -1158,7 +1225,7 @@ namespace fre
 				int foundShaderId = getIndexOf(mShaderFileNames, shaderFileName);
 				if(foundShaderId == -1)
 				{
-					material.mShaderId = mShaderFileNames.size();
+					material.mShaderId = static_cast<uint32_t>(mShaderFileNames.size());
 					mShaderFileNames.push_back(shaderFileName);
 				}
 				else
@@ -1175,6 +1242,6 @@ namespace fre
 		MeshModel meshModel = MeshModel(modelMeshes);
 		mMeshModels.push_back(meshModel);
 
-		return mMeshModels.size() - 1;
+		return static_cast<int>(mMeshModels.size()) - 1;
 	}
 }

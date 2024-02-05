@@ -14,6 +14,16 @@ namespace fre
         uint32_t mOffset = 0;
     };
 
+    struct ShaderMetaData
+    {
+        std::vector<VulkanVertexAttribute> mVertexAttributes;
+        std::vector<VkDescriptorSetLayout> mDescriptorSetLayouts;
+        std::vector<VkPushConstantRange> mPushConstantRanges;
+        bool mDepthTestEnabled = false;
+        uint32_t mVertexSize = 0u;
+        uint32_t mSubPassIndex = 0u;
+    };
+
     //Describes stages and all inputs for them (vertex input, attachments to read, etc.)
     struct VulkanShader
     {

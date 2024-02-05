@@ -31,8 +31,7 @@ namespace fre
 
 		static std::vector<Mesh> loadNode(aiNode* node, const aiScene* scene, glm::vec3& mn,
 			glm::vec3& mx, uint32_t materialOffset);
-		static Mesh loadMesh(aiMesh * mesh, const aiScene* scene, glm::vec3& mn,
-			glm::vec3& mx, uint32_t materialOffset);
+		static Mesh loadMesh(aiMesh * mesh, glm::vec3& mn, glm::vec3& mx, uint32_t materialOffset);
 
 		~MeshModel();
 

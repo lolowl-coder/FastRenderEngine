@@ -12,6 +12,8 @@ namespace fre
 	const int MAX_FRAME_DRAWS = 3;
 	const int MAX_OBJECTS = 30;
 
+	struct ShaderMetaData;
+
 	struct MainDevice
 	{
 		VkPhysicalDevice physicalDevice;
@@ -80,7 +82,7 @@ namespace fre
 		const auto& foundIt = std::find(v.begin(), v.end(), value);
 		if(foundIt != v.end())
 		{
-			result = std::distance(v.begin(), foundIt);
+			result = static_cast<int>(std::distance(v.begin(), foundIt));
 		}
 
 		return result;
