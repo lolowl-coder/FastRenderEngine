@@ -12,30 +12,30 @@
 
 namespace fre
 {
-    struct MainDevice;
+  struct MainDevice;
 
-    struct VulkanTextureManager
-    {
-        void create(VkDevice logicalDevice);
-        void destroy(VkDevice logicalDevice);
-		int createTextureImage(const MainDevice& mainDevice, VkQueue queue,
+  struct VulkanTextureManager
+  {
+    void create(VkDevice logicalDevice);
+    void destroy(VkDevice logicalDevice);
+    int createTextureImage(const MainDevice& mainDevice, VkQueue queue,
             VkCommandPool commandPool, std::string fileName);
-		int createTexture(const MainDevice& mainDevice, VkQueue queue,
-			VkCommandPool commandPool, std::string fileName);
-        int createTextureDescriptorSet(VkDevice logicalDevice, VkImageView imageView);
+    int createTexture(const MainDevice& mainDevice, VkQueue queue,
+      VkCommandPool commandPool, std::string fileName);
+    int createTextureDescriptorSet(VkDevice logicalDevice, VkImageView imageView);
 
-    private:
-        void createTextureSampler(VkDevice logicalDevice);
+  private:
+    void createTextureSampler(VkDevice logicalDevice);
 
-    private:
-		VulkanDescriptorPool mSamplerDescriptorPool;
-		VkSampler mTextureSampler;
-		std::vector<VkImage> mTextureImages;
-		std::vector<VkDeviceMemory> mTextureImageMemory;
-		std::vector<VkImageView> mTextureImageViews;
+  private:
+    VulkanDescriptorPool mSamplerDescriptorPool;
+    VkSampler mTextureSampler;
+    std::vector<VkImage> mTextureImages;
+    std::vector<VkDeviceMemory> mTextureImageMemory;
+    std::vector<VkImageView> mTextureImageViews;
 
-    public:
-		VulkanDescriptorSetLayout mSamplerDescriptorSetLayout;
-		std::vector<VulkanDescriptorSet> mSamplerDescriptorSets;
-    };
+  public:
+    VulkanDescriptorSetLayout mSamplerDescriptorSetLayout;
+    std::vector<VulkanDescriptorSet> mSamplerDescriptorSets;
+  };
 }

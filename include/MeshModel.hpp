@@ -18,16 +18,10 @@ namespace fre
 		MeshModel();
 		MeshModel(std::vector<Mesh> newMeshList);
 
-		void sync(const MainDevice& mainDevice,
-			VkQueue transferQueue,
-			VkCommandPool transferCommandPool);
-
 		size_t getMeshCount() const;
-		const Mesh* getMesh(size_t index) const;
+		const Mesh& getMesh(size_t index) const;
 		const glm::mat4& getModelMatrix() const;
 		void setModelMatrix(const glm::mat4& newModelMatrix);
-
-		void destroyMeshModel(VkDevice logicalDevice);
 
 		static std::vector<Mesh> loadNode(aiNode* node, const aiScene* scene, glm::vec3& mn,
 			glm::vec3& mx, uint32_t materialOffset);

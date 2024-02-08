@@ -14,29 +14,19 @@ namespace fre
 		modelMatrix = glm::mat4(1.0f);
 	}
 
-	void MeshModel::sync(const MainDevice& mainDevice,
-		VkQueue transferQueue,
-		VkCommandPool transferCommandPool)
-	{
-		for(auto& mesh : meshList)
-		{
-			mesh.sync(mainDevice, transferQueue, transferCommandPool);
-		}
-	}
-
 	size_t MeshModel::getMeshCount() const
 	{
 		return meshList.size();
 	}
 
-	const Mesh* MeshModel::getMesh(size_t index) const
+	const Mesh& MeshModel::getMesh(size_t index) const
 	{
 		if (index >= meshList.size())
 		{
 			throw std::runtime_error("Attempted to access invalid Mesh Index!");
 		}
 		
-		return &meshList[index];
+		return meshList[index];
 	}
 
 	const glm::mat4& MeshModel::getModelMatrix() const
@@ -47,14 +37,6 @@ namespace fre
 	void MeshModel::setModelMatrix(const glm::mat4& newModelMatrix)
 	{
 		modelMatrix = newModelMatrix;
-	}
-
-	void MeshModel::destroyMeshModel(VkDevice logicalDevice)
-	{
-		for (auto& mesh : meshList)
-		{
-			mesh.destroyBuffers(logicalDevice);
-		}
 	}
 
 	std::vector<Mesh> MeshModel::loadNode(aiNode* node, const aiScene* scene,

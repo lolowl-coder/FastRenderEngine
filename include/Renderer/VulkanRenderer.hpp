@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "Renderer/VulkanBufferManager.hpp"
 #include "Renderer/VulkanCommandBuffer.hpp"
 #include "Renderer/VulkanDescriptorPool.hpp"
 #include "Renderer/VulkanDescriptorSet.hpp"
@@ -81,6 +82,7 @@ namespace fre
 		std::vector<VulkanDescriptorSet> mUniformDescriptorSets;
 		std::vector<VulkanDescriptorSet> mInputDescriptorSets;
 
+		VulkanBufferManager mBufferManager;
 		VulkanTextureManager mTextureManager;
 
 		glm::vec3 mModelMn = glm::vec3(std::numeric_limits<float>::max());
@@ -90,6 +92,8 @@ namespace fre
 		std::vector<MeshModel> mMeshModels;
 		std::vector<Material> mMaterials;
 		std::map<std::string, uint32_t> mTextureFileNameToIdMap;
+		std::map<uint32_t, uint32_t> mMeshToVertexBufferMap;
+		std::map<uint32_t, uint32_t> mMeshToIndexBufferMap;
 
 		// - Dynamic data update functions
 		void setViewport(uint32_t imageIndex);
@@ -111,6 +115,7 @@ namespace fre
 		void loadShader(const std::string& shadeFilerName);
 		void loadUsedShaders();
 		void loadTextures();
+		void loadMeshes();
 
 	private:
 		GLFWwindow* window;

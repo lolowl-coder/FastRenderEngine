@@ -1,3 +1,10 @@
+2024-02-04
+  Short term tasks
+  Multithreading
+  Vulkan-Hpp
+  ResourceManager
+  MultipleLights
+
 2024-01-28
 Refactor shaders and materials
   Material should refer a shader.
@@ -5,7 +12,7 @@ Refactor shaders and materials
   Each material should have it's own class with all shader inputs passing logic.
 
 Decouple Vulkan code from resources like MeshModel, Shader.
-  Engine should load those objects but do not create Vulkan resources. This should be done in renderer.
+  Engine should load those objects but souldn't create Vulkan resources. This should be done in renderer.
   MeshModel should containt vertex/index arrays only.
     When renderer renders it it should create corresponding Vulkan rosources.
     Each MeshModel should have it's id so renderer could associate resources with that MeshModel.

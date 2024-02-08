@@ -63,10 +63,7 @@ namespace fre
 			createSynchronisation();
 
 			loadTextures();
-			for(auto& meshModel : mMeshModels)
-			{
-				meshModel.sync(mainDevice, graphicsQueue, graphicsCommandPool);
-			}
+			loadMeshes();
 		}
 		catch (std::runtime_error& e)
 		{
@@ -84,10 +81,7 @@ namespace fre
 
 		//_aligned_free(modetTransferSpace);
 
-		for (size_t i = 0; i < mMeshModels.size(); i++)
-		{
-			mMeshModels[i].destroyMeshModel(mainDevice.logicalDevice);
-		}
+		mBufferManager.destroy(mainDevice.logicalDevice);
 
 		cleanupInputDescriptorPool();
 		mTextureManager.destroy(mainDevice.logicalDevice);
@@ -630,11 +624,14 @@ namespace fre
 			sizeof(Lighting),
 			&lighting);
 
-		VkBuffer vertexBuffers[] = { mesh.getVertexBuffer()};	//Buffers to bind
+		auto vertexBufferId = mMeshToVertexBufferMap[mesh.getId()];
+		VkBuffer vertexBuffers[] = { mBufferManager.getBuffer(vertexBufferId).mBuffer };	//Buffers to bind
 		VkDeviceSize offsets[] = { 0 };		//Offsets into buffers being bound
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);	//Command to bind vertex buffer before drawing with them
 
-		vkCmdBindIndexBuffer(commandBuffer, mesh.getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);	//Command to bind index buffer before drawing with them
+		auto indexBufferId = mMeshToIndexBufferMap[mesh.getId()];
+		vkCmdBindIndexBuffer(commandBuffer, mBufferManager.getBuffer(indexBufferId).mBuffer,
+			0, VK_INDEX_TYPE_UINT32);	//Command to bind index buffer before drawing with them
 
 		//Dynamic offset amount
 		//uint32_t dynamicOffset = static_cast<uint32_t>(modelUniformAlignment) * j;
@@ -665,7 +662,7 @@ namespace fre
 
 			for (size_t k = 0; k < model.getMeshCount(); k++)
 			{
-				const Mesh& mesh = *model.getMesh(k);
+				const Mesh& mesh = model.getMesh(k);
 				onRenderMesh(imageIndex, commandBuffer, model, mesh, camera,
 					light);
 			}
@@ -1048,6 +1045,29 @@ namespace fre
 		{
 			mTextureManager.createTexture(mainDevice, graphicsQueue,
 				graphicsCommandPool, textureFileName);
+		}
+	}
+
+	void VulkanRenderer::loadMeshes()
+	{
+		for(auto& meshModel : mMeshModels)
+		{
+			for(uint32_t i = 0; i < meshModel.getMeshCount(); i++)
+			{
+				const auto& mesh = meshModel.getMesh(i);
+				const void* vertexData = mesh.getVertexData();
+				mMeshToVertexBufferMap[mesh.getId()] = static_cast<uint32_t>(mBufferManager.mBuffers.size());
+				mBufferManager.createBuffer(
+					mainDevice, graphicsQueue, graphicsCommandPool,
+					VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexData,
+					mesh.getVertexCount() * sizeof(Vertex));
+				const void* indexData = mesh.getIndexData();
+				mMeshToIndexBufferMap[mesh.getId()] = static_cast<uint32_t>(mBufferManager.mBuffers.size());
+				mBufferManager.createBuffer(
+					mainDevice, graphicsQueue, graphicsCommandPool,
+					VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexData,
+					mesh.getIndexCount() * sizeof(uint32_t));
+			}
 		}
 	}
 	
