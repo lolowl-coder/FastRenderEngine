@@ -10,6 +10,13 @@ Crossplatform
 **Buld system:**
 CMake
 
+**Already implemented:**
+
+- Lighting: Blinn-Phong, PBR.
+- Meterial textures supported: diffuse/base color, normal, metalness, roughness maps.
+- Camera movement
+- Vulkan renderer, Windows
+
 **Platforms to support:**
 
 - Windows (primary)
@@ -22,7 +29,7 @@ CMake
 **Ways to build/test on different platforms:**
 
 - Windows - no questions
-- Android. Here I need some emulator or real device. Harder, but possible.
+- Android - emulator or real device. Harder, but possible.
 - Linux - using virtual machine or real desktop
 - MacOS, IOS - don't know how. Maybe virtual machine too.
 - PS same as MacOS
@@ -51,8 +58,6 @@ CMake
 
 **Lighting:**
 
-- Blinn-Phong.
-- PBR.
 - IBL.
 - Deferred lighting.
 

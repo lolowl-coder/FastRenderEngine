@@ -116,6 +116,11 @@ namespace fre
 		vkDestroyInstance(instance, nullptr);
 	}
 
+	void VulkanRenderer::addMeshModel(const MeshModel& meshModel)
+	{
+		mMeshModels.push_back(meshModel);
+	}
+
 	MeshModel* VulkanRenderer::getMeshModel(int modelId)
 	{
 		MeshModel* result = nullptr;
@@ -1147,6 +1152,26 @@ namespace fre
 			shaderMetaData.mVertexSize = sizeof(Vertex);
 			shaderMetaData.mSubPassIndex = 0;
 		}
+		else if(shaderFileName == "colored")
+		{
+			shaderMetaData.mVertexAttributes =
+			{
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tex)}
+			};
+			shaderMetaData.mDescriptorSetLayouts =
+			{
+				//All inputs used in render pass
+				//Uniforms (model matrix) in subpass 0
+				mUniformDescriptorSetLayout.mDescriptorSetLayout
+			};
+			shaderMetaData.mPushConstantRanges = {mModelMatrixPCR, mLightingPCR};
+			shaderMetaData.mDepthTestEnabled = true;
+			shaderMetaData.mVertexSize = sizeof(Vertex);
+			shaderMetaData.mSubPassIndex = 0;
+		}
 		else if(shaderFileName == "fog")
 		{
 			shaderMetaData.mDescriptorSetLayouts = {mInputDescriptorSetLayout.mDescriptorSetLayout};
@@ -1157,6 +1182,42 @@ namespace fre
 		}
 		
 		return shaderMetaData;
+	}
+
+	void VulkanRenderer::addMaterial(Material& material)
+	{
+		std::string shaderFileName;
+		if(material.hasTextureTypes({aiTextureType_BASE_COLOR, aiTextureType_NORMALS, aiTextureType_METALNESS}))
+		{
+			shaderFileName = "pbr";
+		}
+		else if(material.hasTextureTypes({aiTextureType_DIFFUSE, aiTextureType_NORMALS}))
+		{
+			shaderFileName = "normalMap";
+		}
+		else if(material.hasTextureTypes({aiTextureType_DIFFUSE}))
+		{
+			shaderFileName = "textured";
+		}
+		else
+		{
+			shaderFileName = "colored";
+		}
+
+		if(!shaderFileName.empty())
+		{
+			int foundShaderId = getIndexOf(mShaderFileNames, shaderFileName);
+			if(foundShaderId == -1)
+			{
+				material.mShaderId = static_cast<uint32_t>(mShaderFileNames.size());
+				mShaderFileNames.push_back(shaderFileName);
+			}
+			else
+			{
+				material.mShaderId = foundShaderId;
+			}
+		}
+		mMaterials.push_back(material);
 	}
 
 	int VulkanRenderer::createMeshModel(std::string modelFile,
@@ -1178,12 +1239,11 @@ namespace fre
 		for (uint32_t m = 0; m < scene->mNumMaterials; m++)
 		{
 			aiMaterial* externalMaterial = scene->mMaterials[m];
-			mMaterials.push_back(Material());
-			auto& material = mMaterials.back();
-			externalMaterial->Get(AI_MATKEY_SHININESS, mMaterials.back().mShininess);
-			if(areEqual(mMaterials.back().mShininess, 0.0f))
+			Material material;
+			externalMaterial->Get(AI_MATKEY_SHININESS, material.mShininess);
+			if(areEqual(material.mShininess, 0.0f))
 			{
-				mMaterials.back().mShininess = 16.0f;
+				material.mShininess = 16.0f;
 			}
 
 			//Look at textures we are interested in
@@ -1210,49 +1270,19 @@ namespace fre
 						const auto foundTexId = getIndexOf(mTextureFileNames, textureFileName);
 						if(foundTexId == -1)
 						{
-							mMaterials.back().mTextureIds[textureType] =
+							material.mTextureIds[textureType] =
 								static_cast<uint32_t>(mTextureFileNames.size());
 							mTextureFileNames.push_back(textureFileName);
 						}
 						else
 						{
-							mMaterials.back().mTextureIds[textureType] = foundTexId;
+							material.mTextureIds[textureType] = foundTexId;
 						}
 					}
 				}
 			}
 
-			std::string shaderFileName;
-			if(material.hasTextureTypes({aiTextureType_BASE_COLOR, aiTextureType_NORMALS, aiTextureType_METALNESS}))
-			{
-				shaderFileName = "pbr";
-			}
-			else if(material.hasTextureTypes({aiTextureType_DIFFUSE, aiTextureType_NORMALS}))
-			{
-				shaderFileName = "normalMap";
-			}
-			else if(material.hasTextureTypes({aiTextureType_DIFFUSE}))
-			{
-				shaderFileName = "textured";
-			}
-			else
-			{
-				//shaderFileName = "colored";
-			}
-
-			if(!shaderFileName.empty())
-			{
-				int foundShaderId = getIndexOf(mShaderFileNames, shaderFileName);
-				if(foundShaderId == -1)
-				{
-					material.mShaderId = static_cast<uint32_t>(mShaderFileNames.size());
-					mShaderFileNames.push_back(shaderFileName);
-				}
-				else
-				{
-					material.mShaderId = foundShaderId;
-				}
-			}
+			addMaterial(material);
 		}
 
 		//Load all meshes

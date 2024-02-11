@@ -45,8 +45,10 @@ namespace fre
 		int create(GLFWwindow* newWindow);
 		void destroy();
 
+		void addMaterial(Material& material);
 		int createMeshModel(std::string modelFile,
 			const std::vector<aiTextureType>& texturesLoadTypes);
+		void addMeshModel(const MeshModel& meshModel);
 		MeshModel* getMeshModel(int modelId);
 
 		void draw(const Camera& camera, const Light& light);

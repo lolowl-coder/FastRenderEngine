@@ -45,7 +45,7 @@ void main()
 	float shininess = lighting.lightPos.w;
 	float specularFactor = pow(max(0.0, dot(fragEyeDir, reflectedDir)), shininess);
 	outColour = vec4(
-		diffuseColor * diffuseFactor * lighting.lightPos +
-		specularColor * specularFactor * lighting.lightPos,
+		diffuseColor * diffuseFactor * lighting.lightColor.rgb +
+		specularColor * specularFactor * lighting.lightColor.rgb,
 		alpha);
 }

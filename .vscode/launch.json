@@ -37,5 +37,17 @@
             //"console": "externalTerminal",
             "console": "integratedTerminal",
         }
+        {
+            "name": "(Windows) Launch DHMScan",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/samples/DHMScan/Debug/DHMScan.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "D:/Projects/FastRenderEngine/Data",
+            "environment": [],
+            //"console": "externalTerminal",
+            "console": "integratedTerminal",
+        }
     ]
 }

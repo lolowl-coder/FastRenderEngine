@@ -1,0 +1,12 @@
+Description of screenshots grouped by features.
+
+Blinn-Phong lighting, diffuse and normal map.
+    EarthDiffuseNormalMap.png - rendering of gltf-model taken from https://sketchfab.com/3d-models/earth-3684eb40fb7e42208089874e6286b9e9
+    SpaceCraftDiffuseNormal.png - rendering of gltf-model taken from https://sketchfab.com/3d-models/sci-fi-ship-58ee764422764cc4b8cc27f95500d967
+    See samples/NormalMap
+PBR, base color, normal, metal, roughness, single light source.
+    SpaceCraftDiffuseNormalMetalRoughness.png - rendering of gltf-model taken from https://sketchfab.com/3d-models/sci-fi-ship-58ee764422764cc4b8cc27f95500d967
+    See samples/PBR
+Textured geometry, no lighting.
+    TexturedModelLoading.png - rendering of gltf-model taken from https://sketchfab.com/3d-models/sea-house-bc4782005e9646fb9e6e18df61bfd28d
+    See samples/Basic

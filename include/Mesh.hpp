@@ -26,6 +26,7 @@ namespace fre
 		const glm::mat4& getModelMatrix() const;
 
 		int getMaterialId() const;
+		void setMaterialId(int materialId);
 
 		int getVertexCount() const;
 		int getIndexCount() const;

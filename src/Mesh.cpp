@@ -49,6 +49,11 @@ namespace fre
 	{
 		return mMaterialId;
 	}
+	
+	void Mesh::setMaterialId(int materialId)
+	{
+		mMaterialId = materialId;
+	}
 
 	int Mesh::getVertexCount() const
 	{
