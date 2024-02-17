@@ -7,6 +7,7 @@
 namespace fre
 {
 	void VulkanSwapChain::create(GLFWwindow* window, const MainDevice& mainDevice,
+		int8_t graphicsQueueFamilyId, int8_t presentationQueueFamilyId,
         VkSurfaceKHR surface)
 	{
 		//Get swap chain details so we can pick best settings
@@ -46,16 +47,14 @@ namespace fre
 		swapChainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;		//How to handle blending images with external graphics (e. g. other windows)
 		swapChainCreateInfo.clipped = VK_TRUE;		//Where to clip parts of image not in view (e.g. ghind another window, off screen, etc.)
 
-		//Get queue family indices
-		QueueFamilyIndices indices = getQueueFamilies(mainDevice.physicalDevice, surface);
 		//If Graphics and Presentation families are different, then swap chain must let images be shared between families
-		if (indices.graphicsFamily != indices.presentationFamily)
+		if (graphicsQueueFamilyId != presentationQueueFamilyId)
 		{
 			//Queues to share between
 			uint32_t queueFamilyIndices[] =
 			{
-				(uint32_t)indices.graphicsFamily,
-				(uint32_t)indices.presentationFamily
+				(uint32_t)graphicsQueueFamilyId,
+				(uint32_t)presentationQueueFamilyId
 			};
 			swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;	//Image share handling
 			swapChainCreateInfo.queueFamilyIndexCount = 2;						//Number of queues to share images between

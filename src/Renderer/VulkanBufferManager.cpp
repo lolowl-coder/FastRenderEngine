@@ -26,7 +26,7 @@ namespace fre
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			&stagingBuffer, &stagingBufferMemory);
 
-		//MAP MEMORY TO VERTEX BUFFER
+		//MAP MEMORY TO BUFFER
 		void* mappedData;		//1. Create pointer to a point in normal memory
 		//Map the vertex buffer memory to that point
 		vkMapMemory(mainDevice.logicalDevice, stagingBufferMemory, 0, size, 0, &mappedData);
@@ -51,13 +51,13 @@ namespace fre
 		vkFreeMemory(mainDevice.logicalDevice, stagingBufferMemory, nullptr);
 	}
 
-	const VulkanBuffer& VulkanBufferManager::getBuffer(uint32_t index)
+	bool VulkanBufferManager::isBufferAvailable(uint32_t index) const
 	{
-		if (index >= mBuffers.size())
-		{
-			throw std::runtime_error("Attempted to access invalid Buffer index!");
-		}
+		return index < mBuffers.size();
+	}
 
+	const VulkanBuffer& VulkanBufferManager::getBuffer(uint32_t index) const
+	{
 		return mBuffers[index];
 	}
 }

@@ -12,6 +12,8 @@ namespace fre
             M_BACKWARD,
             M_LEFT,
             M_RIGHT,
+            M_DOWN,
+            M_UP,
             M_COUNT
         };
 
@@ -20,8 +22,8 @@ namespace fre
         void rotateBy(const glm::vec3& rotationAngles);
         void translateBy(const glm::vec3& translation);
         void setMovement(EMovement movement, bool value);
-        void update(double time, float timeDelta);
-        void updateMovement(double time, float timeDelta);
+        void update(float timeDelta);
+        void updateMovement(float timeDelta);
         void updateViewMatrix();
         void updateVectors();
         const glm::vec3& getForward() const;

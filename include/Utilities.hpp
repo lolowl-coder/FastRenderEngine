@@ -3,6 +3,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include "Renderer/VulkanQueueFamily.hpp"
+
 #include <vector>
 #include <fstream>
 #include <glm/glm.hpp>
@@ -10,7 +12,7 @@
 namespace fre
 {
 	const int MAX_FRAME_DRAWS = 3;
-	const int MAX_OBJECTS = 30;
+	const int MAX_OBJECTS = 40;
 
 	struct ShaderMetaData;
 
@@ -37,20 +39,6 @@ namespace fre
 		"VK_LAYER_KHRONOS_validation"
 	};
 
-	//Indices (locations) of queue families if they exist at all\
-
-	struct QueueFamilyIndices
-	{
-		int graphicsFamily = -1;	//Location of Graphics Queue Family
-		int presentationFamily = -1;//Location of Presentation Queue Family
-
-		//Check if Queue Families are valid
-		bool isValid()
-		{
-			return graphicsFamily >= 0 && presentationFamily >= 0;
-		}
-	};
-
 	struct SwapChainDetails
 	{
 		VkSurfaceCapabilitiesKHR surfaceCapabilities;		//Surface properties, e.g. image size/extent
@@ -73,7 +61,7 @@ namespace fre
 	void copyBuffer(VkDevice device, VkQueue transferQueue, VkCommandPool transferCommandPool,
 		VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize bufferSize);
 
-	QueueFamilyIndices getQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
+	std::vector<VulkanQueueFamily> getQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
 
 	template<typename T>
 	int getIndexOf(const std::vector<T>& v, const T& value)

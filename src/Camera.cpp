@@ -41,14 +41,14 @@ namespace fre
         mMovement[movement] = value;
     }
 
-    void Camera::update(double time, float timeDelta)
+    void Camera::update(float timeDelta)
     {
-        updateMovement(time, timeDelta);
+        updateMovement(timeDelta);
         updateViewMatrix();
         updateVectors();
     }
 
-    void Camera::updateMovement(double time, float timeDelta)
+    void Camera::updateMovement(float timeDelta)
     {
         //std::cout << "movement: " << mMovement[0] << " " << mMovement[1] << " " << mMovement[2] << " " << mMovement[3] << std::endl;
         if(mMovement[M_FORWARD])
@@ -67,6 +67,14 @@ namespace fre
         else if(mMovement[M_LEFT])
         {
             translateBy(-mRight * mMovementSpeed * timeDelta);
+        }
+        else if(mMovement[M_DOWN])
+        {
+            translateBy(glm::vec3(0.0f, 1.0f, 0.0f) * mMovementSpeed * timeDelta);
+        }
+        else if(mMovement[M_UP])
+        {
+            translateBy(glm::vec3(0.0f, -1.0f, 0.0f) * mMovementSpeed * timeDelta);
         }
     }
 

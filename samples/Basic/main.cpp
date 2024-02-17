@@ -69,7 +69,7 @@ int main()
 {
     //std::cout << std::filesystem::current_path() << std::endl;
     MyEngine engine;
-    if(engine.create("Test Vulkan", 1700, 900))
+    if(engine.create("FRE: Basic", 1700, 900))
     {
         engine.run();
         engine.destroy();

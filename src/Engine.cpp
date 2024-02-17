@@ -80,6 +80,12 @@ namespace fre
                 case GLFW_KEY_D:
                     camera.setMovement(Camera::M_RIGHT, movementEnabled);
                     break;
+                case GLFW_KEY_Q:
+                    camera.setMovement(Camera::M_DOWN, movementEnabled);
+                    break;
+                case GLFW_KEY_E:
+                    camera.setMovement(Camera::M_UP, movementEnabled);
+                    break;
                 case GLFW_KEY_L:
                     Light& light = engine->getLight();
                     light.mPosition = -camera.getEye();
@@ -140,7 +146,7 @@ namespace fre
         mTimeDelta = static_cast<float>(mTime - lastTime);
         lastTime = mTime;
         
-        mCamera.update(mTime, mTimeDelta);
+        mCamera.update(mTimeDelta);
     }
 
     void Engine::destroy()

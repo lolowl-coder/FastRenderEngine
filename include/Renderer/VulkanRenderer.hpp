@@ -16,9 +16,11 @@
 #include "Renderer/VulkanRenderPass.hpp"
 #include "Renderer/VulkanSwapchain.hpp"
 #include "Renderer/VulkanTextureManager.hpp"
-#include "Shader.hpp"
-#include "Utilities.hpp"
 #include "MeshModel.hpp"
+#include "ThreadPool.hpp"
+#include "Shader.hpp"
+#include "Statistics.hpp"
+#include "Utilities.hpp"
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -68,7 +70,8 @@ namespace fre
 
 		VulkanRenderPass mRenderPass;
 
-		std::vector<VulkanCommandBuffer> mCommandBuffers;
+		std::vector<VulkanCommandBuffer> mGraphicsCommandBuffers;
+		std::vector<VulkanCommandBuffer> mTransferCommandBuffers;
 		
 		VkPushConstantRange mModelMatrixPCR;
 		VkPushConstantRange mLightingPCR;
@@ -116,7 +119,7 @@ namespace fre
 		ShaderMetaData getShaderMetaData(const std::string& shaderFileName) const;
 		void loadShader(const std::string& shadeFilerName);
 		void loadUsedShaders();
-		void loadTextures();
+		void loadImages();
 		void loadMeshes();
 
 	private:
@@ -134,8 +137,13 @@ namespace fre
 		//Vulkan components
 		VkInstance instance;
 
-		VkQueue graphicsQueue;
-		VkQueue presentationQueue;
+		std::vector<VulkanQueueFamily> mQueueFamilies;
+		int8_t mGraphicsQueueFamilyId = -1;
+		int8_t mPresentationQueueFamilyId = -1;
+		int8_t mTransferQueueFamilyId = -1;
+		VkQueue mGraphicsQueue;
+		VkQueue mPresentationQueue;
+		VkQueue mTransferQueue;
 		VkSurfaceKHR surface;
 
 		//Loaded shaders
@@ -163,16 +171,25 @@ namespace fre
 		std::vector<VulkanFrameBuffer> mFrameBuffers;
 
 		// - Pools -
-		VkCommandPool graphicsCommandPool;
+		VkCommandPool mGraphicsCommandPool;
+		VkCommandPool mTransferCommandPool;
 
 		// - Synchronization
 		std::vector<VkSemaphore> imageAvailable;
 		std::vector<VkSemaphore> renderFinished;
 		std::vector<VkFence> drawFences;
+		VkSemaphore mTransferCompleteSemaphore;
+		VkFence mTransferFence;
 
 		bool framebufferResized = false;
 
 		glm::vec4 mClearColor = glm::vec4(0.0f);
+
+		ThreadPool mThreadPool;
+		std::mutex mTextureMutex;
+		std::mutex mBufferMutex;
+
+		Statistics mStatistics;
 
 		//Vulkan functions
 		// -create functions
@@ -185,7 +202,7 @@ namespace fre
 		void createInputDescriptorPool();
 		void createUniformDescriptorSetLayout();
 		void createInputDescriptorSetLayout();
-		void createCommandPool();
+		void createCommandPools();
 		void createCommandBuffers();
 		void createUniformBuffers();
 		void allocateUniformDescriptorSets();
@@ -207,8 +224,9 @@ namespace fre
 		void cleanupSwapChainFrameBuffers();
 		void cleanupInputDescriptorPool();
 		void cleanupSwapchainImagesSemaphores();
-		void cleanupRenderFinishedSemaphors();
+		void cleanupRenderFinishedSemaphores();
 		void cleanupDrawFences();
+		void cleanupTransferSynchronisation();
 
 		// - Recreate methods
 		void recreateSwapChain();
@@ -224,5 +242,6 @@ namespace fre
 		void createRenderFinishedSemaphores();
 		void createDrawFences();
 		void createSynchronisation();
+		void createTransferSynchronisation();
 	};
 }

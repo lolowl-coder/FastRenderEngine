@@ -40,7 +40,8 @@ public:
         {
             result = Engine::create(wName, width, height);
         
-            mCamera.setEye(glm::vec3(0.0, 0.0, -60.0));
+            mCamera.setEye(glm::vec3(-30.0, 5.0, -20.0));
+            mCamera.rotateBy(glm::vec3(0.0, -45.0, 0.0));
             mLight.mColor = glm::vec3(1.0f, 0.4f, 0.4f);
             mLight.mColor = glm::vec3(1.0f, 1.0f, 1.0f);
 
@@ -62,7 +63,7 @@ int main()
 {
     //std::cout << std::filesystem::current_path() << std::endl;
     MyEngine engine;
-    if(engine.create("Test Vulkan", 1700, 900))
+    if(engine.create("FRE: PBR", 1700, 900))
     {
         engine.run();
         engine.destroy();

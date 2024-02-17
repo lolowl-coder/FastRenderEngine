@@ -55,6 +55,7 @@ namespace fre
 			break;
 			case AK_DEPTH: result = VK_IMAGE_ASPECT_DEPTH_BIT;
 			break;
+			case AK_COUNT: result = VK_IMAGE_ASPECT_NONE;
 		}
 
 		return result;

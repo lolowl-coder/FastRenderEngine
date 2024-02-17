@@ -6,11 +6,11 @@
 namespace fre
 {
 	void VulkanCommandBuffer::create(
-		VkCommandPool graphicsCommandPool, VkDevice logicalDevice)
+		VkCommandPool commandPool, VkDevice logicalDevice)
 	{
 		VkCommandBufferAllocateInfo cbAllocInfo = {};
 		cbAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cbAllocInfo.commandPool = graphicsCommandPool;
+		cbAllocInfo.commandPool = commandPool;
 		cbAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;	//VK_COMMAND_BUFFER_LEVEL_PRIMARY : Buffer you submit directly to queue. Can't be called by other buffers.
 																//VK_COMMAND_BUFFER_LEVEL_SECONDARY : Buffer can't be called directly. Can be called from other buffers via "vkCmdExecuteCommands" when recording commands in primary buffer
 		cbAllocInfo.commandBufferCount = 1;

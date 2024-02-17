@@ -6,7 +6,6 @@
 #include "Renderer/VulkanShader.hpp"
 #include "config.hpp"
 
-#include <array>
 #include <limits>
 #include <stdexcept>
 
@@ -28,7 +27,10 @@ namespace fre
 	};
 
 	VulkanRenderer::VulkanRenderer()
+	: mThreadPool(std::thread::hardware_concurrency())
 	{
+		std::cout << "Number of concurent threads: " << std::thread::hardware_concurrency() << std::endl;
+		mTextureFileNames.push_back("default.jpg");
 	}
 
 	VulkanRenderer::~VulkanRenderer()
@@ -44,7 +46,8 @@ namespace fre
 			createSurface();
 			getPhysicalDevice();
 			createLogicalDevice();
-			mSwapChain.create(window, mainDevice, surface);
+			mSwapChain.create(window, mainDevice, mGraphicsQueueFamilyId,
+				mPresentationQueueFamilyId, surface);
 			mRenderPass.create(mainDevice, mSwapChain.mSwapChainImageFormat);
 			createSwapChainFrameBuffers();
 			createUniformDescriptorPool();
@@ -58,12 +61,13 @@ namespace fre
 			allocateInputDescriptorSets();
 			loadUsedShaders();
 			createGraphicsPipelines();
-			createCommandPool();
+			createCommandPools();
 			createCommandBuffers();
 			createSynchronisation();
 
-			loadTextures();
+			loadImages();
 			loadMeshes();
+			//std::this_thread::sleep_for(std::chrono::seconds(10));
 		}
 		catch (std::runtime_error& e)
 		{
@@ -102,10 +106,15 @@ namespace fre
 		}
 
 		cleanupSwapchainImagesSemaphores();
-		cleanupRenderFinishedSemaphors();
+		cleanupRenderFinishedSemaphores();
 		cleanupDrawFences();
+		cleanupTransferSynchronisation();
 
-		vkDestroyCommandPool(mainDevice.logicalDevice, graphicsCommandPool, nullptr);
+		vkDestroyCommandPool(mainDevice.logicalDevice, mGraphicsCommandPool, nullptr);
+		if(mGraphicsCommandPool != mTransferCommandPool)
+		{
+			vkDestroyCommandPool(mainDevice.logicalDevice, mTransferCommandPool, nullptr);
+		}
 		
 		cleanupGraphicsPipelines(mainDevice.logicalDevice);
 
@@ -114,6 +123,8 @@ namespace fre
 		vkDestroySurfaceKHR(instance, surface, nullptr);
 		vkDestroyDevice(mainDevice.logicalDevice, nullptr);
 		vkDestroyInstance(instance, nullptr);
+		
+		mThreadPool.destroy();
 	}
 
 	void VulkanRenderer::addMeshModel(const MeshModel& meshModel)
@@ -171,12 +182,12 @@ namespace fre
 			};
 			submitInfo.pWaitDstStageMask = waitStages;	//Stages to check semaphores at
 			submitInfo.commandBufferCount = 1;	//Number of command buffers to submit
-			VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
+			VkCommandBuffer commandBuffer = mGraphicsCommandBuffers[imageIndex].mCommandBuffer;
 			submitInfo.pCommandBuffers = &commandBuffer;	//Command buffer to submit
 			submitInfo.signalSemaphoreCount = 1;	//Number of semaphores to signal
 			submitInfo.pSignalSemaphores = &renderFinished[currentFrame];	//Semaphore to signal wen command buffer finishes
 
-			result = vkQueueSubmit(graphicsQueue, 1, &submitInfo, drawFences[currentFrame]);
+			result = vkQueueSubmit(mGraphicsQueue, 1, &submitInfo, drawFences[currentFrame]);
 			if (result != VK_SUCCESS)
 			{
 				throw std::runtime_error("Failed to submit Command Buffer to Queue!");
@@ -191,7 +202,7 @@ namespace fre
 			presentInfo.pSwapchains = &mSwapChain.mSwapChain;	//Swapchains to present images to
 			presentInfo.pImageIndices = &imageIndex;	//Indices of images in swapchain to present
 
-			result = vkQueuePresentKHR(presentationQueue, &presentInfo);
+			result = vkQueuePresentKHR(mPresentationQueue, &presentInfo);
 
 			if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
 			{
@@ -231,7 +242,7 @@ namespace fre
 		}
     }
 
-    void VulkanRenderer::cleanupRenderFinishedSemaphors()
+    void VulkanRenderer::cleanupRenderFinishedSemaphores()
     {
 		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
 		{
@@ -246,6 +257,12 @@ namespace fre
 			vkDestroyFence(mainDevice.logicalDevice, drawFences[i], nullptr);
 		}
     }
+
+	void VulkanRenderer::cleanupTransferSynchronisation()
+	{
+		vkDestroySemaphore(mainDevice.logicalDevice, mTransferCompleteSemaphore, nullptr);
+		vkDestroyFence(mainDevice.logicalDevice, mTransferFence, nullptr);
+	}
 
     void VulkanRenderer::setFramebufferResized(bool resized)
     {
@@ -319,24 +336,61 @@ namespace fre
 
 	void VulkanRenderer::createLogicalDevice()
 	{
-		//Get the queue family indices for the chosen Physical Device
-		QueueFamilyIndices indices = getQueueFamilies(mainDevice.physicalDevice, surface);
-
 		//Vector for queue creation information, and set for family indices
 		std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-		std::set<int> queueFamilyIndices = { indices.graphicsFamily, indices.presentationFamily };
 		
+		int8_t graphicsQueueId = -1;
+		int8_t presentationQueueId = -1;
+		int8_t transferQueueId = -1;
 		//Queue the logical device needs to create and info to do so
-		for(int queueFamilyIndex : queueFamilyIndices)
+		for(const auto& queueFamily : mQueueFamilies)
 		{
 			VkDeviceQueueCreateInfo queueCreateInfo = {};
 			queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-			queueCreateInfo.queueFamilyIndex = queueFamilyIndex;			//The index of the family to create queue from
-			queueCreateInfo.queueCount = 1;									//Number of queues to create
+			//The index of the family to create queue from
+			queueCreateInfo.queueFamilyIndex = queueFamily.mId;
+			//Number of queues to create
+			queueCreateInfo.queueCount = 0;
+			if(queueFamily.mHasGraphicsSupport &&
+				mGraphicsQueueFamilyId == -1)
+			{
+				if(queueCreateInfo.queueCount < queueFamily.mQueueCount)
+				{
+					queueCreateInfo.queueCount++;
+				}
+				graphicsQueueId = queueCreateInfo.queueCount - 1;
+				mGraphicsQueueFamilyId = queueFamily.mId;
+			}
+			if(queueFamily.mHasPresentationSupport &&
+				mPresentationQueueFamilyId == -1)
+			{
+				if(queueCreateInfo.queueCount < queueFamily.mQueueCount)
+				{
+					queueCreateInfo.queueCount++;
+				}
+				presentationQueueId = queueCreateInfo.queueCount - 1;
+				mPresentationQueueFamilyId = queueFamily.mId;
+			}
+			if(queueFamily.mHasTransferSupport &&
+				mTransferQueueFamilyId == -1)
+			{
+				if(queueCreateInfo.queueCount < queueFamily.mQueueCount)
+				{
+					queueCreateInfo.queueCount++;
+				}
+				transferQueueId = queueCreateInfo.queueCount - 1;
+				mTransferQueueFamilyId = queueFamily.mId;
+			}
 			float priority = 1.0f;
-			queueCreateInfo.pQueuePriorities = &priority;					//Vulkan needs to know how to handle multiple queues, so decide priority (1 - highest priority)
+			//Vulkan needs to know how to handle multiple queues, so decide priority (1 - highest priority)
+			queueCreateInfo.pQueuePriorities = &priority;
 
 			queueCreateInfos.push_back(queueCreateInfo);
+
+			if(mGraphicsQueueFamilyId != -1 && mPresentationQueueFamilyId != -1 && mTransferQueueFamilyId != -1)
+			{
+				break;
+			}
 		}
 
 		//Information to create logical device
@@ -363,8 +417,9 @@ namespace fre
 		//Queues are created at the same time as the device
 		//So we want hande to queues
 		//From given logical device, of given Queue Family, of given queue index (0 since only one queue), place reference in given VkQueue
-		vkGetDeviceQueue(mainDevice.logicalDevice, indices.graphicsFamily, 0, &graphicsQueue);
-		vkGetDeviceQueue(mainDevice.logicalDevice, indices.presentationFamily, 0, &presentationQueue);
+		vkGetDeviceQueue(mainDevice.logicalDevice, mGraphicsQueueFamilyId, graphicsQueueId, &mGraphicsQueue);
+		vkGetDeviceQueue(mainDevice.logicalDevice, mPresentationQueueFamilyId, presentationQueueId, &mPresentationQueue);
+		vkGetDeviceQueue(mainDevice.logicalDevice, mTransferQueueFamilyId, transferQueueId, &mTransferQueue);
 	}
 
 	void VulkanRenderer::createSwapChainFrameBuffers()
@@ -474,30 +529,37 @@ namespace fre
 		}
 	}
 
-	void VulkanRenderer::createCommandPool()
+	void VulkanRenderer::createCommandPools()
 	{
-		//Get indices of queue families from device;
-		QueueFamilyIndices queueFamilyIndices = getQueueFamilies(mainDevice.physicalDevice, surface);
-
 		VkCommandPoolCreateInfo poolInfo = {};
 		poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-		poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily;	//Queue family type that buffers trom this command pool will use
+		poolInfo.queueFamilyIndex = mGraphicsQueueFamilyId;	//Queue family type that buffers trom this command pool will use
 
 		//Create a Graphics Queue Family Command Pool
-		VkResult result = vkCreateCommandPool(mainDevice.logicalDevice, &poolInfo, nullptr, &graphicsCommandPool);
+		VkResult result = vkCreateCommandPool(mainDevice.logicalDevice, &poolInfo, nullptr, &mGraphicsCommandPool);
 		if (result != VK_SUCCESS)
 		{
-			throw std::runtime_error("Failed to create a Command Pool!");
+			throw std::runtime_error("Failed to create a graphics command Pool!");
+		}
+
+		poolInfo.queueFamilyIndex = mTransferQueueFamilyId;
+
+		result = vkCreateCommandPool(mainDevice.logicalDevice, &poolInfo, nullptr, &mTransferCommandPool);
+		if (result != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create a transfer command Pool!");
 		}
 	}
 
 	void VulkanRenderer::createCommandBuffers()
 	{
-		mCommandBuffers.resize(mFrameBuffers.size());
-		for(auto& cb : mCommandBuffers)
+		mGraphicsCommandBuffers.resize(mFrameBuffers.size());
+		mTransferCommandBuffers.resize(mFrameBuffers.size());
+		for(int i = 0; i < mFrameBuffers.size(); i++)
 		{
-			cb.create(graphicsCommandPool, mainDevice.logicalDevice);
+			mGraphicsCommandBuffers[i].create(mGraphicsCommandPool, mainDevice.logicalDevice);
+			mTransferCommandBuffers[i].create(mTransferCommandPool, mainDevice.logicalDevice);
 		}
 	}
 
@@ -589,78 +651,90 @@ namespace fre
 		const MeshModel& model, const Mesh& mesh,
 		const Camera& camera, const Light& light)
 	{
-		const auto& material = mMaterials[mesh.getMaterialId()];
-		const auto& shader = mShaders[material.mShaderId];
-		const auto& pipeline = mPipelines[shader.mPipelineId];
-		bindPipeline(imageIndex, pipeline.mPipeline);
-
-		const glm::mat4& modelMatrix = model.getModelMatrix();
-		//"Push" constants to given shader stage directly (no buffer)
-		vkCmdPushConstants(
-			commandBuffer,
-			pipeline.mPipelineLayout,
-			VK_SHADER_STAGE_VERTEX_BIT,
-			0,
-			sizeof(glm::mat4),	//Size of data being pushed
-			&modelMatrix);	//Actual data being pushed (can be array)
-
-        float sn = static_cast<float>(std::sin(glfwGetTime()) * 0.5 + 0.5);
-        float xSize = mModelMx.x - mModelMn.x;
-        float x = sn * xSize + mModelMn.x;
-        x = 0.0f;
-        //std::cout << x << std::endl;
-
-        glm::mat3 normalMatrix(modelMatrix);
-        normalMatrix = glm::transpose(glm::inverse(normalMatrix));
-        Lighting lighting;
-        lighting.normalMatrix = glm::mat4(normalMatrix);
-        lighting.cameraEye = glm::vec4(-camera.getEye(), 0.0);
-        lighting.lightPos = glm::vec4(light.mPosition, material.mShininess);
-		lighting.lightColor = glm::vec4(light.mColor, 1.0f);
-        //std::cout << "mat3 size: " << sizeof(glm::mat3) << std::endl;
-        //std::cout << "Lighting.normalMatrix: " << offsetof(Lighting, normalMatrix) << std::endl;
-        //std::cout << "Lighting.cameraEye: " << offsetof(Lighting, cameraEye) << std::endl;
-        //std::cout << "Lighting.lightPos: " << offsetof(Lighting, lightPos) << std::endl;
-		vkCmdPushConstants(
-			commandBuffer,
-			pipeline.mPipelineLayout,
-			VK_SHADER_STAGE_FRAGMENT_BIT,
-			sizeof(glm::mat4),
-			sizeof(Lighting),
-			&lighting);
-
 		auto vertexBufferId = mMeshToVertexBufferMap[mesh.getId()];
-		VkBuffer vertexBuffers[] = { mBufferManager.getBuffer(vertexBufferId).mBuffer };	//Buffers to bind
-		VkDeviceSize offsets[] = { 0 };		//Offsets into buffers being bound
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);	//Command to bind vertex buffer before drawing with them
-
 		auto indexBufferId = mMeshToIndexBufferMap[mesh.getId()];
-		vkCmdBindIndexBuffer(commandBuffer, mBufferManager.getBuffer(indexBufferId).mBuffer,
-			0, VK_INDEX_TYPE_UINT32);	//Command to bind index buffer before drawing with them
-
-		//Dynamic offset amount
-		//uint32_t dynamicOffset = static_cast<uint32_t>(modelUniformAlignment) * j;
-
-		//Bind all textures of material
-		std::vector<VkDescriptorSet> descriptorSets;
-		descriptorSets.push_back(mUniformDescriptorSets[imageIndex].mDescriptorSet);
-		for(const auto textureId : material.mTextureIds)
+		if(mBufferManager.isBufferAvailable(vertexBufferId) &&
+			mBufferManager.isBufferAvailable(indexBufferId))
 		{
-			descriptorSets.push_back(
-				mTextureManager.mSamplerDescriptorSets[textureId.second].mDescriptorSet
-			);
+			const auto& material = mMaterials[mesh.getMaterialId()];
+			const auto& shader = mShaders[material.mShaderId];
+			const auto& pipeline = mPipelines[shader.mPipelineId];
+			bindPipeline(imageIndex, pipeline.mPipeline);
+
+			const glm::mat4& modelMatrix = model.getModelMatrix();
+			//"Push" constants to given shader stage directly (no buffer)
+			vkCmdPushConstants(
+				commandBuffer,
+				pipeline.mPipelineLayout,
+				VK_SHADER_STAGE_VERTEX_BIT,
+				0,
+				sizeof(glm::mat4),	//Size of data being pushed
+				&modelMatrix);	//Actual data being pushed (can be array)
+
+			float sn = static_cast<float>(std::sin(glfwGetTime()) * 0.5 + 0.5);
+			float xSize = mModelMx.x - mModelMn.x;
+			float x = sn * xSize + mModelMn.x;
+			x = 0.0f;
+			//std::cout << x << std::endl;
+
+			glm::mat3 normalMatrix(modelMatrix);
+			normalMatrix = glm::transpose(glm::inverse(normalMatrix));
+			Lighting lighting;
+			lighting.normalMatrix = glm::mat4(normalMatrix);
+			lighting.cameraEye = glm::vec4(-camera.getEye(), 0.0);
+			lighting.lightPos = glm::vec4(light.mPosition, material.mShininess);
+			lighting.lightColor = glm::vec4(light.mColor, 1.0f);
+			//std::cout << "mat3 size: " << sizeof(glm::mat3) << std::endl;
+			//std::cout << "Lighting.normalMatrix: " << offsetof(Lighting, normalMatrix) << std::endl;
+			//std::cout << "Lighting.cameraEye: " << offsetof(Lighting, cameraEye) << std::endl;
+			//std::cout << "Lighting.lightPos: " << offsetof(Lighting, lightPos) << std::endl;
+			vkCmdPushConstants(
+				commandBuffer,
+				pipeline.mPipelineLayout,
+				VK_SHADER_STAGE_FRAGMENT_BIT,
+				sizeof(glm::mat4),
+				sizeof(Lighting),
+				&lighting);
+
+			
+			const auto& vertexBuffer = mBufferManager.getBuffer(vertexBufferId);
+			VkBuffer vertexBuffers[] = { vertexBuffer.mBuffer };	//Buffers to bind
+			VkDeviceSize offsets[] = { 0 };		//Offsets into buffers being bound
+			vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);	//Command to bind vertex buffer before drawing with them
+
+			const auto& indexBuffer = mBufferManager.getBuffer(indexBufferId);
+			vkCmdBindIndexBuffer(commandBuffer, indexBuffer.mBuffer,
+				0, VK_INDEX_TYPE_UINT32);	//Command to bind index buffer before drawing with them
+
+			//Dynamic offset amount
+			//uint32_t dynamicOffset = static_cast<uint32_t>(modelUniformAlignment) * j;
+
+			//Bind all textures of material
+			std::vector<VkDescriptorSet> descriptorSets;
+			descriptorSets.push_back(mUniformDescriptorSets[imageIndex].mDescriptorSet);
+			for(const auto textureId : material.mTextureIds)
+			{
+				const VulkanDescriptorSet& descriptorSet =
+					mTextureManager.getDescriptorSet(mainDevice, mTransferQueueFamilyId,
+						mGraphicsQueueFamilyId, mGraphicsQueue, mGraphicsCommandPool, textureId.second);
+				descriptorSets.push_back(descriptorSet.mDescriptorSet);
+			}
+
+			//are all textures available
+			if(material.mTextureIds.size() != descriptorSets.size())
+			{
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+					pipeline.mPipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()),
+					descriptorSets.data(), 0, nullptr);
+
+				vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.getIndexCount()), 1, 0, 0, 0);
+			}
 		}
-
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			pipeline.mPipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()),
-			descriptorSets.data(), 0, nullptr);
-
-		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh.getIndexCount()), 1, 0, 0, 0);
 	}
 
 	void VulkanRenderer::renderScene(uint32_t imageIndex, const Camera& camera, const Light& light)
 	{
-		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
+		VkCommandBuffer commandBuffer = mGraphicsCommandBuffers[imageIndex].mCommandBuffer;
 		for (size_t j = 0; j < mMeshModels.size(); j++)
 		{
 			const MeshModel& model = mMeshModels[j];
@@ -668,15 +742,14 @@ namespace fre
 			for (size_t k = 0; k < model.getMeshCount(); k++)
 			{
 				const Mesh& mesh = model.getMesh(k);
-				onRenderMesh(imageIndex, commandBuffer, model, mesh, camera,
-					light);
+				onRenderMesh(imageIndex, commandBuffer, model, mesh, camera, light);
 			}
 		}
 	}
 
 	void VulkanRenderer::renderTexturedRect(uint32_t imageIndex, VkPipelineLayout pipelineLayout)
 	{
-		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
+		VkCommandBuffer commandBuffer = mGraphicsCommandBuffers[imageIndex].mCommandBuffer;
 
 		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
 			0, 1, &mInputDescriptorSets[imageIndex].mDescriptorSet, 0, nullptr);
@@ -703,7 +776,7 @@ namespace fre
                 bindPipeline(imageIndex, fogPipeline.mPipeline);
                 glm::vec2 nearFar(camera.mNear, camera.mFar);
                 vkCmdPushConstants(
-                    mCommandBuffers[imageIndex].mCommandBuffer,
+                    mGraphicsCommandBuffers[imageIndex].mCommandBuffer,
                     fogPipeline.mPipelineLayout,
                     VK_SHADER_STAGE_FRAGMENT_BIT,
                     0,
@@ -756,7 +829,7 @@ namespace fre
 	void VulkanRenderer::bindPipeline(uint32_t imageIndex, VkPipeline pipeline)
 	{
 		vkCmdBindPipeline(
-				mCommandBuffers[imageIndex].mCommandBuffer,
+				mGraphicsCommandBuffers[imageIndex].mCommandBuffer,
 				VK_PIPELINE_BIND_POINT_GRAPHICS,
 				pipeline);
 	}
@@ -764,8 +837,8 @@ namespace fre
 	void VulkanRenderer::recordCommands(uint32_t imageIndex, const Camera& camera,
 		const Light& light)
 	{
-		mCommandBuffers[imageIndex].begin();
-		VkCommandBuffer commandBuffer = mCommandBuffers[imageIndex].mCommandBuffer;
+		mGraphicsCommandBuffers[imageIndex].begin();
+		VkCommandBuffer commandBuffer = mGraphicsCommandBuffers[imageIndex].mCommandBuffer;
 		mRenderPass.begin(mFrameBuffers[imageIndex].mFrameBuffer, mSwapChain.mSwapChainExtent,
 			commandBuffer, mClearColor);
 
@@ -780,7 +853,7 @@ namespace fre
 		}	
 
 		mRenderPass.end(commandBuffer);
-		mCommandBuffers[imageIndex].end();
+		mGraphicsCommandBuffers[imageIndex].end();
 	}
 
 	void VulkanRenderer::getPhysicalDevice()
@@ -800,18 +873,23 @@ namespace fre
 		//Just pick first device
 		for (const auto& device : deviceList)
 		{
-			if (checkDeviceSuitable(device))
+			mQueueFamilies = getQueueFamilies(device, surface);
+			for(const auto& queueFamily : mQueueFamilies)
 			{
-				mainDevice.physicalDevice = device;
-				break;
+				if(queueFamily.mHasGraphicsSupport && queueFamily.mHasPresentationSupport &&
+					queueFamily.mHasTransferSupport && checkDeviceSuitable(device))
+				{
+					mainDevice.physicalDevice = device;
+					break;
+				}
 			}
 		}
 
 		//Get properties of device
-		VkPhysicalDeviceProperties deviceProperties;
+		/*VkPhysicalDeviceProperties deviceProperties;
 		vkGetPhysicalDeviceProperties(mainDevice.physicalDevice, &deviceProperties);
 
-		//minUniformBufferOffset = deviceProperties.limits.minUniformBufferOffsetAlignment;
+		minUniformBufferOffset = deviceProperties.limits.minUniformBufferOffsetAlignment;*/
 	}
 
 	void VulkanRenderer::allocateDynamicBufferTransferSpace()
@@ -841,7 +919,8 @@ namespace fre
 		cleanupInputDescriptorPool();
 		cleanupSwapchainImagesSemaphores();
 
-		mSwapChain.create(window, mainDevice, surface);
+		mSwapChain.create(window, mainDevice, mGraphicsQueueFamilyId,
+			mPresentationQueueFamilyId, surface);
 		createSwapChainFrameBuffers();
 		createInputDescriptorSetLayout();
 		createInputDescriptorPool();
@@ -955,8 +1034,6 @@ namespace fre
 		//Information about what device can do (geo shader, tess shaders, wide lines, etc.)
 		VkPhysicalDeviceFeatures deviceFeatures;
 		vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
-		
-		QueueFamilyIndices indices = getQueueFamilies(device, surface);
 
 		bool extensionSupported = checkDeviceExtentionSupport(device);
 
@@ -967,7 +1044,7 @@ namespace fre
 			swapChainValid = !swapChainDetails.presentationModes.empty() && !swapChainDetails.formats.empty();
 		}
 
-		return indices.isValid() && extensionSupported && swapChainValid && deviceFeatures.samplerAnisotropy;
+		return extensionSupported && swapChainValid && deviceFeatures.samplerAnisotropy;
 	}
 
 	void VulkanRenderer::createSwapchainImagesSemaphores()
@@ -1017,11 +1094,22 @@ namespace fre
 		}
 	}
 
+	void VulkanRenderer::createTransferSynchronisation()
+	{
+		VkSemaphoreCreateInfo semaphoreInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+		vkCreateSemaphore(mainDevice.logicalDevice, &semaphoreInfo, nullptr, &mTransferCompleteSemaphore);
+
+		VkFenceCreateInfo fenceInfo{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+		vkCreateFence(mainDevice.logicalDevice, &fenceInfo, nullptr, &mTransferFence);
+	}
+
 	void VulkanRenderer::createSynchronisation()
 	{
 		createSwapchainImagesSemaphores();
 		createRenderFinishedSemaphores();
 		createDrawFences();
+		createTransferSynchronisation();
 	}
 
     void VulkanRenderer::setViewport(uint32_t imageIndex)
@@ -1033,7 +1121,7 @@ namespace fre
 		viewport.height = (float) mSwapChain.mSwapChainExtent.height;
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
-		vkCmdSetViewport(mCommandBuffers[imageIndex].mCommandBuffer, 0, 1, &viewport);
+		vkCmdSetViewport(mGraphicsCommandBuffers[imageIndex].mCommandBuffer, 0, 1, &viewport);
     }
 
     void VulkanRenderer::setScissor(uint32_t imageIndex)
@@ -1041,15 +1129,38 @@ namespace fre
 		VkRect2D scissor{};
 		scissor.offset = {0, 0};
 		scissor.extent = mSwapChain.mSwapChainExtent;
-		vkCmdSetScissor(mCommandBuffers[imageIndex].mCommandBuffer, 0, 1, &scissor);
+		vkCmdSetScissor(mGraphicsCommandBuffers[imageIndex].mCommandBuffer, 0, 1, &scissor);
     }
 
-	void VulkanRenderer::loadTextures()
+	void VulkanRenderer::loadImages()
 	{
-		for(const auto& textureFileName : mTextureFileNames)
+		//std::cout << "render tid: " << std::this_thread::get_id() << std::endl;
+		mStatistics.startMeasure("load images", glfwGetTime());
+		for(uint32_t i = 0; i < mTextureFileNames.size(); i++)
 		{
-			mTextureManager.createTexture(mainDevice, graphicsQueue,
-				graphicsCommandPool, textureFileName);
+			const auto& fileName = mTextureFileNames[i];
+			//load default texture in main thread
+			if(i == 0)
+			{
+				mTextureManager.loadImage(fileName, i);
+				mTextureManager.getDescriptorSet(mainDevice, mTransferQueueFamilyId,
+					mGraphicsQueueFamilyId, mGraphicsQueue, mGraphicsCommandPool, i);
+			}
+			else
+			{
+				mThreadPool.enqueue
+				(
+					[this, &fileName, i]
+					{
+						this->mTextureManager.loadImage(fileName, i);
+						if(this->mTextureManager.getImagesCount() == this->mTextureFileNames.size())
+						{
+							this->mStatistics.stopMeasure("load images", glfwGetTime());
+							this->mStatistics.print();
+						}
+					}
+				);
+			}
 		}
 	}
 
@@ -1060,18 +1171,21 @@ namespace fre
 			for(uint32_t i = 0; i < meshModel.getMeshCount(); i++)
 			{
 				const auto& mesh = meshModel.getMesh(i);
+				uint32_t meshId = mesh.getId();
 				const void* vertexData = mesh.getVertexData();
-				mMeshToVertexBufferMap[mesh.getId()] = static_cast<uint32_t>(mBufferManager.mBuffers.size());
-				mBufferManager.createBuffer(
-					mainDevice, graphicsQueue, graphicsCommandPool,
-					VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexData,
-					mesh.getVertexCount() * sizeof(Vertex));
 				const void* indexData = mesh.getIndexData();
-				mMeshToIndexBufferMap[mesh.getId()] = static_cast<uint32_t>(mBufferManager.mBuffers.size());
+				uint32_t vertexBufferSize = mesh.getVertexCount() * sizeof(Vertex);
+				uint32_t indexBufferSize = mesh.getIndexCount() * sizeof(uint32_t);
+				mMeshToVertexBufferMap[meshId] = static_cast<uint32_t>(mBufferManager.mBuffers.size());
 				mBufferManager.createBuffer(
-					mainDevice, graphicsQueue, graphicsCommandPool,
+					mainDevice, mTransferQueue, mTransferCommandPool,
+					VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexData,
+					vertexBufferSize);
+				mMeshToIndexBufferMap[meshId] = static_cast<uint32_t>(mBufferManager.mBuffers.size());
+				mBufferManager.createBuffer(
+					mainDevice, mTransferQueue, mTransferCommandPool,
 					VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexData,
-					mesh.getIndexCount() * sizeof(uint32_t));
+					indexBufferSize);
 			}
 		}
 	}
@@ -1266,7 +1380,6 @@ namespace fre
 							idx = std::string(path.data).rfind("/");
 						}
 						std::string textureFileName = std::string(path.data).substr(idx + 1);
-						static uint32_t textureId = 0;
 						const auto foundTexId = getIndexOf(mTextureFileNames, textureFileName);
 						if(foundTexId == -1)
 						{

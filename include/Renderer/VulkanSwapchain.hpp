@@ -19,6 +19,7 @@ namespace fre
     struct VulkanSwapChain
     {
         void create(GLFWwindow* window, const MainDevice& mainDevice,
+            int8_t graphicsQueueFamilyId, int8_t presentationQueueFamilyId,
             VkSurfaceKHR surface);
         SwapChainDetails getSwapChainDetails(VkPhysicalDevice device, VkSurfaceKHR surface);
         void destroy(VkDevice logicalDevice);

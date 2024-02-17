@@ -57,12 +57,12 @@ namespace fre
 
 	int Mesh::getVertexCount() const
 	{
-		return mVertices.size();
+		return static_cast<int>(mVertices.size());
 	}
 
 	int Mesh::getIndexCount() const
 	{
-		return mIndices.size();
+		return static_cast<int>(mIndices.size());
 	}
 
 	const void* Mesh::getVertexData() const

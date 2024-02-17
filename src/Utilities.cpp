@@ -47,8 +47,10 @@ namespace fre
 		VkBufferCreateInfo bufferInfo = {};
 		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		bufferInfo.size = bufferSize;
-		bufferInfo.usage = bufferUsage;	//Multiple types of buffers possible
-		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;		//Similar to swap chain images can share vertex buffers
+		//Multiple types of buffers possible
+		bufferInfo.usage = bufferUsage;
+		//Similar to swap chain images can share vertex buffers
+		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 		VkResult result = vkCreateBuffer(mainDevice.logicalDevice, &bufferInfo, nullptr, buffer);
 		if (result != VK_SUCCESS)
@@ -77,7 +79,7 @@ namespace fre
 			throw std::runtime_error("Failed to allocate Vertex Buffer Memory!");
 		}
 
-		//Allocate memory for given vertex buffer
+		//Allocate memory for given buffer
 		vkBindBufferMemory(mainDevice.logicalDevice, *buffer, *bufferMemory, 0);
 	}
 
@@ -141,45 +143,21 @@ namespace fre
 		endAndSubmitCommitBuffer(device, transferCommandPool, transferQueue, transferCommandBuffer);
 	}
 
-	QueueFamilyIndices getQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface)
+	std::vector<VulkanQueueFamily> getQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface)
 	{
-		QueueFamilyIndices indices;
-
 		//Get all Queue Family properties info for the given device
 		uint32_t queueFamilyCount = 0;
 		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
 
 		std::vector<VkQueueFamilyProperties> queueFamilyList(queueFamilyCount);
 		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilyList.data());
-
-		//Go through each queue family and check if it has at least 1 of the required types of queue
-		int i = 0;
-		for (const auto& queueFamily : queueFamilyList)
+		
+		std::vector<VulkanQueueFamily> result(queueFamilyCount);
+		for(uint8_t i = 0; i < queueFamilyList.size(); i++)
 		{
-			//First check if queue family has at least 1 queue in that family (could have no queues)
-			//Queue can be of multiple types defined through bitfield. Need to bitwise AND with VK_QUEUE_*_BIT to check if it has required type
-			if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
-			{
-				indices.graphicsFamily = i; //If queue family invalid get index
-			}
-
-			//Check if queue family supports presentation
-			VkBool32 presentationSupport = false;
-			vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentationSupport);
-			//Check if queue is presentation type (can be both graphics and presentation)
-			if (queueFamily.queueCount > 0 && presentationSupport)
-			{
-				indices.presentationFamily = i;
-			}
-
-			//Check if queue family indices are in a valid state, stop searching if so
-			if (indices.isValid())
-			{
-				break;
-			}
-			i++;
+			result[i].init(device, surface, queueFamilyList[i], i);
 		}
 
-		return indices;
+		return result;
 	}
 }

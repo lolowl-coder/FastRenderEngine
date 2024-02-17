@@ -3,10 +3,12 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include "Image.hpp"
 #include "Renderer/VulkanDescriptorPool.hpp"
 #include "Renderer/VulkanDescriptorSet.hpp"
 #include "Renderer/VulkanDescriptorSetLayout.hpp"
 
+#include <map>
 #include <vector>
 #include <string>
 
@@ -18,11 +20,24 @@ namespace fre
   {
     void create(VkDevice logicalDevice);
     void destroy(VkDevice logicalDevice);
-    int createTextureImage(const MainDevice& mainDevice, VkQueue queue,
-            VkCommandPool commandPool, std::string fileName);
-    int createTexture(const MainDevice& mainDevice, VkQueue queue,
-      VkCommandPool commandPool, std::string fileName);
-    int createTextureDescriptorSet(VkDevice logicalDevice, VkImageView imageView);
+    void loadImage(const std::string fileName, uint32_t id);
+    uint32_t getImagesCount() const;
+    void createTextureImage(
+      const MainDevice& mainDevice,
+      int8_t transferFamilyId,
+		  int8_t graphicsFamilyId,
+      VkQueue queue,
+      VkCommandPool commandPool,
+      Image& image);
+    void createTexture(const MainDevice& mainDevice, int8_t transferFamilyId,
+		  int8_t graphicsQueueFamilyId, VkQueue queue,
+      VkCommandPool commandPool, Image& image);
+    void createTextureDescriptorSet(VkDevice logicalDevice, VkImageView imageView,
+      uint32_t index);
+    bool isImageAvailable(uint32_t index) const;
+    const VulkanDescriptorSet& getDescriptorSet(const MainDevice& MainDevice,
+      uint8_t transferQueueFamilyId, uint8_t graphicsQueueFamilyId, VkQueue queue,
+      VkCommandPool commandPool, uint32_t descriptorSetIndex);
 
   private:
     void createTextureSampler(VkDevice logicalDevice);
@@ -30,12 +45,14 @@ namespace fre
   private:
     VulkanDescriptorPool mSamplerDescriptorPool;
     VkSampler mTextureSampler;
-    std::vector<VkImage> mTextureImages;
-    std::vector<VkDeviceMemory> mTextureImageMemory;
-    std::vector<VkImageView> mTextureImageViews;
+    std::map<uint32_t, VkImage> mTextureImages;
+    std::map<uint32_t, VkDeviceMemory> mTextureImageMemory;
+    std::map<uint32_t, VkImageView> mTextureImageViews;
+    std::map<uint32_t, Image> mImages;
+    uint32_t mDefaultTextureId = 0;
 
   public:
     VulkanDescriptorSetLayout mSamplerDescriptorSetLayout;
-    std::vector<VulkanDescriptorSet> mSamplerDescriptorSets;
+    std::map<uint32_t, VulkanDescriptorSet> mSamplerDescriptorSets;
   };
 }

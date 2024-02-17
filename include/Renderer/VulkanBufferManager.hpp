@@ -23,7 +23,8 @@ namespace fre
             VkCommandPool transferCommandPool, VkBufferUsageFlagBits bufferUsage,
             const void* data, size_t size);
 
-        const VulkanBuffer& getBuffer(uint32_t index);
+        bool isBufferAvailable(uint32_t index) const;
+        const VulkanBuffer& getBuffer(uint32_t index) const;
 
         std::vector<VulkanBuffer> mBuffers;
     };

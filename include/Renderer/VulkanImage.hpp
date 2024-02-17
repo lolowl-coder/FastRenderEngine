@@ -18,8 +18,9 @@ namespace fre
 
 	VkImageView createImageView(VkDevice logicalDevice, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 
-	void copyImageBuffer(VkDevice device, VkQueue transferQueue, VkCommandPool transferCommandPool,
-		VkBuffer srcBuffer, VkImage image, uint32_t width, uint32_t height);
+	void copyImageBuffer(VkDevice device, int8_t transferQueueFamilyId, int8_t graphicsQueueFamilyId, VkQueue queue,
+		VkCommandPool transferCommandPool, VkBuffer srcBuffer,
+		VkImage image, uint32_t width, uint32_t height);
 
 	void transitionImageLayout(VkDevice device, VkQueue queue,
 		VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);

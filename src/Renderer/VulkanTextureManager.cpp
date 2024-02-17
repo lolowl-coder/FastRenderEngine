@@ -1,10 +1,9 @@
 #include "Renderer/VulkanTextureManager.hpp"
 #include "Renderer/VulkanImage.hpp"
+#include "Mutexes.hpp"
 #include "Utilities.hpp"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-
+#include <iostream>
 #include <stdexcept>
 
 namespace fre
@@ -64,106 +63,142 @@ namespace fre
 		}
 	}
 
-	stbi_uc* loatTextureFile(std::string fileName, int* width, int* height, VkDeviceSize* imageSize)
-	{
-		//Number of channels image uses
-		int channels;
-
-		//Load pixel data of image
-		std::string fileLoc = "Textures/" + fileName;
-		stbi_uc* image = stbi_load(fileLoc.c_str(), width, height, &channels, STBI_rgb_alpha);
-
-		if (!image)
-		{
-			throw std::runtime_error("Failed to load a texture file! (" + fileName + ")");
-		}
-
-		*imageSize = *width * *height * 4;
-
-		return image;
-	}
-
-	int VulkanTextureManager::createTextureImage(
-		const MainDevice& mainDevice,
-		VkQueue queue,
-		VkCommandPool commandPool,
-		std::string fileName)
+	void VulkanTextureManager::loadImage(
+		std::string fileName, uint32_t id)
 	{
 		//Load image file
-		int width, height;
-		VkDeviceSize imageSize;
-		stbi_uc* imageData = loatTextureFile(fileName, &width, &height, &imageSize);
+		Image image;
+		image.mId = id;
+		image.load(fileName);
+		
+		{
+			std::lock_guard<std::mutex> lock(gImagesMutex);
+			mImages[id] = image;
+			
+        	std::cout << "image loaded: " << fileName << ", id: " << id << std::endl;
+		}
+	}
 
+	uint32_t VulkanTextureManager::getImagesCount() const
+	{
+		return static_cast<uint32_t>(mImages.size());
+	}
+
+	void VulkanTextureManager::createTextureImage(
+		const MainDevice& mainDevice,
+		int8_t transferQueueFamilyId,
+		int8_t graphicsQueueFamilyId,
+		VkQueue queue,
+		VkCommandPool commandPool,
+		Image& image)
+	{
 		//Create staging buffer to hold loaded data, ready to copy to device
 		VkBuffer imageStagingBuffer;
 		VkDeviceMemory imageStagingBufferMemory;
-		createBuffer(mainDevice, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		createBuffer(mainDevice, image.mDataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			&imageStagingBuffer, &imageStagingBufferMemory);
 
 		//Copy image data to staging buffer
 		void* data;
-		vkMapMemory(mainDevice.logicalDevice, imageStagingBufferMemory, 0, imageSize, 0, &data);
-		memcpy(data, imageData, static_cast<size_t>(imageSize));
+		vkMapMemory(mainDevice.logicalDevice, imageStagingBufferMemory, 0, image.mDataSize, 0, &data);
+		memcpy(data, image.mData, static_cast<size_t>(image.mDataSize));
 		vkUnmapMemory(mainDevice.logicalDevice, imageStagingBufferMemory);
-		stbi_image_free(imageData);
 
 		//Create image to hold final texture
 		VkImage texImage;
 		VkDeviceMemory texImageMemory;
-		texImage = createImage(mainDevice, width, height,
+		texImage = createImage(mainDevice, image.mDimension.x, image.mDimension.y,
 			VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+			VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &texImageMemory);
 
 		//Copy data to image
 		//Transition image to be DST for copy operation
-		transitionImageLayout(mainDevice.logicalDevice, queue, commandPool, texImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		transitionImageLayout(mainDevice.logicalDevice, queue,
+			commandPool, texImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-		copyImageBuffer(mainDevice.logicalDevice, queue, commandPool, imageStagingBuffer, texImage, width, height);
+		copyImageBuffer(mainDevice.logicalDevice, transferQueueFamilyId, graphicsQueueFamilyId, queue, commandPool,
+			imageStagingBuffer, texImage, image.mDimension.x, image.mDimension.y);
 
 		//Transition image to be shader readable for shader usage
 		transitionImageLayout(mainDevice.logicalDevice, queue, commandPool, texImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-		mTextureImages.push_back(texImage);
-		mTextureImageMemory.push_back(texImageMemory);
+		mTextureImages[image.mId] = texImage;
+		mTextureImageMemory[image.mId] = texImageMemory;
 
 		//Destroy staging buffers
 		vkDestroyBuffer(mainDevice.logicalDevice, imageStagingBuffer, nullptr);
 		vkFreeMemory(mainDevice.logicalDevice, imageStagingBufferMemory, nullptr);
 
-		//Return image index
-		return static_cast<int>(mTextureImages.size()) - 1;
+		image.destroy();
 	}
 
-	int VulkanTextureManager::createTexture(const MainDevice& mainDevice, VkQueue queue,
-			VkCommandPool commandPool, std::string fileName)
+	void VulkanTextureManager::createTexture(const MainDevice& mainDevice,
+		int8_t transferQueueFamilyId, int8_t graphicsQueueFamilyId, VkQueue queue,
+		VkCommandPool commandPool, Image& image)
 	{
-		int textureImageLoc = createTextureImage(mainDevice, queue, commandPool, fileName);
+		createTextureImage(mainDevice, transferQueueFamilyId,
+			graphicsQueueFamilyId, queue, commandPool, image);
 
 		VkImageView imageView = createImageView(mainDevice.logicalDevice,
-			mTextureImages[textureImageLoc], VK_FORMAT_R8G8B8A8_UNORM,
+			mTextureImages[image.mId], VK_FORMAT_R8G8B8A8_UNORM,
 			VK_IMAGE_ASPECT_COLOR_BIT);
-		mTextureImageViews.push_back(imageView);
+		mTextureImageViews[image.mId] = imageView;
 
 		//Create Texture Descriptor
-		int descriptorLoc = createTextureDescriptorSet(mainDevice.logicalDevice, imageView);
-
-		return descriptorLoc;
+		createTextureDescriptorSet(mainDevice.logicalDevice, imageView, image.mId);
 	}
 
-	int VulkanTextureManager::createTextureDescriptorSet(VkDevice logicalDevice, VkImageView imageView)
+	void VulkanTextureManager::createTextureDescriptorSet(VkDevice logicalDevice,
+		VkImageView imageView, uint32_t index)
 	{
-		VulkanDescriptorSet textureDescriptorSet;
-		textureDescriptorSet.allocate(
+		VulkanDescriptorSet descriptorSet;
+		descriptorSet.allocate(
 			logicalDevice, mSamplerDescriptorPool.mDescriptorPool,
 			mSamplerDescriptorSetLayout.mDescriptorSetLayout);
-		textureDescriptorSet.update(logicalDevice,
+		descriptorSet.update(logicalDevice,
 			{imageView}, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 			mTextureSampler);
 
-		mSamplerDescriptorSets.push_back(textureDescriptorSet);
+		mSamplerDescriptorSets[index] = descriptorSet;
+	}
 
-		return static_cast<int>(mSamplerDescriptorSets.size()) - 1;
+	bool VulkanTextureManager::isImageAvailable(uint32_t index) const
+	{
+		return mImages.find(index) != mImages.end();
+	}
+
+	const VulkanDescriptorSet& VulkanTextureManager::getDescriptorSet(const MainDevice& mainDevice,
+		uint8_t transferQueueFamilyId, uint8_t graphicsQueueFamilyId, VkQueue queue,
+		VkCommandPool commandPool, uint32_t index)
+	{
+		const VulkanDescriptorSet* result = nullptr;
+		
+		if(isImageAvailable(index))
+		{
+			auto foundIt = mSamplerDescriptorSets.find(index);
+			if(foundIt != mSamplerDescriptorSets.end())
+			{
+				result = &(foundIt->second);
+			}
+			else
+			{
+				{
+					std::lock_guard<std::mutex> lock(gImagesMutex);
+					createTexture(mainDevice, transferQueueFamilyId, graphicsQueueFamilyId,
+						queue, commandPool, mImages[index]);
+				}
+				result = &mSamplerDescriptorSets[index];
+			}
+		}
+		else
+		{
+			//Return default texture
+			result = &getDescriptorSet(mainDevice, transferQueueFamilyId, graphicsQueueFamilyId,
+				queue, commandPool, mDefaultTextureId);
+		}
+
+		return *result;
 	}
 }

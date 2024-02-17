@@ -110,8 +110,33 @@ namespace fre
 		return imageView;
 	}
 
-	void copyImageBuffer(VkDevice device, VkQueue transferQueue, VkCommandPool transferCommandPool,
-		VkBuffer srcBuffer, VkImage image, uint32_t width, uint32_t height)
+	void addImageBarrier(VkImage image, uint32_t srcQueueFamilyIndex, uint32_t dstQueueFamilyIndex,
+		VkImageLayout oldLayout, VkImageLayout newLayout,
+		VkAccessFlags srcAccessFlags, VkAccessFlags dstAccessFlags,
+		VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
+		bool isDepth, VkCommandBuffer commandBuffer)
+	{
+		VkImageMemoryBarrier barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+		barrier.image = image;
+		barrier.srcQueueFamilyIndex = srcQueueFamilyIndex;
+		barrier.dstQueueFamilyIndex = dstQueueFamilyIndex;
+		barrier.subresourceRange.aspectMask = isDepth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+		barrier.subresourceRange.baseArrayLayer = 0;
+		barrier.subresourceRange.layerCount = 1;
+		barrier.subresourceRange.levelCount = 1;
+
+		barrier.subresourceRange.baseMipLevel = 0;
+		barrier.oldLayout = oldLayout;
+		barrier.newLayout = newLayout;
+		barrier.srcAccessMask = srcAccessFlags;
+		barrier.dstAccessMask = dstAccessFlags;
+
+		vkCmdPipelineBarrier(commandBuffer, srcStageMask, dstStageMask, 0, 0, nullptr, 0, nullptr, 1, &barrier );
+	}
+
+	void copyImageBuffer(VkDevice device, int8_t transferQueueFamilyId, int8_t graphicsQueueFamilyId, VkQueue queue,
+		VkCommandPool transferCommandPool, VkBuffer srcBuffer,
+		VkImage image, uint32_t width, uint32_t height)
 	{
 		//Create buffer
 		VkCommandBuffer transferCommandBuffer = beginCommandBuffer(device, transferCommandPool);
@@ -127,10 +152,24 @@ namespace fre
 		imageRegion.imageOffset = { 0, 0, 0 };	//Start origin (xyz)
 		imageRegion.imageExtent = { width, height, 1 };	//Region size to copy (xyz)
 
+		addImageBarrier(image,
+			VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT,
+			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+			false, transferCommandBuffer);
+
 		//Copy buffer to image
 		vkCmdCopyBufferToImage(transferCommandBuffer, srcBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageRegion);
 
-		endAndSubmitCommitBuffer(device, transferCommandPool, transferQueue, transferCommandBuffer);
+		addImageBarrier(image,
+			transferQueueFamilyId, graphicsQueueFamilyId,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_NONE,
+			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+			false, transferCommandBuffer);
+
+		endAndSubmitCommitBuffer(device, transferCommandPool, queue, transferCommandBuffer);
 	}
 
 	void transitionImageLayout(VkDevice device, VkQueue queue, VkCommandPool commandPool, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout)
