@@ -54,6 +54,7 @@ namespace fre
 		MeshModel* getMeshModel(int modelId);
 
 		void draw(const Camera& camera, const Light& light);
+		void drawUI(uint32_t imageIndex);
 
 		void setFramebufferResized(bool resized);
 
@@ -83,6 +84,7 @@ namespace fre
 
 		VulkanDescriptorPool mUniformDescriptorPool;
 		VulkanDescriptorPool mInputDescriptorPool;
+		VulkanDescriptorPool mUIDescriptorPool;
 
 		std::vector<VulkanDescriptorSet> mUniformDescriptorSets;
 		std::vector<VulkanDescriptorSet> mInputDescriptorSets;
@@ -200,6 +202,7 @@ namespace fre
 		void createSurface();
 		void createUniformDescriptorPool();
 		void createInputDescriptorPool();
+		void createUIDescriptorPool();
 		void createUniformDescriptorSetLayout();
 		void createInputDescriptorSetLayout();
 		void createCommandPools();
@@ -207,6 +210,7 @@ namespace fre
 		void createUniformBuffers();
 		void allocateUniformDescriptorSets();
 		void allocateInputDescriptorSets();
+		void createUI();
 
 		void updateUniformBuffers(uint32_t imageIndex, const Camera& camera);
 
@@ -222,11 +226,17 @@ namespace fre
 
 		// - Cleanup methods
 		void cleanupSwapChainFrameBuffers();
+
+		void cleanupUniformDescriptorPool();
 		void cleanupInputDescriptorPool();
+		void cleanupUIDescriptorPool();
+		void cleanupUniformDescriptorSetLayout();
+		void cleanupInputDescriptorSetLayout();
 		void cleanupSwapchainImagesSemaphores();
 		void cleanupRenderFinishedSemaphores();
 		void cleanupDrawFences();
 		void cleanupTransferSynchronisation();
+		void cleanupUI();
 
 		// - Recreate methods
 		void recreateSwapChain();

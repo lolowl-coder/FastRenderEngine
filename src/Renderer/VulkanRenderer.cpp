@@ -2,9 +2,14 @@
 
 #include "Camera.hpp"
 #include "Light.hpp"
+#include "Timer.hpp"
 #include "Renderer/VulkanPipeline.hpp"
 #include "Renderer/VulkanShader.hpp"
 #include "config.hpp"
+
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_vulkan.h"
 
 #include <limits>
 #include <stdexcept>
@@ -67,7 +72,8 @@ namespace fre
 
 			loadImages();
 			loadMeshes();
-			//std::this_thread::sleep_for(std::chrono::seconds(10));
+
+			createUI();
 		}
 		catch (std::runtime_error& e)
 		{
@@ -83,18 +89,23 @@ namespace fre
 		//Wait until no actions being run on device before destroying
 		vkDeviceWaitIdle(mainDevice.logicalDevice);
 
+		cleanupUI();
+
 		//_aligned_free(modetTransferSpace);
 
 		mBufferManager.destroy(mainDevice.logicalDevice);
 
+		cleanupUniformDescriptorPool();
 		cleanupInputDescriptorPool();
+		cleanupUIDescriptorPool();
+
+		cleanupInputDescriptorSetLayout();
+		cleanupUniformDescriptorSetLayout();
+
 		mTextureManager.destroy(mainDevice.logicalDevice);
 
 		mSwapChain.destroy(mainDevice.logicalDevice);
 		cleanupSwapChainFrameBuffers();
-
-		mUniformDescriptorPool.destroy(mainDevice.logicalDevice);
-		mUniformDescriptorSetLayout.destroy(mainDevice.logicalDevice);
 
 		for (size_t i = 0; i < mSwapChain.mSwapChainImages.size(); i++)
 		{
@@ -219,6 +230,27 @@ namespace fre
 		}
 	}
 
+	void VulkanRenderer::drawUI(uint32_t imageIndex)
+	{
+		ImGui_ImplVulkan_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+		{
+			ImGui::Begin("PBR example");
+			ImGui::ColorEdit3("Background color", (float*)&mClearColor.r);
+
+			ImGuiIO& io = ImGui::GetIO();
+			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+			ImGui::End();
+		}
+
+		// Rendering
+        ImGui::Render();
+        ImDrawData* draw_data = ImGui::GetDrawData();
+		//mGraphicsCommandBuffers[imageIndex].begin();
+        ImGui_ImplVulkan_RenderDrawData(draw_data, mGraphicsCommandBuffers[imageIndex].mCommandBuffer);
+	}
+
 	void VulkanRenderer::cleanupSwapChainFrameBuffers()
 	{
 		//destroy frame buffers
@@ -228,10 +260,29 @@ namespace fre
 		}
 	}
 
+	void VulkanRenderer::cleanupUniformDescriptorPool()
+	{
+		mUniformDescriptorPool.destroy(mainDevice.logicalDevice);
+	}
+
 	void VulkanRenderer::cleanupInputDescriptorPool()
 	{
 		mInputDescriptorPool.destroy(mainDevice.logicalDevice);
+	}
+
+	void VulkanRenderer::cleanupUIDescriptorPool()
+	{
+		mUIDescriptorPool.destroy(mainDevice.logicalDevice);
+	}
+
+	void VulkanRenderer::cleanupInputDescriptorSetLayout()
+	{
 		mInputDescriptorSetLayout.destroy(mainDevice.logicalDevice);
+	}
+
+	void VulkanRenderer::cleanupUniformDescriptorSetLayout()
+	{
+		mUniformDescriptorSetLayout.destroy(mainDevice.logicalDevice);
 	}
 
     void VulkanRenderer::cleanupSwapchainImagesSemaphores()
@@ -262,6 +313,13 @@ namespace fre
 	{
 		vkDestroySemaphore(mainDevice.logicalDevice, mTransferCompleteSemaphore, nullptr);
 		vkDestroyFence(mainDevice.logicalDevice, mTransferFence, nullptr);
+	}
+
+	void VulkanRenderer::cleanupUI()
+	{
+		ImGui_ImplVulkan_Shutdown();
+		ImGui_ImplGlfw_Shutdown();
+		ImGui::DestroyContext();
 	}
 
     void VulkanRenderer::setFramebufferResized(bool resized)
@@ -465,6 +523,7 @@ namespace fre
 	{
 		mUniformDescriptorPool.create(
 			mainDevice.logicalDevice,
+			0,
 			static_cast<uint32_t>(mSwapChain.mSwapChainImages.size()),
 			{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER});
 	}
@@ -474,6 +533,17 @@ namespace fre
 		//pool for color and depth attachments
 		mInputDescriptorPool.create(
 			mainDevice.logicalDevice,
+			0,
+			MAX_OBJECTS,
+			{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT});
+	}
+
+	void VulkanRenderer::createUIDescriptorPool()
+	{
+		//pool for color and depth attachments
+		mUIDescriptorPool.create(
+			mainDevice.logicalDevice,
+			VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
 			MAX_OBJECTS,
 			{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT});
 	}
@@ -624,6 +694,42 @@ namespace fre
 		}
 	}
 
+	void VulkanRenderer::createUI()
+	{
+		createUIDescriptorPool();
+
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGuiIO& io = ImGui::GetIO(); (void)io;
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+		// Setup Dear ImGui style
+		ImGui::StyleColorsLight();
+		//ImGui::StyleColorsLight();
+
+		// Setup Platform/Renderer backends
+		ImGui_ImplGlfw_InitForVulkan(window, true);
+		ImGui_ImplVulkan_InitInfo init_info = {};
+		init_info.Instance = instance;
+		init_info.PhysicalDevice = mainDevice.physicalDevice;
+		init_info.Device = mainDevice.logicalDevice;
+		init_info.QueueFamily = mGraphicsQueueFamilyId;
+		init_info.Queue = mGraphicsQueue;
+		//init_info.PipelineCache = g_PipelineCache;
+		init_info.DescriptorPool = mUIDescriptorPool.mDescriptorPool;
+		init_info.RenderPass = mRenderPass.mRenderPass;
+		init_info.Subpass = 1;
+		init_info.MinImageCount = MAX_FRAME_DRAWS;
+		init_info.ImageCount = MAX_FRAME_DRAWS;
+		init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+		init_info.Allocator = nullptr;
+		init_info.CheckVkResultFn = nullptr;
+		ImGui_ImplVulkan_Init(&init_info);
+
+		io.Fonts->AddFontFromFileTTF("Fonts/Cousine-Regular.ttf", 18);
+	}
+
 	void VulkanRenderer::updateUniformBuffers(uint32_t imageIndex, const Camera& camera)
 	{
 		//Copy VP data
@@ -671,7 +777,7 @@ namespace fre
 				sizeof(glm::mat4),	//Size of data being pushed
 				&modelMatrix);	//Actual data being pushed (can be array)
 
-			float sn = static_cast<float>(std::sin(glfwGetTime()) * 0.5 + 0.5);
+			float sn = static_cast<float>(std::sin(Timer::getInstance().getTime()) * 0.5 + 0.5);
 			float xSize = mModelMx.x - mModelMn.x;
 			float x = sn * xSize + mModelMn.x;
 			x = 0.0f;
@@ -783,6 +889,7 @@ namespace fre
                     sizeof(glm::vec2),
                     &nearFar);
                 renderTexturedRect(imageIndex, fogPipeline.mPipelineLayout);
+				drawUI(imageIndex);
             }
             break;
         }
@@ -917,13 +1024,14 @@ namespace fre
 		mSwapChain.destroy(mainDevice.logicalDevice);
 		cleanupSwapChainFrameBuffers();
 		cleanupInputDescriptorPool();
+		cleanupInputDescriptorSetLayout();
 		cleanupSwapchainImagesSemaphores();
 
 		mSwapChain.create(window, mainDevice, mGraphicsQueueFamilyId,
 			mPresentationQueueFamilyId, surface);
 		createSwapChainFrameBuffers();
-		createInputDescriptorSetLayout();
 		createInputDescriptorPool();
+		createInputDescriptorSetLayout();
 		allocateInputDescriptorSets();
 
 		createSwapchainImagesSemaphores();
@@ -1135,7 +1243,7 @@ namespace fre
 	void VulkanRenderer::loadImages()
 	{
 		//std::cout << "render tid: " << std::this_thread::get_id() << std::endl;
-		mStatistics.startMeasure("load images", glfwGetTime());
+		mStatistics.startMeasure("load images", Timer::getInstance().getTime());
 		for(uint32_t i = 0; i < mTextureFileNames.size(); i++)
 		{
 			const auto& fileName = mTextureFileNames[i];
@@ -1155,7 +1263,7 @@ namespace fre
 						this->mTextureManager.loadImage(fileName, i);
 						if(this->mTextureManager.getImagesCount() == this->mTextureFileNames.size())
 						{
-							this->mStatistics.stopMeasure("load images", glfwGetTime());
+							this->mStatistics.stopMeasure("load images", Timer::getInstance().getTime());
 							this->mStatistics.print();
 						}
 					}

@@ -22,7 +22,14 @@ set(LIBRARY_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanRenderPass.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanShader.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanSwapChain.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanTextureManager.cpp")
+    "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanTextureManager.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imgui.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imgui_draw.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imgui_tables.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imgui_widgets.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/backends/imgui_impl_vulkan.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/backends/imgui_impl_glfw.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/misc/cpp/imgui_stdlib.cpp")
 set(LIBRARY_HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Camera.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Engine.hpp"
@@ -32,6 +39,7 @@ set(LIBRARY_HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/MeshModel.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Mutexes.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Shader.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Timer.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Statistics.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Utilities.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Hash/Hash.hpp"
@@ -51,7 +59,16 @@ set(LIBRARY_HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanRenderPass.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanShader.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanSwapChain.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanTextureManager.hpp")
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanTextureManager.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imconfig.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imgui.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imgui_internal.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imstb_rectpack.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imstb_textedit.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imstb_truetype.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/backends/imgui_impl_vulkan.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/backends/imgui_impl_glfw.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/misc/cpp/imgui_stdlib.h")
 set(LIBRARY_INCLUDES_PUBLIC
     "./"
     "${CMAKE_BINARY_DIR}/configured_files/include"
@@ -59,6 +76,8 @@ set(LIBRARY_INCLUDES_PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Hash"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Macros"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/backends"
     "${glm_SOURCE_DIR}"
     "${stb_image_SOURCE_DIR}"
     "${glfw_INCLUDE_DIRS}"

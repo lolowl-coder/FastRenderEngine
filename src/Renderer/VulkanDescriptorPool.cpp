@@ -6,7 +6,8 @@ namespace fre
 {
     void VulkanDescriptorPool::create(
 		VkDevice logicalDevice,
-		uint32_t size,
+		VkDescriptorPoolCreateFlags flags,
+		uint32_t count,
 		std::vector<VkDescriptorType> descriptorTypes)
     {
         //CREATE UNIFORM DESCRIPTOR POOL
@@ -18,7 +19,7 @@ namespace fre
 		for(uint32_t i = 0; i < poolSizes.size(); i++)
 		{
 			poolSizes[i].type = descriptorTypes[i];
-			poolSizes[i].descriptorCount = size;
+			poolSizes[i].descriptorCount = count;
 		}
 
 		//ModelMatrix Pool (dynamic)
@@ -29,8 +30,9 @@ namespace fre
 		//Data to create descriptor pool
 		VkDescriptorPoolCreateInfo poolCreateInfo = {};
 		poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolCreateInfo.flags = flags;
         //Maximum number of descriptor sets that can be created from pool
-		poolCreateInfo.maxSets = size;
+		poolCreateInfo.maxSets = count;
         //Amount of pool sizes being passed
 		poolCreateInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         //Pool sizes to create pool with

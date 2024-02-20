@@ -40,7 +40,7 @@ namespace fre
         float mTimeDelta = 0.0f;
 
 		Camera mCamera;
-		float mCameraRotationSpeed = 0.4f;
+		float mCameraRotationSpeed = 0.3f;
 		float mCameraZoomSpeed = 1.0f;
 
         Light mLight;

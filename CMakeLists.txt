@@ -137,7 +137,7 @@ function(buildExample)
     if(${ENABLE_CLANG_TIDY})
         add_clang_tidy_to_target(${EXECUTABLE_NAME})
     endif()
-endfunction(buildSampe)
+endfunction(buildExample)
 
 add_subdirectory(samples)
 

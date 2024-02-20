@@ -12,6 +12,7 @@ namespace fre
 	{
 		mSamplerDescriptorPool.create(
 			logicalDevice,
+			0,
 			MAX_OBJECTS,
 			{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER});
 

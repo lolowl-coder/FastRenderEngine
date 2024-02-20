@@ -13,7 +13,8 @@ namespace fre
     {
         void create(
             VkDevice logicalDevice,
-            uint32_t size,
+            VkDescriptorPoolCreateFlags flags,
+            uint32_t count,
             //it's possible to create pool of multiple inputs.
             //e. g. color and depth attachments in one pool.
             std::vector<VkDescriptorType> descriptorTypes);

@@ -3,7 +3,10 @@
 #include <GLFW/glfw3.h>
 
 #include "Engine.hpp"
+#include "Timer.hpp"
 #include "Renderer/VulkanRenderer.hpp"
+
+#include "imgui.h"
 
 namespace
 {
@@ -32,6 +35,26 @@ namespace fre
         renderer->setFramebufferResized(true);
     }
 
+    static bool gMouseLeftButtonPressed = false;
+
+    void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+    {
+        if(button == GLFW_MOUSE_BUTTON_LEFT)
+        {
+            ImGuiIO& io = ImGui::GetIO();
+            gMouseLeftButtonPressed = action == GLFW_PRESS && !io.WantCaptureMouse;
+            if(action == GLFW_RELEASE)
+            {
+                Engine* engine = reinterpret_cast<Engine*>(glfwGetWindowUserPointer(window));
+                Camera& camera = engine->getCamera();
+                for(uint8_t i = 0; i < Camera::EMovement::M_COUNT; i++)
+                {
+                    camera.setMovement(static_cast<Camera::EMovement>(i), false);
+                }
+            }
+        }
+    }
+
     void mouseCallback(GLFWwindow* window, double x, double y)
     {
         static float lastX = static_cast<float>(x);
@@ -41,12 +64,15 @@ namespace fre
         float deltaY = static_cast<float>(y - lastY);
 
 		//std::cout << deltaX << std::endl;
-
-        Engine* engine = reinterpret_cast<Engine*>(glfwGetWindowUserPointer(window));
-        auto& camera = engine->getCamera();
-		camera.rotateBy(glm::vec3(
-			engine->getCameraRotationSpeed() * deltaY,
-            engine->getCameraRotationSpeed() * deltaX, 0.0));
+        ImGuiIO& io = ImGui::GetIO();
+        if(gMouseLeftButtonPressed && !io.WantCaptureMouse)
+        {
+            Engine* engine = reinterpret_cast<Engine*>(glfwGetWindowUserPointer(window));
+            auto& camera = engine->getCamera();
+            camera.rotateBy(glm::vec3(
+                engine->getCameraRotationSpeed() * deltaY,
+                engine->getCameraRotationSpeed() * deltaX, 0.0));
+        }
 
 		lastX = static_cast<float>(x);
         lastY = static_cast<float>(y);
@@ -60,6 +86,14 @@ namespace fre
 		camera.translateBy(engine->getCameraZoomSpeed() * forward * static_cast<float>(yOffset));
     }
 
+    void setCameraMovement(Camera::EMovement movement, Camera& camera, bool movementEnabled)
+    {
+        if(gMouseLeftButtonPressed)
+        {
+            camera.setMovement(movement, movementEnabled);
+        }
+    }
+
     void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
     {
         if (action == GLFW_PRESS || action == GLFW_RELEASE)
@@ -69,22 +103,22 @@ namespace fre
             Camera& camera = engine->getCamera();
             switch (key) {
                 case GLFW_KEY_W:
-                    camera.setMovement(Camera::M_FORWARD, movementEnabled);
+                    setCameraMovement(Camera::M_FORWARD, camera, movementEnabled);
                     break;
                 case GLFW_KEY_S:
-                    camera.setMovement(Camera::M_BACKWARD, movementEnabled);
+                    setCameraMovement(Camera::M_BACKWARD, camera, movementEnabled);
                     break;
                 case GLFW_KEY_A:
-                    camera.setMovement(Camera::M_LEFT, movementEnabled);
+                    setCameraMovement(Camera::M_LEFT, camera, movementEnabled);
                     break;
                 case GLFW_KEY_D:
-                    camera.setMovement(Camera::M_RIGHT, movementEnabled);
+                    setCameraMovement(Camera::M_RIGHT, camera, movementEnabled);
                     break;
                 case GLFW_KEY_Q:
-                    camera.setMovement(Camera::M_DOWN, movementEnabled);
+                    setCameraMovement(Camera::M_DOWN, camera, movementEnabled);
                     break;
                 case GLFW_KEY_E:
-                    camera.setMovement(Camera::M_UP, movementEnabled);
+                    setCameraMovement(Camera::M_UP, camera, movementEnabled);
                     break;
                 case GLFW_KEY_L:
                     Light& light = engine->getLight();
@@ -115,6 +149,7 @@ namespace fre
 
         glfwSetCursorPos(window, width / 2, height / 2);
         glfwSetCursorPosCallback(window, mouseCallback);
+        glfwSetMouseButtonCallback(window, mouseButtonCallback);
         glfwSetScrollCallback(window, scrollCallback);
         glfwSetKeyCallback(window, keyCallback);
 
@@ -142,7 +177,7 @@ namespace fre
     void Engine::tick()
     {
         static double lastTime = 0.0f;
-        mTime = glfwGetTime();
+        mTime = Timer::getInstance().getTime();
         mTimeDelta = static_cast<float>(mTime - lastTime);
         lastTime = mTime;
         
