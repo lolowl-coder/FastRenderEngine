@@ -1,4 +1,5 @@
 #include "Renderer/VulkanImage.hpp"
+#include "Renderer/VulkanCommandBuffer.hpp"
 #include "Utilities.hpp"
 
 #include <stdexcept>

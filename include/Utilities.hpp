@@ -14,8 +14,6 @@ namespace fre
 	const int MAX_FRAME_DRAWS = 3;
 	const int MAX_OBJECTS = 40;
 
-	struct ShaderMetaData;
-
 	struct MainDevice
 	{
 		VkPhysicalDevice physicalDevice;
@@ -39,27 +37,9 @@ namespace fre
 		"VK_LAYER_KHRONOS_validation"
 	};
 
-	struct SwapChainDetails
-	{
-		VkSurfaceCapabilitiesKHR surfaceCapabilities;		//Surface properties, e.g. image size/extent
-		std::vector<VkSurfaceFormatKHR> formats;			//Surface image formats, e.g RGBA and size of each color
-		std::vector<VkPresentModeKHR> presentationModes;	//How images should be presented to screen
-	};
-
 	std::vector<char> readFile(const std::string& fileName);
 
 	uint32_t findMemoryTypeIndex(VkPhysicalDevice physicalDevice, uint32_t allowedTypes, VkMemoryPropertyFlags properties);
-
-	void createBuffer(const MainDevice& mainDevice, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage,
-		VkMemoryPropertyFlags bufferProperties, VkBuffer* buffer, VkDeviceMemory* bufferMemory);
-
-	VkCommandBuffer beginCommandBuffer(VkDevice device, VkCommandPool commandPool);
-
-	void endAndSubmitCommitBuffer(VkDevice device, VkCommandPool commandPool,
-		VkQueue queue, VkCommandBuffer commandBuffer);
-
-	void copyBuffer(VkDevice device, VkQueue transferQueue, VkCommandPool transferCommandPool,
-		VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize bufferSize);
 
 	std::vector<VulkanQueueFamily> getQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
 

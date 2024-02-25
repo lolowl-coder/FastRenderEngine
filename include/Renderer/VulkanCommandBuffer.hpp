@@ -7,6 +7,8 @@
 
 namespace fre
 {
+    struct MainDevice;
+
     struct VulkanCommandBuffer
     {
         void create(VkCommandPool graphicsCommandPool, VkDevice logicalDevice);
@@ -16,4 +18,9 @@ namespace fre
 
         VkCommandBuffer mCommandBuffer = VK_NULL_HANDLE;
     };
+
+	VkCommandBuffer beginCommandBuffer(VkDevice device, VkCommandPool commandPool);
+
+	void endAndSubmitCommitBuffer(VkDevice device, VkCommandPool commandPool,
+		VkQueue queue, VkCommandBuffer commandBuffer);
 }

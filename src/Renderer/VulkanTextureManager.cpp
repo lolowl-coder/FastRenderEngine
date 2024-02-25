@@ -1,3 +1,4 @@
+#include "Renderer/VulkanBufferManager.hpp"
 #include "Renderer/VulkanTextureManager.hpp"
 #include "Renderer/VulkanImage.hpp"
 #include "Mutexes.hpp"
