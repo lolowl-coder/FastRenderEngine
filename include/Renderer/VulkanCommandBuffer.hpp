@@ -14,6 +14,6 @@ namespace fre
         void recordCommands();
         void end();
 
-        VkCommandBuffer mCommandBuffer;
+        VkCommandBuffer mCommandBuffer = VK_NULL_HANDLE;
     };
 }

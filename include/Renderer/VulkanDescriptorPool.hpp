@@ -20,6 +20,6 @@ namespace fre
             std::vector<VkDescriptorType> descriptorTypes);
         void destroy(VkDevice logicalDevice);
 
-        VkDescriptorPool mDescriptorPool;
+        VkDescriptorPool mDescriptorPool = VK_NULL_HANDLE;
     };
 }

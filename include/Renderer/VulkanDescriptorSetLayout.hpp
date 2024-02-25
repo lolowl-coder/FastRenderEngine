@@ -17,6 +17,6 @@ namespace fre
             VkShaderStageFlagBits stageFlags);
         void destroy(VkDevice logicalDevice);
 
-        VkDescriptorSetLayout mDescriptorSetLayout;
+        VkDescriptorSetLayout mDescriptorSetLayout = VK_NULL_HANDLE;
     };
 }

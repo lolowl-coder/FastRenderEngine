@@ -19,6 +19,6 @@ namespace fre
             VkDescriptorType descriptorType, VkSampler sampler);
         void update(VkDevice logicalDevice, VkBuffer buffer, VkDeviceSize stride);
 
-        VkDescriptorSet mDescriptorSet;
+        VkDescriptorSet mDescriptorSet = VK_NULL_HANDLE;
     };
 }

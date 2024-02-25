@@ -19,11 +19,10 @@ layout(push_constant) uniform PushModel {
 	mat4 model;
 } pushModel;
 
-layout(location = 0) out float fragPosZ;
+layout(location = 0) out vec2 fragTex;
 
 void main()
 {
 	vec4 worldPos = pushModel.model * vec4(vec3(pos.x, pos.y, pos.z * 5.0), 1.0);
 	gl_Position = uboViewProjection.projection * uboViewProjection.view * worldPos;
-	fragPosZ = pos.z;
 }

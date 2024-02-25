@@ -33,7 +33,7 @@ namespace fre
 
     void Camera::translateBy(const glm::vec3& translation)
     {
-        mEye += translation;
+        setEye(mEye + translation);
     }
 
     void Camera::setMovement(EMovement movement, bool value)
@@ -128,5 +128,6 @@ namespace fre
     void Camera::setEye(const glm::vec3& eye)
     {
         mEye = eye;
+        std::cout << "Camera eye: " << mEye.x << ", " << mEye.y << ", " << mEye.z << std::endl;
     }
 }

@@ -137,16 +137,16 @@ namespace fre
 		};
 
 		//Vulkan components
-		VkInstance instance;
+		VkInstance instance = VK_NULL_HANDLE;
 
 		std::vector<VulkanQueueFamily> mQueueFamilies;
 		int8_t mGraphicsQueueFamilyId = -1;
 		int8_t mPresentationQueueFamilyId = -1;
 		int8_t mTransferQueueFamilyId = -1;
-		VkQueue mGraphicsQueue;
-		VkQueue mPresentationQueue;
-		VkQueue mTransferQueue;
-		VkSurfaceKHR surface;
+		VkQueue mGraphicsQueue = VK_NULL_HANDLE;
+		VkQueue mPresentationQueue = VK_NULL_HANDLE;
+		VkQueue mTransferQueue = VK_NULL_HANDLE;
+		VkSurfaceKHR surface = VK_NULL_HANDLE;
 
 		//Loaded shaders
 		std::vector<Shader> mShaders;
@@ -173,15 +173,15 @@ namespace fre
 		std::vector<VulkanFrameBuffer> mFrameBuffers;
 
 		// - Pools -
-		VkCommandPool mGraphicsCommandPool;
-		VkCommandPool mTransferCommandPool;
+		VkCommandPool mGraphicsCommandPool = VK_NULL_HANDLE;
+		VkCommandPool mTransferCommandPool = VK_NULL_HANDLE;
 
 		// - Synchronization
 		std::vector<VkSemaphore> imageAvailable;
 		std::vector<VkSemaphore> renderFinished;
 		std::vector<VkFence> drawFences;
-		VkSemaphore mTransferCompleteSemaphore;
-		VkFence mTransferFence;
+		VkSemaphore mTransferCompleteSemaphore = VK_NULL_HANDLE;
+		VkFence mTransferFence = VK_NULL_HANDLE;
 
 		bool framebufferResized = false;
 
