@@ -18,6 +18,7 @@ namespace fre
             uint32_t stride,
             const std::vector<VulkanVertexAttribute>& vertexAttributes,
             VkBool32 depthWriteEnable,
+            VkPolygonMode polygonMode,
             VkRenderPass renderPass,
             uint32_t subpassIndex,
             std::vector<VkDescriptorSetLayout> descriptorSetLayouts,

@@ -141,6 +141,35 @@ endfunction(buildExample)
 
 add_subdirectory(samples)
 
+# Get a list of all .vert and .frag files in the shaders directory
+file(GLOB_RECURSE SHADER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Data/Shaders/*.vert" "${CMAKE_CURRENT_SOURCE_DIR}/Data/Shaders/*.frag")
+
+# Create a list to store the output .spv files
+set(SPV_OUTPUT_FILES "")
+
+# Iterate over each shader source file
+foreach(SHADER ${SHADER_SOURCES})
+    # Get the filename and extension
+    get_filename_component(SHADER_FILENAME ${SHADER} NAME)
+    # Generate the output filename for the .spv file
+    set(SPV_FILE "${CMAKE_CURRENT_SOURCE_DIR}/Data/Shaders/${SHADER_FILENAME}.spv")
+    # Add the .spv file to the list of output files
+    list(APPEND SPV_OUTPUT_FILES ${SPV_FILE})
+    # Add a custom command to compile the shader
+    add_custom_command(
+        OUTPUT ${SPV_FILE}
+        COMMAND glslc -o ${SPV_FILE} ${SHADER}
+        DEPENDS ${SHADER}
+    )
+endforeach()
+
+# Create a custom target that depends on the shader compilation
+add_custom_target(CompileShaders DEPENDS ${SPV_OUTPUT_FILES})
+
+# Link the custom target to your main target
+add_dependencies(${LIBRARY_NAME} CompileShaders)
+
+
 # Copy resources
 
 # Copy shaders

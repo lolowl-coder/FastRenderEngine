@@ -13,6 +13,7 @@ namespace fre
 		uint32_t stride,
         const std::vector<VulkanVertexAttribute>& vertexAttributes,
 		VkBool32 depthWriteEnable,
+		VkPolygonMode polygonMode,
 		VkRenderPass renderPass,
 		uint32_t subpassIndex,
 		std::vector<VkDescriptorSetLayout> descriptorSetLayouts,
@@ -91,9 +92,9 @@ namespace fre
 		rasterizerCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterizerCreateInfo.depthClampEnable = VK_FALSE;		//Change if fragments beyond near/far planes are clipped (default) or clamped to plane
 		rasterizerCreateInfo.rasterizerDiscardEnable = VK_FALSE;//Whether to discard data skip rasterizer, only suitable for pipeline without framebuffer output
-		rasterizerCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+		rasterizerCreateInfo.polygonMode = polygonMode;
 		rasterizerCreateInfo.lineWidth = 1.0f;
-		rasterizerCreateInfo.cullMode = VK_CULL_MODE_NONE;
+		rasterizerCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
 		rasterizerCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizerCreateInfo.depthBiasEnable = VK_FALSE;
 

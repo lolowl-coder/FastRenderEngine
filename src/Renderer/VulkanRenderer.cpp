@@ -462,6 +462,7 @@ namespace fre
 		//Physical device features the logical device will be using
 		VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
 		physicalDeviceFeatures.samplerAnisotropy = VK_TRUE;
+		physicalDeviceFeatures.fillModeNonSolid = VK_TRUE;
 
 		deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
 
@@ -580,6 +581,7 @@ namespace fre
 				//no attributes for fog pass
 				shaderMetaData.mVertexAttributes,
 				shaderMetaData.mDepthTestEnabled ? VK_TRUE : VK_FALSE,
+				shaderMetaData.mPolygonMode,
 				mRenderPass.mRenderPass,
 				shaderMetaData.mSubPassIndex,
 				shaderMetaData.mDescriptorSetLayouts,
@@ -1374,7 +1376,7 @@ namespace fre
 			shaderMetaData.mVertexSize = sizeof(Vertex);
 			shaderMetaData.mSubPassIndex = 0;
 		}
-		else if(shaderFileName == "colored")
+		else if(shaderFileName == "dhm")
 		{
 			shaderMetaData.mVertexAttributes =
 			{
@@ -1391,6 +1393,7 @@ namespace fre
 			};
 			shaderMetaData.mPushConstantRanges = {mModelMatrixPCR, mLightingPCR};
 			shaderMetaData.mDepthTestEnabled = true;
+			//shaderMetaData.mPolygonMode = VK_POLYGON_MODE_LINE;
 			shaderMetaData.mVertexSize = sizeof(Vertex);
 			shaderMetaData.mSubPassIndex = 0;
 		}
@@ -1424,6 +1427,7 @@ namespace fre
 		else
 		{
 			shaderFileName = "colored";
+			//shaderFileName = "dhm";
 		}
 
 		if(!shaderFileName.empty())

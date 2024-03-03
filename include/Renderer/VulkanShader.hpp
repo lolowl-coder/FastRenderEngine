@@ -20,6 +20,7 @@ namespace fre
         std::vector<VkDescriptorSetLayout> mDescriptorSetLayouts;
         std::vector<VkPushConstantRange> mPushConstantRanges;
         bool mDepthTestEnabled = false;
+        VkPolygonMode mPolygonMode = VK_POLYGON_MODE_FILL;
         uint32_t mVertexSize = 0u;
         uint32_t mSubPassIndex = 0u;
     };

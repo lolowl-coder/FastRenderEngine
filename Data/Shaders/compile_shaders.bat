@@ -1,12 +1,3 @@
-rem cd /D D:/Projects/Vulkan/Udemy/VulkanCourseApp5/VulkanCourseApp/Shader
-C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o textured.vert.spv -V textured.vert
-C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o textured.frag.spv -V textured.frag
-C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o fog.vert.spv -V fog.vert
-C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o fog.frag.spv -V fog.frag
-C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o normalMap.vert.spv -V normalMap.vert
-C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o normalMap.frag.spv -V normalMap.frag
-C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o pbr.vert.spv -V pbr.vert
-C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o pbr.frag.spv -V pbr.frag
-C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o colored.vert.spv -V colored.vert
-C:/VulkanSDK/1.3.239.0/Bin/glslangValidator.exe -o colored.frag.spv -V colored.frag
-pause
+for %%f in (*.vert *.frag *.comp) do (
+    glslc -o "%%~nxf.spv" "%%f"
+)
