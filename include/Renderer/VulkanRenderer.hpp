@@ -88,6 +88,7 @@ namespace fre
 
 		std::vector<VulkanDescriptorSet> mUniformDescriptorSets;
 		std::vector<VulkanDescriptorSet> mInputDescriptorSets;
+		std::vector<VulkanDescriptorSet> mDescriptorSets;
 
 		VulkanBufferManager mBufferManager;
 		VulkanTextureManager mTextureManager;

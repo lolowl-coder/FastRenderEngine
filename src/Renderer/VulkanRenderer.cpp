@@ -535,7 +535,7 @@ namespace fre
 		mInputDescriptorPool.create(
 			mainDevice.logicalDevice,
 			0,
-			MAX_OBJECTS,
+			MAX_FRAME_DRAWS,
 			{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT});
 	}
 
@@ -803,7 +803,6 @@ namespace fre
 				sizeof(glm::mat4),
 				sizeof(Lighting),
 				&lighting);
-
 			
 			const auto& vertexBuffer = mBufferManager.getBuffer(vertexBufferId);
 			VkBuffer vertexBuffers[] = { vertexBuffer.mBuffer };	//Buffers to bind
@@ -903,6 +902,7 @@ namespace fre
 		shader.mId = static_cast<uint32_t>(mShaders.size());
 		shader.mVertexShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shader.mFragmentShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+		shader.mFileName = shaderFileName;
 		mShaders.push_back(shader);
 	}
 
@@ -1373,6 +1373,27 @@ namespace fre
 			};
 			shaderMetaData.mPushConstantRanges = {mModelMatrixPCR, mLightingPCR};
 			shaderMetaData.mDepthTestEnabled = true;
+			shaderMetaData.mVertexSize = sizeof(Vertex);
+			shaderMetaData.mSubPassIndex = 0;
+		}
+		else if(shaderFileName == "colored")
+		{
+			shaderMetaData.mVertexAttributes =
+			{
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
+				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tex)}
+			};
+			shaderMetaData.mDescriptorSetLayouts =
+			{
+				//All inputs used in render pass
+				//Uniforms (model matrix) in subpass 0
+				mUniformDescriptorSetLayout.mDescriptorSetLayout
+			};
+			shaderMetaData.mPushConstantRanges = {mModelMatrixPCR};
+			shaderMetaData.mDepthTestEnabled = true;
+			//shaderMetaData.mPolygonMode = VK_POLYGON_MODE_LINE;
 			shaderMetaData.mVertexSize = sizeof(Vertex);
 			shaderMetaData.mSubPassIndex = 0;
 		}
