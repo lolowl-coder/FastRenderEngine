@@ -188,6 +188,11 @@ namespace fre
 
 	protected:
 		MainDevice mainDevice;
+
+		void** mLastDeviceFeatures = nullptr;
+		std::vector<std::unique_ptr<FeatureStorageBase>> mFeatureChain;
+		std::vector<VkBool32*> mDeviceFeaturesEnabled;
+
 		int32_t mSubPassesCount = 0;
 
 		VulkanRenderPass mRenderPass;
@@ -255,6 +260,10 @@ namespace fre
 			mRequestedDeviceExtensions.push_back(extension);
 		}
 
+		//Extensions
+		virtual void requestExtensions();
+		virtual void requestDeviceFeatures();
+
 		// - Render
 		void bindPipeline(const VulkanPipeline& pipeline);
 		void bindVertexBuffers(const VkBuffer* buffers, uint32_t count, VkDeviceSize* offsets, bool compute);
@@ -275,10 +284,6 @@ namespace fre
 		void loadImages();
 		//Creates GPU resources of loaded meshes
 		virtual void loadMeshes();
-
-		//Extensions
-		virtual void requestExtensions();
-		virtual void requestDeviceFeatures();
 		//Vulkan functions
 		// -create functions
 		void createInstance();
@@ -373,9 +378,6 @@ namespace fre
 		std::vector<const char*> mRequestedDeviceExtensions;
 		std::vector<const char*> mRequestedInstanceExtensions;
 		VkPhysicalDeviceFeatures2 mDeviceFeatures = {};
-		void** mLastDeviceFeatures = nullptr;
-		std::vector<std::unique_ptr<FeatureStorageBase>> mFeatureChain;
-		std::vector<VkBool32*> mDeviceFeaturesEnabled;
 
 		uint32_t mImageIndex = std::numeric_limits<uint32_t>::max();
 

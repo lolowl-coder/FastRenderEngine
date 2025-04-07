@@ -1,5 +1,5 @@
 #include "FileSystem/FileSystem.hpp"
-#include "Renderer/VulkanRenderer.hpp"
+#include "Renderer/AppRenderer.hpp"
 #include "Macros/Member.hpp"
 #include "AppData.hpp"
 #include "AppEngine.hpp"
@@ -37,7 +37,7 @@ namespace app
         fs.addPath("Textures");
         fs.addPath("Textures/heightmap");
 
-        mRenderer.reset(new VulkanRenderer(mThreadPool));
+        mRenderer.reset(new AppRenderer(mThreadPool));
 
         mRenderer->setShaderMetaDataProvider(this);
 

@@ -2,6 +2,7 @@
 
 #include "Renderer/VulkanRenderer.hpp"
 #include "Renderer/FeatureStorage.hpp"
+#include "Renderer/FeatureMacro.hpp"
 
 #include "FileSystem/FileSystem.hpp"
 #include "VulkanAccelerationStructure.hpp"
@@ -685,21 +686,6 @@ namespace fre
 			addDeviceExtension(VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
 #endif /* _WIN64 */
 			addDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-
-			// Ray tracing related extensions required by this sample
-			addDeviceExtension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
-			addDeviceExtension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
-
-			// Required by VK_KHR_acceleration_structure
-			addDeviceExtension(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
-			addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
-			addDeviceExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
-
-			// Required for VK_KHR_ray_tracing_pipeline
-			addDeviceExtension(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
-
-			// Required by VK_KHR_spirv_1_4
-			addDeviceExtension(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
 		}
 
 		{
@@ -721,28 +707,6 @@ namespace fre
 		}
 	}
 
-#define SET_FEATURE_MEMBER(fstruct, member) fstruct.member = VK_TRUE; mDeviceFeaturesEnabled.push_back(&fstruct.member);
-#define FOR_EACH_1(macro, fstruct, x)  macro(fstruct, x)
-#define FOR_EACH_2(macro, fstruct, x, ...)  macro(fstruct, x) FOR_EACH_1(macro, fstruct, __VA_ARGS__)
-#define FOR_EACH_3(macro, fstruct, x, ...)  macro(fstruct, x) FOR_EACH_2(macro, fstruct, __VA_ARGS__)
-#define FOR_EACH_4(macro, fstruct, x, ...)  macro(fstruct, x) FOR_EACH_3(macro, fstruct, __VA_ARGS__)
-	// ... add more if needed
-
-#define GET_MACRO(_1,_2,_3,_4,NAME,...) NAME
-#define FOR_EACH(macro, fstruct, ...) GET_MACRO(__VA_ARGS__, FOR_EACH_4, FOR_EACH_3, FOR_EACH_2, FOR_EACH_1)(macro, fstruct, __VA_ARGS__)
-
-#define REQUEST_FEATURE(structType, structId, ...)                            \
-    {                                                                               \
-        auto storage = std::make_unique<FeatureStorage<structType>>();             \
-        auto* feature = static_cast<structType*>(storage->get());                  \
-        feature->sType = structId;                                                 \
-        feature->pNext = nullptr;                                                  \
-        *mLastDeviceFeatures = feature;                                            \
-        mLastDeviceFeatures = &feature->pNext;                                     \
-        FOR_EACH(SET_FEATURE_MEMBER, (*feature), __VA_ARGS__)                      \
-        mFeatureChain.push_back(std::move(storage));                               \
-    }
-
 	void VulkanRenderer::requestDeviceFeatures()
 	{
 		mDeviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
@@ -750,20 +714,6 @@ namespace fre
 		mDeviceFeatures.features.wideLines = VK_TRUE;
 		mDeviceFeatures.features.samplerAnisotropy = VK_TRUE;
 		mLastDeviceFeatures = &mDeviceFeatures.pNext;
-		REQUEST_FEATURE(
-			VkPhysicalDeviceBufferDeviceAddressFeatures,
-			VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
-			bufferDeviceAddress);
-
-		REQUEST_FEATURE(
-			VkPhysicalDeviceRayTracingPipelineFeaturesKHR,
-			VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
-			rayTracingPipeline);
-
-		REQUEST_FEATURE(
-			VkPhysicalDeviceAccelerationStructureFeaturesKHR,
-			VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
-			accelerationStructure);
 	}
 
     void VulkanRenderer::createInstance()

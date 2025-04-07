@@ -50,6 +50,7 @@ endif()
 
 set(HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/FileSystem/FileSystem.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/FeatureMacro.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/FeatureStorage.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanAccelerationStructure.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanAttachment.hpp"

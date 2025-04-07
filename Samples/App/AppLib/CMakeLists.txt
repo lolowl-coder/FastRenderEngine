@@ -9,6 +9,7 @@ set(INCLUDES_PUBLIC
 	)
 
 set(HEADERS
+	"${CMAKE_CURRENT_SOURCE_DIR}/Includes/Renderer/AppRenderer.hpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/Includes/AppData.hpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/Includes/AppEngine.hpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/Includes/Options.hpp"
@@ -16,6 +17,7 @@ set(HEADERS
 	)
 
 set(SOURCES
+	"${CMAKE_CURRENT_SOURCE_DIR}/Renderer/AppRenderer.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/AppData.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/AppEngine.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/Options.cpp"
