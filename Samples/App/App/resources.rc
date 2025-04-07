@@ -1,0 +1,6 @@
+#include "resource.h"
+//Icon Credits
+//Source: https://cdn1.iconfinder.com/data/icons/line-awesome-vol-4/32/microscope-solid-256.png
+//Author: Icons8 Com
+//Rdistributed under CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+IDI_APP_ICON            ICON                    "icon.ico"

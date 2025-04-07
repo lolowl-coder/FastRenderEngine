@@ -1,5 +1,7 @@
 #include "Statistics.hpp"
 
+#include "Log.hpp"
+
 #include <iostream>
 
 namespace fre
@@ -18,8 +20,7 @@ namespace fre
     {
         for(const auto& metric : mMetrics)
         {
-            std::cout << "[STAT]" << metric.first << " " <<
-                metric.second.mEndTime - metric.second.mStartTime;
+            LOG_TRACE("[STAT] {}, {}", metric.first, metric.second.mEndTime - metric.second.mStartTime);
         }
     }
 }

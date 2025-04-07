@@ -21,3 +21,11 @@ Decouple Vulkan code from resources like MeshModel, Shader.
     Each texture should have it's id so renderer could associate resources with that texture.
 So decoupling MeshModels and Textures will lead to following classes:
 Mesh, Texture for abstracting and VulkanMesh, VulkanTexture for renderer side resources.
+2024-08-27
+Non blocking UI
+	Move its processing/rendering to a separate thread
+Unit tests:
+	Objects to test:
+		Vulkan
+			init/deinit
+		Data load saving (e. g. options)

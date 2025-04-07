@@ -1,9 +1,13 @@
+set(LIB "fre")
+
 # Sources and Headers
-set(LIBRARY_SOURCES
+set(SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Camera.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Engine.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Image.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Log.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Material.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/MathUtilities.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Mesh.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/MeshModel.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Statistics.cpp"
@@ -23,113 +27,114 @@ set(LIBRARY_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanShader.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanSwapChain.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanTextureManager.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imgui.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imgui_draw.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imgui_tables.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imgui_widgets.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/backends/imgui_impl_vulkan.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/backends/imgui_impl_glfw.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/misc/cpp/imgui_stdlib.cpp")
-set(LIBRARY_HEADERS
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Camera.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Engine.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Image.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Material.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Mesh.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/MeshModel.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Mutexes.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Shader.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Timer.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Statistics.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Utilities.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Hash/Hash.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Macros/Class.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Macros/Member.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanAttachment.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanBufferManager.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanCommandBuffer.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanDescriptorPool.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanDescriptorSet.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanDescriptorSetLayout.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanImage.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanFrameBuffer.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanPipeline.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanQueueFamily.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanRenderer.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanRenderPass.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanShader.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanSwapChain.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer/VulkanTextureManager.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imconfig.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imgui.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imgui_internal.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imstb_rectpack.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imstb_textedit.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/imstb_truetype.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/backends/imgui_impl_vulkan.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/backends/imgui_impl_glfw.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/misc/cpp/imgui_stdlib.h")
-set(LIBRARY_INCLUDES_PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/imgui.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/imgui_draw.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/imgui_tables.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/imgui_widgets.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/backends/imgui_impl_vulkan.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/backends/imgui_impl_glfw.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/misc/cpp/imgui_stdlib.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/implot/implot.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/implot/implot_items.cpp"
+)
+
+if(WIN32)
+    list(APPEND SOURCES 
+        "${CMAKE_CURRENT_SOURCE_DIR}/FileSystem/FileSystemWindows.cpp"
+    )
+elseif(APPLE)
+        
+elseif(UNIX)
+        
+endif()
+
+set(HEADERS
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/FileSystem/FileSystem.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/FeatureStorage.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanAccelerationStructure.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanAttachment.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanBufferManager.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanCommandBuffer.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanDescriptorPool.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanDescriptorSet.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanDescriptorSetLayout.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanImage.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanFrameBuffer.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanPipeline.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanQueueFamily.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanRenderer.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanRenderPass.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanShader.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanSwapChain.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanTextureManager.hpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/Include/Serialization/BaseTypesSerialization.hpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/Include/Serialization/MathSerialization.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Camera.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Engine.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Image.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Light.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Log.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Material.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/MathUtilities.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Mesh.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/MeshModel.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Mutexes.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Shader.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Timer.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/ThreadPool.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Statistics.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Utilities.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Hash/Hash.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Macros/Class.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Macros/Member.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/imconfig.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/imgui.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/imgui_internal.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/imstb_rectpack.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/imstb_textedit.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/imstb_truetype.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/backends/imgui_impl_vulkan.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/backends/imgui_impl_glfw.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/misc/cpp/imgui_stdlib.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/implot/implot.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/implot/implot_internal.h"
+)
+set(INCLUDES_PUBLIC
     "./"
     "${CMAKE_BINARY_DIR}/configured_files/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Hash"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Macros"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../include/Renderer"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../external/imgui/backends"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Hash"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Macros"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/backends"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../External/implot"
     "${glm_SOURCE_DIR}"
     "${stb_image_SOURCE_DIR}"
     "${glfw_INCLUDE_DIRS}"
     "${Vulkan_INCLUDE_DIRS}"
     "${assimp_INCLUDE_DIRS}"
+    "${tiff_INCLUDE_DIRS}"
+	"${spdlog_SOURCE_DIR}/include"
+    "${VOLK_INCLUDES}"
     )
-
-set(LIBRARY_INCLUDES_PRIVATE
-    )
-
-# Vulkan SDK
-
-# MyLib Library
-add_library(${LIBRARY_NAME} STATIC ${LIBRARY_SOURCES} ${LIBRARY_HEADERS})
-target_include_directories(${LIBRARY_NAME} PUBLIC
-    ${LIBRARY_INCLUDES_PUBLIC}
-    )
-target_include_directories(${LIBRARY_NAME} PRIVATE
-    ${LIBRARY_INCLUDES_PRIVATE}
-    )
-
-#target_link_libraries(
-#    ${LIBRARY_NAME}
-#    PRIVATE nlohmann_json::nlohmann_json
-#            fmt::fmt
-#            spdlog::spdlog
-#            cxxopts::cxxopts)
-
-target_link_libraries(${LIBRARY_NAME} PRIVATE
-    glfw
-    ${Vulkan_LIBRARIES}
+set(INCLUDES_PRIVATE
+	)
+	
+set(LIBS_PRIVATE
+	glfw
+    #${Vulkan_LIBRARIES}
     assimp
-    )
+    tiff
+    volk
+	)
+	
+set(LIBS_PUBLIC
+	glfw
+    #${Vulkan_LIBRARIES}
+    assimp
+    tiff
+    volk
+	)
 
-if(${ENABLE_WARNINGS})
-    target_set_warnings(
-        TARGET
-        ${LIBRARY_NAME}
-        ENABLE
-        ${ENABLE_WARNINGS}
-        AS_ERRORS
-        ${ENABLE_WARNINGS_AS_ERRORS})
-endif()
-
-if(${ENABLE_LTO})
-    target_enable_lto(
-        TARGET
-        ${LIBRARY_NAME}
-        ENABLE
-        ON)
-endif()
-
-if(${ENABLE_CLANG_TIDY})
-    add_clang_tidy_to_target(${LIBRARY_NAME})
-endif()
+buildLib("${LIB}" "${SOURCES}" "${HEADERS}" "${LIBS_PRIVATE}" "${LIBS_PUBLIC}" "${INCLUDES_PRIVATE}" "${INCLUDES_PUBLIC}")

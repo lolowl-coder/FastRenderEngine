@@ -1,22 +1,24 @@
 #include "Renderer/VulkanDescriptorSetLayout.hpp"
 
 #include <stdexcept>
+#include <cassert>
 
 namespace fre
 {
     void VulkanDescriptorSetLayout::create(
         VkDevice logicalDevice,
-        std::vector<VkDescriptorType> descriptorTypes,
-        VkShaderStageFlagBits stageFlags)
+        const std::vector<VkDescriptorType>& descriptorTypes,
+        const std::vector<uint32_t>& stageFlags)
     {
         std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
         layoutBindings.resize(descriptorTypes.size());
+		assert(descriptorTypes.size() == stageFlags.size());
         for(uint32_t i = 0; i < descriptorTypes.size(); i++)
 		{
             layoutBindings[i].binding = i;	//Binding point in shader (designated by binding number in shader)
             layoutBindings[i].descriptorType = descriptorTypes[i];	//Type of descriptor (uniform, dynamic uniform, image sample, etc.)
             layoutBindings[i].descriptorCount = 1;	//Number of descriptors for binding
-            layoutBindings[i].stageFlags = stageFlags;	//Shader stage we bind to
+            layoutBindings[i].stageFlags = stageFlags[i];	//Shader stage we bind to
             layoutBindings[i].pImmutableSamplers = nullptr;	//Immutability by specifying the layout
         }
 

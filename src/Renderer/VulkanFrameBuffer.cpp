@@ -10,6 +10,8 @@ namespace fre
         std::vector<VkImageView> attachmentsViews, VkExtent2D swapChainExtent,
         VkRenderPass renderPass)
     {
+        LOG_INFO("Create framebuffer");
+        
         VkFramebufferCreateInfo framebufferCreateInfo = {};
         framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferCreateInfo.renderPass = renderPass;	//Render pass layout the Framebuffer will be used with
@@ -19,11 +21,9 @@ namespace fre
         framebufferCreateInfo.height = swapChainExtent.height;
         framebufferCreateInfo.layers = 1;
 
-        VkResult result = vkCreateFramebuffer(mainDevice.logicalDevice, &framebufferCreateInfo, nullptr, &mFrameBuffer);
-        if (result != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create a Frame Buffer!");
-        }
+        VK_CHECK(vkCreateFramebuffer(mainDevice.logicalDevice, &framebufferCreateInfo, nullptr, &mFrameBuffer));
+
+        LOG_INFO("Framebuffer created");
     }
 
     void VulkanFrameBuffer::addColorAttachment(const VulkanAttachment& colorAttachment)

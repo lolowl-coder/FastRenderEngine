@@ -1,12 +1,15 @@
 # Prerequisites
 *.d
 
+# Compiled Shaders
+*.spv
+
 # Compiled Object files
 *.slo
 *.lo
 *.o
 *.obj
-!Data/**
+!Data/*.obj*
 
 # Precompiled Headers
 *.gch
@@ -33,3 +36,10 @@
 *.app
 
 build/
+release/
+
+# ini, json
+Data/options.json
+Data/calibrationOptions.json
+Data/imgui.ini
+Data/log*.txt

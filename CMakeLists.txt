@@ -14,7 +14,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON) #Generate json for each translation unit
 # External libraries integration tool
 option(USE_CPM "Whether to use CPM." ON)
 
-option(ENABLE_WARNINGS "Enable to add warnings to a target." ON)
+option(ENABLE_WARNINGS "Enable to add warnings to a target." OFF)
 option(ENABLE_WARNINGS_AS_ERRORS "Enable to treat warnings as errors." OFF)
 
 option(ENABLE_CLANG_TIDY "Enable to add clang tidy." OFF)
@@ -24,10 +24,18 @@ option(ENABLE_SANITIZE_UNDEF "Enable undefined sanitize." OFF)
 option(ENABLE_SANITIZE_LEAK "Enable leak sanitize (Gcc/Clang only)." OFF)
 option(ENABLE_SANITIZE_THREAD "Enable thread sanitize (Gcc/Clang only)." OFF)
 
-option(ENABLE_LTO "Enable to add Link Time Optimization." ON)
+if(NOT CMAKE_BUILD_TYPE)
+    # Set default build type
+    set(CMAKE_BUILD_TYPE Release)
+endif()
 
-# Project/Library Names
-set(LIBRARY_NAME "fre")
+message(WARNING "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    option(ENABLE_LTO "Enable to add Link Time Optimization." OFF)
+else()
+    option(ENABLE_LTO "Enable to add Link Time Optimization." ON)
+endif()
 
 # CMAKE MODULES
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/)
@@ -59,31 +67,83 @@ if(USE_CPM)
         GITHUB_REPOSITORY glfw/glfw
         GIT_TAG 3.3.9
         OPTIONS
-            "GLFW_BUILD_TESTS Off"
-            "GLFW_BUILD_EXAMPLES Off"
-            "GLFW_BUILD_DOCS Off"
-            "GLFW_INSTALL On"
-            "GLFW_USE_HYBRID_HPG On"
+            "GLFW_BUILD_TESTS OFF"
+            "GLFW_BUILD_EXAMPLES OFF"
+            "GLFW_BUILD_DOCS OFF"
+            "GLFW_INSTALL OFF"
+            "GLFW_USE_HYBRID_HPG ON"
     )
     set(glfw_INCLUDE_DIRS ${GLFW_SOURCE_DIR}/include)
     #message(WARNING "GLFW dirs: " ${glfw_INCLUDE_DIRS})
+
+    # Set Assimp options BEFORE adding the subdirectory
+    set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "Disable all importers by default" FORCE)
+    set(ASSIMP_BUILD_OBJ_IMPORTER ON CACHE BOOL "Enable OBJ importer" FORCE)
+    #set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "Enable GLTF importer" FORCE)
+
+    # Disable unnecessary features to minimize size
+    set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "Disable tests" FORCE)
+    set(ASSIMP_BUILD_SAMPLES OFF CACHE BOOL "Disable samples" FORCE)
+    set(ASSIMP_NO_EXPORT ON CACHE BOOL "Disable exporters" FORCE)
+    set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "Disable tools" FORCE)
+	set(ASSIMP_INSTALL OFF CACHE BOOL "Disable installation for Assimp" FORCE)
+
     CPMAddPackage(
         NAME assimp
         GIT_REPOSITORY https://github.com/assimp/assimp
         GIT_TAG v5.3.1  # Specify the version you want
+		OPTIONS
+			"ASSIMP_BUILD_TESTS OFF"
+            "ASSIMP_BUILD_SAMPLES OFF"
+            "ASSIMP_NO_EXPORT ON"
+            "ASSIMP_BUILD_ASSIMP_TOOLS OFF"
+	        "ASSIMP_INSTALL OFF"
     )
     set(assimp_INCLUDE_DIRS)
     list(APPEND assimp_INCLUDE_DIRS
+        "${CMAKE_BINARY_DIR}/_deps/assimp-src/contrib/rapidjson/include"
         "${CMAKE_BINARY_DIR}/_deps/assimp-src/include"
         "${CMAKE_BINARY_DIR}/_deps/assimp-build/include"
     )
     #message(WARNING "Assimp include dirs: ${assimp_INCLUDE_DIRS}")
+	CPMAddPackage(
+        NAME spdlog
+        GIT_REPOSITORY https://github.com/gabime/spdlog.git
+        GIT_TAG v1.13.0  # Specify the version you want
+    )
 
+    set(TIFF_INSTALL_DEFAULT OFF CACHE BOOL "Disable installation for tiff" FORCE)
+
+	CPMAddPackage(
+        NAME libtiff
+        GIT_REPOSITORY https://gitlab.com/libtiff/libtiff
+        GIT_TAG v4.6.0  # Specify the version you want
+        OPTIONS
+            "tiff-tools OFF"
+            "tiff-tests OFF"
+            "tiff-contrib OFF"
+            "tiff-docs OFF"
+            "tiff-install OFF"
+    )
+	set(tiff_INCLUDE_DIRS)
+    list(APPEND tiff_INCLUDE_DIRS
+        "${CMAKE_BINARY_DIR}/_deps/libtiff-src/libtiff"
+        "${CMAKE_BINARY_DIR}/_deps/libtiff-build/libtiff"
+    )
+
+    CPMAddPackage(
+        NAME NVTX
+        GITHUB_REPOSITORY NVIDIA/NVTX
+        GIT_TAG v3.1.0-c-cpp
+        GIT_SHALLOW TRUE
+    )
 endif()
 
 # Use FetchContent for single-header libs
 
 include(FetchContent)
+
+#set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 
 FetchContent_Declare(
     glm
@@ -99,27 +159,93 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(stb_image)
 
+FetchContent_Declare(
+  volk
+  GIT_REPOSITORY https://github.com/zeux/volk.git
+  GIT_TAG master  # or a specific version/tag
+)
+if (WIN32)
+   set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)
+endif()
+#Required by volk
+add_definitions(-DVK_NO_PROTOTYPES)
+add_definitions(-DIMGUI_IMPL_VULKAN_NO_PROTOTYPES)
+
+FetchContent_MakeAvailable(volk)
+
 find_package(Vulkan REQUIRED)
+
+# Enable testing
+include(CTest)
+
+# Fetch Google Test
+include(FetchContent)
+FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/releases/download/v1.15.2/googletest-1.15.2.tar.gz
+)
+# Prevent Google Test from building its own tests
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
 
 # SUB DIRECTORIES
 
 add_subdirectory(configured)
-#add_subdirectory(external)
-add_subdirectory(src)
-function(buildExample)
-    add_executable(${EXECUTABLE_NAME} ${APP_SOURCES})
+#add_subdirectory(External)
 
+function(buildApp appName sources headers libs includes)
+    add_executable(${appName} ${sources} ${headers} ${shaders})
+	# Shaders
+	set (SHADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Data/Shaders)
+	# Get a list of all shaders in the shaders directory
+	file(GLOB_RECURSE SHADER_SOURCES "${SHADERS_DIR}/*.vert" "${SHADERS_DIR}/*.frag" "${SHADERS_DIR}/*.comp")
+
+	# Create a source group for the shaders
+	source_group("Shaders" FILES ${SHADER_SOURCES})
+
+	# Create a list to store the output .spv files
+	set(SPV_OUTPUT_FILES "")
+
+	# Iterate over each shader source file
+	foreach(SHADER ${SHADER_SOURCES})
+		# Get the filename and extension
+		get_filename_component(SHADER_FILENAME ${SHADER} NAME)
+		# Generate the output filename for the .spv file
+		set(SPV_FILE "${SHADERS_DIR}/${SHADER_FILENAME}.spv")
+		# Add the .spv file to the list of output files
+		list(APPEND SPV_OUTPUT_FILES ${SPV_FILE})
+		# Add a custom command to compile the shader
+		add_custom_command(
+			OUTPUT ${SPV_FILE}
+			COMMAND glslc -o ${SPV_FILE} ${SHADER}
+			DEPENDS ${SHADER}
+		)
+	endforeach()
+
+	# Create a custom target that depends on the shader compilation
+	add_custom_target(CompileShaders DEPENDS ${SPV_OUTPUT_FILES})
+
+	# Link the custom target to your main target
+	add_dependencies(${appName} CompileShaders)
+	
+	if(DEFINED includes)
+		target_include_directories(${appName} PRIVATE ${includeDirs})
+	endif()
+    
     target_link_libraries(
-        ${EXECUTABLE_NAME}
-        PRIVATE ${LIBRARY_NAME}
-                # nlohmann_json::nlohmann_json
-                # fmt::fmt
-                )
+        ${appName}
+        PRIVATE
+		${libs}
+		)
+
+    if (MSVC)
+        target_compile_options(${appName} PRIVATE $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/MP>)
+    endif()
 
     if(${ENABLE_WARNINGS})
         target_set_warnings(
             TARGET
-            ${EXECUTABLE_NAME}
+            ${appName}
             ENABLE
             ${ENABLE_WARNINGS}
             AS_ERRORS
@@ -129,80 +255,72 @@ function(buildExample)
     if(${ENABLE_LTO})
         target_enable_lto(
             TARGET
-            ${EXECUTABLE_NAME}
+            ${appName}
             ENABLE
             ON)
     endif()
 
     if(${ENABLE_CLANG_TIDY})
-        add_clang_tidy_to_target(${EXECUTABLE_NAME})
+        add_clang_tidy_to_target(${appName})
     endif()
-endfunction(buildExample)
+endfunction()
 
-add_subdirectory(samples)
-
-# Get a list of all .vert and .frag files in the shaders directory
-file(GLOB_RECURSE SHADER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Data/Shaders/*.vert" "${CMAKE_CURRENT_SOURCE_DIR}/Data/Shaders/*.frag")
-
-# Create a list to store the output .spv files
-set(SPV_OUTPUT_FILES "")
-
-# Iterate over each shader source file
-foreach(SHADER ${SHADER_SOURCES})
-    # Get the filename and extension
-    get_filename_component(SHADER_FILENAME ${SHADER} NAME)
-    # Generate the output filename for the .spv file
-    set(SPV_FILE "${CMAKE_CURRENT_SOURCE_DIR}/Data/Shaders/${SHADER_FILENAME}.spv")
-    # Add the .spv file to the list of output files
-    list(APPEND SPV_OUTPUT_FILES ${SPV_FILE})
-    # Add a custom command to compile the shader
-    add_custom_command(
-        OUTPUT ${SPV_FILE}
-        COMMAND glslc -o ${SPV_FILE} ${SHADER}
-        DEPENDS ${SHADER}
+function(buildLib libName sources headers libsPrivate libsPublic includesPrivate includesPublic)
+	add_library(${libName} STATIC ${sources} ${headers})
+	target_link_libraries(${libName}
+	PRIVATE
+		${libsPrivate}
+	PUBLIC
+		${libsPublic}
     )
-endforeach()
 
-# Create a custom target that depends on the shader compilation
-add_custom_target(CompileShaders DEPENDS ${SPV_OUTPUT_FILES})
+	if(${ENABLE_WARNINGS})
+		target_set_warnings(
+			TARGET
+			${libName}
+			ENABLE
+			${ENABLE_WARNINGS}
+			AS_ERRORS
+			${ENABLE_WARNINGS_AS_ERRORS})
+	endif()
 
-# Link the custom target to your main target
-add_dependencies(${LIBRARY_NAME} CompileShaders)
+	if(${ENABLE_LTO})
+		target_enable_lto(
+			TARGET
+			${libName}
+			ENABLE
+			ON)
+	endif()
 
+	if(${ENABLE_CLANG_TIDY})
+		add_clang_tidy_to_target(${libName})
+	endif()
 
-# Copy resources
+	target_include_directories(${libName}
+		PUBLIC
+		${includesPublic}
+		PRIVATE
+		${includesPrivate}
+		)
+endfunction()
 
-# Copy shaders
-#get_target_property(EXE_LOCATION ${EXECUTABLE_NAME} RUNTIME_OUTPUT_DIRECTORY)
-#message(WARNING "Exe location: ${EXE_LOCATION}")
-#get_target_property(EXE_DIR ${EXECUTABLE_NAME} RUNTIME_OUTPUT_DIRECTORY)
-#file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/Data/Shaders DESTINATION ${EXE_DIR})
-#
-## Copy meshes
-#file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/Data/Models DESTINATION ${EXE_DIR})
-#
-## Copy textures
-#file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/Data/Textures DESTINATION ${EXE_DIR})
+function(installApp appName)
+    install(
+        TARGETS ${appName}
+        #EXPORT ${LIBRARY_NAME}
+        #ARCHIVE DESTINATION lib
+        #LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+	)
 
-# INSTALL TARGETS
+    #install(
+    #    TARGETS ${LIBRARY_NAME}
+    #    ARCHIVE DESTINATION lib
+    #    LIBRARY DESTINATION lib)
+endfunction(installApp)
 
-# Install shaders
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/Data/Shaders DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+add_subdirectory(Src)
+add_subdirectory(Samples)
 
-# Install meshes
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/Data/Models DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
-
-# Install textures
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/Data/Textures DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
-
-install(
-    TARGETS ${EXECUTABLE_NAME}
-    EXPORT ${LIBRARY_NAME}
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-    RUNTIME DESTINATION bin)
-
-install(
-    TARGETS ${LIBRARY_NAME}
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib)
+message(WARNING "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+message(WARNING "CMAKE_C_FLAGS: ${CMAKE_C_FLAGS}")

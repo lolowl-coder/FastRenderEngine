@@ -1,4 +1,6 @@
 #include "MeshModel.hpp"
+
+#include "Log.hpp"
 #include "Utilities.hpp"
 
 #include <algorithm>
@@ -6,12 +8,14 @@
 #include <set>
 #include <map>
 
+using namespace glm;
+
 namespace fre
 {
-	MeshModel::MeshModel(std::vector<Mesh> newMeshList)
+	MeshModel::MeshModel(const MeshList& newMeshList)
 	{
 		meshList = newMeshList;
-		modelMatrix = glm::mat4(1.0f);
+		modelMatrix = mat4(1.0f);
 	}
 
 	size_t MeshModel::getMeshCount() const
@@ -19,7 +23,7 @@ namespace fre
 		return meshList.size();
 	}
 
-	const Mesh& MeshModel::getMesh(size_t index) const
+	const Mesh::Ptr& MeshModel::getMesh(size_t index)
 	{
 		if (index >= meshList.size())
 		{
@@ -29,25 +33,25 @@ namespace fre
 		return meshList[index];
 	}
 
-	const glm::mat4& MeshModel::getModelMatrix() const
+	const mat4& MeshModel::getModelMatrix() const
 	{
 		return modelMatrix;
 	}
 
-	void MeshModel::setModelMatrix(const glm::mat4& newModelMatrix)
+	void MeshModel::setModelMatrix(const mat4& newModelMatrix)
 	{
 		modelMatrix = newModelMatrix;
 	}
 
-	std::vector<Mesh> MeshModel::loadNode(aiNode* node, const aiScene* scene,
-		glm::vec3& mn, glm::vec3& mx, uint32_t materialOffset)
+	std::vector<Mesh::Ptr> MeshModel::loadNode(aiNode* node, const aiScene* scene,
+		BoundingBox3D& bb, uint32_t materialOffset)
 	{
-		std::vector<Mesh> meshList;
+		std::vector<Mesh::Ptr> meshList;
 
 		for (size_t i = 0; i < node->mNumMeshes; i++)
 		{
 			meshList.push_back(
-				loadMesh(scene->mMeshes[node->mMeshes[i]], mn, mx, materialOffset)
+				loadMesh(scene->mMeshes[node->mMeshes[i]], bb, materialOffset)
 			);
 		}
 
@@ -55,56 +59,74 @@ namespace fre
 		//then append their meshes to this node's mesh list
 		for (size_t i = 0; i < node->mNumChildren; i++)
 		{
-			std::vector<Mesh> newList = loadNode(node->mChildren[i], scene, mn, mx, materialOffset);
+			std::vector<Mesh::Ptr> newList = loadNode(node->mChildren[i], scene, bb, materialOffset);
 			meshList.insert(meshList.end(), newList.begin(), newList.end());
 		}
 
 		return meshList;
 	}
 
-	Mesh MeshModel::loadMesh(aiMesh * mesh, glm::vec3& mn, glm::vec3& mx, uint32_t materialOffset)
+	Mesh::Ptr MeshModel::loadMesh(aiMesh * mesh, BoundingBox3D& bb, uint32_t materialOffset)
 	{
 		//sync with mesh vertex numbers
-		Mesh newMesh = Mesh(mesh->mMaterialIndex + materialOffset);
-		
+		Mesh::Ptr newMesh(new Mesh(mesh->mMaterialIndex + materialOffset));
+		BoundingBox3D thisBB;
+		Mesh::Vertices vertices;
+		vertices.resize(mesh->mNumVertices * sizeof(Vertex));
 		for (size_t i = 0; i < mesh->mNumVertices; i++)
 		{
-			Vertex vertex;
+			auto* vertex = static_cast<Vertex*>((void*)&vertices[i * sizeof(Vertex)]);
 			//Set position
-			vertex.pos = { mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z };
+			vertex->pos = { mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z };
 
-			mn.x = std::min(mn.x, vertex.pos.x);
-			mn.y = std::min(mn.y, vertex.pos.y);
-			mn.z = std::min(mn.z, vertex.pos.z);
+			thisBB.mMin.x = std::min(thisBB.mMin.x, vertex->pos.x);
+			thisBB.mMin.y = std::min(thisBB.mMin.y, vertex->pos.y);
+			thisBB.mMin.z = std::min(thisBB.mMin.z, vertex->pos.z);
 			
-			mx.x = std::max(mx.x, vertex.pos.x);
-			mx.y = std::max(mx.y, vertex.pos.y);
-			mx.z = std::max(mx.z, vertex.pos.z);
+			thisBB.mMax.x = std::max(thisBB.mMax.x, vertex->pos.x);
+			thisBB.mMax.y = std::max(thisBB.mMax.y, vertex->pos.y);
+			thisBB.mMax.z = std::max(thisBB.mMax.z, vertex->pos.z);
 
-			vertex.normal = glm::vec3(
-				mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
-			vertex.tangent = glm::vec3(
-				mesh->mTangents[i].x, mesh->mTangents[i].y, mesh->mTangents[i].z);
+			if(mesh->mNormals)
+			{
+				vertex->normal = vec3(
+					mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
+			}
+			if(mesh->mTangents)
+			{
+				vertex->tangent = vec3(
+					mesh->mTangents[i].x, mesh->mTangents[i].y, mesh->mTangents[i].z);
+			}
 
 			//Set tex coord (if exist)
 			if (mesh->mTextureCoords[0])
 			{
-				vertex.tex = { mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y };
+				vertex->tex = { mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y };
 			}
 			else
 			{
-				vertex.tex = { 0.0f, 0.0f };
+				vertex->tex = { 0.0f, 0.0f };
 			}
-
-			newMesh.addVertex(vertex);
 		}
 
-		std::cout << "mn: " << mn.x << " " << mn.y << " " << mn.z << std::endl;
-		std::cout << "mx: " << mx.x << " " << mx.y << " " << mx.z << std::endl;
+		newMesh->setVertices(vertices, sizeof(Vertex));
+
+		newMesh->setBoundingBox(bb);
+
+		bb.mMin.x = std::min(bb.mMin.x, thisBB.mMin.x);
+		bb.mMin.y = std::min(bb.mMin.y, thisBB.mMin.y);
+		bb.mMin.z = std::min(bb.mMin.z, thisBB.mMin.z);
+		bb.mMax.x = std::max(bb.mMax.x, thisBB.mMax.x);
+		bb.mMax.y = std::max(bb.mMax.y, thisBB.mMax.y);
+		bb.mMax.z = std::max(bb.mMax.z, thisBB.mMax.z);
+
+		//LOG_TRACE("Mesh model BB: mn: {}, {}, {}", bb.mMin.x, bb.mMin.y, bb.mMin.z);
+		//LOG_TRACE("Mesh model BB: mx: {}, {}, {}", bb.mMax.x, bb.mMax.y, bb.mMax.z);
 
 		//std::cout << "Tex coords components: " << mesh->mNumUVComponents[0] << std::endl;
 
 		//Iterate over indices through faces and copy across
+		Mesh::Indices indices;
 		for (size_t i = 0; i < mesh->mNumFaces; i++)
 		{
 			aiFace& face = mesh->mFaces[i];
@@ -117,10 +139,11 @@ namespace fre
 			{
 				for (size_t j = 0; j < face.mNumIndices; j++)
 				{
-					newMesh.addIndex(face.mIndices[j]);
+					indices.push_back(face.mIndices[j]);
 				}
 			}
 		}
+		newMesh->setIndices(indices);
 
 		return newMesh;
 	}

@@ -10,6 +10,31 @@ Crossplatform
 **Buld system:**
 CMake
 
+**How to build:**
+
+Prerequisites:
+- Install CMake.
+- Install Vulkan SDK.
+- Visual Studio
+
+Building engine and samples:
+-Use build*.bat files. E. g. under Win32 run buildDebugWin32.bat
+
+**How to run samples:**
+
+After successful build you can run App executable.
+E. g. in Visual Studio set App as startup project and run it.
+
+**Performance analysis:**
+
+NVIDIA NSight Systems - overall performace.
+To enable STAT_CPU, STAT_GPU time ranges in NSight Systems:
+- define COLLECT_STAT in Samples/AppLib/Includes/Stat.hpp
+- enable NVTX traces collection in NSight Systems
+- run App from under NSight Systems
+- look at "NVTX" markes
+NVIDIA NSight Compute - use for kernel analysis
+
 **Already implemented:**
 
 - Lighting: Blinn-Phong, PBR.
@@ -67,9 +92,3 @@ CMake
   - all supported by ASSIMP
 - Graphics formats:
   - all main formats supported by stb_image
-
-**No sound.**
-
-**Input:**
-
-- investigate into SDL

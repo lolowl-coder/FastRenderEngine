@@ -1,6 +1,9 @@
 #include "Renderer/VulkanDescriptorSet.hpp"
+#include "Utilities.hpp"
 
 #include <stdexcept>
+#include <cassert>
+#include <iostream>
 
 namespace fre
 {
@@ -19,24 +22,22 @@ namespace fre
 		setAllocInfo.pSetLayouts = &descriptorSetLayout;
 
 		//Allocate descriptor sets (multiple)
-		VkResult result = vkAllocateDescriptorSets(
+		VK_CHECK(vkAllocateDescriptorSets(
             logicalDevice,
             &setAllocInfo,
-            &mDescriptorSet);
+            &mDescriptorSet));
 
-		if (result != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to allocate Descriptor Sets!");
-		}
+        //std::cout << "Allocate DS. Pool: " << descriptorPool << std::endl;
     }
 
     void VulkanDescriptorSet::update(VkDevice logicalDevice,
+        const std::vector<VkImageLayout>& imageLayouts,
         const std::vector<VkImageView>& imageViews,
-        VkDescriptorType descriptorType,
-        VkSampler sampler)
+        const std::vector<VkDescriptorType>& descriptorTypes,
+        const std::vector<VkSampler>& samplers)
     {
         //Update descriptor set's buffer binding
-        //Buffer info and data offset info
+        //Image info and data offset info
         std::vector<VkDescriptorImageInfo> imageInfos;
         imageInfos.resize(imageViews.size(), {});
 
@@ -45,9 +46,9 @@ namespace fre
         for(uint32_t i = 0; i < imageViews.size(); i++)
         {
             //Image view to get data from
-            imageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;	//Image layout when in use
+            imageInfos[i].imageLayout = imageLayouts[i];	//Image layout when in use
 			imageInfos[i].imageView = imageViews[i];		//Image to bind to set
-			imageInfos[i].sampler = sampler;
+			imageInfos[i].sampler = samplers[i];
 
             //VkWriteDescriptorSet writeDescriptorSet = {};
             writeDescriptorSets[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -58,7 +59,7 @@ namespace fre
             //Index in array to update
             writeDescriptorSets[i].dstArrayElement = 0;
             //Type of descriptor
-            writeDescriptorSets[i].descriptorType = descriptorType;
+            writeDescriptorSets[i].descriptorType = descriptorTypes[i];
             //Amount to update
             writeDescriptorSets[i].descriptorCount = 1;
             //Information about buffer data to bind
@@ -70,33 +71,44 @@ namespace fre
             writeDescriptorSets.data(), 0, nullptr);
     }
 
-    void VulkanDescriptorSet::update(VkDevice logicalDevice, VkBuffer buffer,
-        VkDeviceSize stride)
+    void VulkanDescriptorSet::update(VkDevice logicalDevice,
+        const std::vector<VkBuffer>& buffers,
+        const std::vector<VkDescriptorType> descriptorTypes,
+        const std::vector<VkDeviceSize> sizes)
     {
+        assert(buffers.size() == descriptorTypes.size() && buffers.size() == sizes.size());
         //Update descriptor set's buffer binding
         //Buffer info and data offset info
-        VkDescriptorBufferInfo bufferInfo = {};
-        bufferInfo.buffer = buffer;	//Buffer to get data from
-        bufferInfo.offset = 0;
-        bufferInfo.range = stride;
+        std::vector<VkDescriptorBufferInfo> bufferInfos;
+        bufferInfos.resize(buffers.size(), {});
 
-        VkWriteDescriptorSet writeDescriptorSet = {};
-        writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        //Descriptor Set to update
-        writeDescriptorSet.dstSet = mDescriptorSet;
-        //Binding to update (matches with binding on layout/shader)
-        writeDescriptorSet.dstBinding = 0;
-        //Index in array to update
-        writeDescriptorSet.dstArrayElement = 0;
-        //Type of descriptor
-        writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        //Amount to update
-        writeDescriptorSet.descriptorCount = 1;
-        //Information about buffer data to bind
-        writeDescriptorSet.pBufferInfo = &bufferInfo;
+        std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+        writeDescriptorSets.resize(buffers.size(), {});
+        for(uint32_t i = 0; i < buffers.size(); i++)
+        {
+            //buffer to get data from
+            bufferInfos[i].offset = 0;
+            //Buffer to bind to set
+			bufferInfos[i].buffer = buffers[i];
+			bufferInfos[i].range = sizes[i];
+
+            writeDescriptorSets[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            //Descriptor Set to update
+            writeDescriptorSets[i].dstSet = mDescriptorSet;
+            //Binding to update (matches with binding on layout/shader)
+            writeDescriptorSets[i].dstBinding = i;
+            //Index in array to update
+            writeDescriptorSets[i].dstArrayElement = 0;
+            //Type of descriptor
+            writeDescriptorSets[i].descriptorType = descriptorTypes[i];
+            //Amount to update
+            writeDescriptorSets[i].descriptorCount = 1;
+            //Information about buffer data to bind
+            writeDescriptorSets[i].pBufferInfo = &bufferInfos[i];
+		}
         
         //Update descriptor sets with new buffer/binding info
-        vkUpdateDescriptorSets(logicalDevice, 1,
-            &writeDescriptorSet, 0, nullptr);
+        vkUpdateDescriptorSets(logicalDevice, writeDescriptorSets.size(),
+            writeDescriptorSets.data(), 0, nullptr);
     }
 }

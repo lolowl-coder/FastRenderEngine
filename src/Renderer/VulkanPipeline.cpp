@@ -7,33 +7,59 @@
 
 namespace fre
 {
+	VkPipelineShaderStageCreateInfo getPipelineShaderStageCreateInfo(const VulkanShader& shader)
+	{
+		VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
+		shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		//Shader stage name
+		shaderStageCreateInfo.stage = shader.mShaderStage;
+		//Shader module to be used by stage
+		shaderStageCreateInfo.module = shader.mShaderModule;
+		//Entry point in to shader
+		shaderStageCreateInfo.pName = "main";
+
+		return shaderStageCreateInfo;
+	}
+
+	VkPipelineLayout createPipelineLayout(
+		VkDevice logicalDevice,
+		std::vector<VkDescriptorSetLayout> descriptorSetLayouts,
+		std::vector<VkPushConstantRange> pushConstantRanges)
+	{
+		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutCreateInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+		pipelineLayoutCreateInfo.pSetLayouts = descriptorSetLayouts.data();
+		pipelineLayoutCreateInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
+		pipelineLayoutCreateInfo.pPushConstantRanges = pushConstantRanges.empty() ? nullptr : pushConstantRanges.data();
+
+		VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+		VK_CHECK(vkCreatePipelineLayout(logicalDevice, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+
+		return pipelineLayout;
+	}
+
     void VulkanPipeline::create(
 		VkDevice logicalDevice,
-		std::vector<VulkanShader> shaders,
+		std::vector<VulkanShader*> shaders,
+		VkPrimitiveTopology topology,
 		uint32_t stride,
         const std::vector<VulkanVertexAttribute>& vertexAttributes,
 		VkBool32 depthWriteEnable,
-		VkPolygonMode polygonMode,
 		VkRenderPass renderPass,
 		uint32_t subpassIndex,
 		std::vector<VkDescriptorSetLayout> descriptorSetLayouts,
-		std::vector<VkPushConstantRange> pushConstantRanges)
+		std::vector<VkPushConstantRange> pushConstantRanges,
+		uint32_t attachmentsCount,
+		float lineWidth,
+		VkCullModeFlags cullMode)
     {
         //Put shader stage creation info in to container
 		//Graphics Pipeline creation info requires array of shader stage creates
         std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
         for(auto shader : shaders)
         {
-            VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
-            shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-            //Shader stage name
-            shaderStageCreateInfo.stage = shader.mShaderStage;
-            //Shader module to be used by stage
-            shaderStageCreateInfo.module = shader.mShaderModule;
-            //Entry point in to shader
-            shaderStageCreateInfo.pName = "main";
-
-            shaderStages.push_back(shaderStageCreateInfo);
+            shaderStages.push_back(getPipelineShaderStageCreateInfo(*shader));
         }
 
 		//How the data for an attribute is defined within a vertex
@@ -65,7 +91,7 @@ namespace fre
 		// -- INPUT ASSEMBLY --
 		VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
 		inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-		inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		inputAssembly.topology = topology;
 		inputAssembly.primitiveRestartEnable = VK_FALSE;
 
 		VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
@@ -80,6 +106,10 @@ namespace fre
 		std::vector<VkDynamicState> dynamicStateEnables;
 		dynamicStateEnables.push_back(VK_DYNAMIC_STATE_VIEWPORT);	//Dynamic viewport : Can resize in command buffer with vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 		dynamicStateEnables.push_back(VK_DYNAMIC_STATE_SCISSOR);	//Dynamic scissor : Can rsize in command buffer with vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+		if(lineWidth > 0.0f)
+		{
+			dynamicStateEnables.push_back(VK_DYNAMIC_STATE_LINE_WIDTH);
+		}
 
 		//Dynamic state creation info
 		VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
@@ -92,63 +122,59 @@ namespace fre
 		rasterizerCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterizerCreateInfo.depthClampEnable = VK_FALSE;		//Change if fragments beyond near/far planes are clipped (default) or clamped to plane
 		rasterizerCreateInfo.rasterizerDiscardEnable = VK_FALSE;//Whether to discard data skip rasterizer, only suitable for pipeline without framebuffer output
-		rasterizerCreateInfo.polygonMode = polygonMode;
-		rasterizerCreateInfo.lineWidth = 1.0f;
-		rasterizerCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+		rasterizerCreateInfo.polygonMode = topology == VK_PRIMITIVE_TOPOLOGY_POINT_LIST ? VK_POLYGON_MODE_POINT : VK_POLYGON_MODE_FILL;
+		rasterizerCreateInfo.lineWidth = std::max(1.0f, lineWidth);
+		rasterizerCreateInfo.cullMode = cullMode;
 		rasterizerCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 		rasterizerCreateInfo.depthBiasEnable = VK_FALSE;
 
 		// -- MULTISAMPLING --
-		VkPipelineMultisampleStateCreateInfo multisamplineCreateInfo = {};
-		multisamplineCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		multisamplineCreateInfo.sampleShadingEnable = VK_FALSE;
-		multisamplineCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+		VkPipelineMultisampleStateCreateInfo multisamplingCreateInfo = {};
+		multisamplingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		multisamplingCreateInfo.sampleShadingEnable = VK_FALSE;
+		multisamplingCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+		// Optional
+		//multisamplingCreateInfo.minSampleShading = 1.0f;
+		//multisamplingCreateInfo.pSampleMask = nullptr;
+		//multisamplingCreateInfo.alphaToCoverageEnable = VK_FALSE;
+		//multisamplingCreateInfo.alphaToOneEnable = VK_FALSE;
 
 		// -- BLENDING --
 
 		//Blend Attachment State (how blending is handled)
-		VkPipelineColorBlendAttachmentState colourState = {};
-		colourState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT	//Colours to apply blending to
+		VkPipelineColorBlendAttachmentState colorState = {};
+		colorState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT	//Colours to apply blending to
 			| VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		colourState.blendEnable = VK_TRUE;			//Enable blending
+		colorState.blendEnable = VK_TRUE;			//Enable blending
 
-		colourState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-		colourState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-		colourState.colorBlendOp = VK_BLEND_OP_ADD;	
+		colorState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+		colorState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		colorState.colorBlendOp = VK_BLEND_OP_ADD;	
 
-		//Summarized: (VK_BLEND_FACTOR_SRC_ALPHA * new colour) + (VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA * old colour)
-		//			  (new colour alpha * new colour) + ((1 - new colour alpha) * old colour)
+		//Summarized: (VK_BLEND_FACTOR_SRC_ALPHA * new color) + (VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA * old colour)
+		//			  (new color alpha * new colour) + ((1 - new colour alpha) * old colour)
 		
-		colourState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		colourState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-		colourState.alphaBlendOp = VK_BLEND_OP_ADD;
-		//Summarized: (1 * new alpha) + (0 * old colour) = new alpha
+		colorState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+		colorState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		colorState.alphaBlendOp = VK_BLEND_OP_ADD;
+		//Summarized: (1 * new alpha) + (0 * old color) = new alpha
 
-		VkPipelineColorBlendStateCreateInfo colourBlendingCreateInfo = {};
-		colourBlendingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		colourBlendingCreateInfo.logicOpEnable = VK_FALSE;	//Alternative to calculations is to use logical operations
-		colourBlendingCreateInfo.attachmentCount = 1;
-		colourBlendingCreateInfo.pAttachments = &colourState;
+		std::vector<VkPipelineColorBlendAttachmentState> colorStates(attachmentsCount, colorState);
+
+		VkPipelineColorBlendStateCreateInfo colorBlendingCreateInfo = {};
+		colorBlendingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+		colorBlendingCreateInfo.logicOpEnable = VK_FALSE;	//Alternative to calculations is to use logical operations
+		colorBlendingCreateInfo.attachmentCount = colorStates.size();
+		colorBlendingCreateInfo.pAttachments = colorStates.data();
 
 		// -- PIPELINE LAYOUT --
 
-		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
-		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutCreateInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
-		pipelineLayoutCreateInfo.pSetLayouts = descriptorSetLayouts.data();
-		pipelineLayoutCreateInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
-		pipelineLayoutCreateInfo.pPushConstantRanges = pushConstantRanges.empty() ? nullptr : pushConstantRanges.data();
-
-		VkResult result = vkCreatePipelineLayout(logicalDevice, &pipelineLayoutCreateInfo, nullptr, &mPipelineLayout);
-		if (result != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create pipeline layout!");
-		}
+		mPipelineLayout = createPipelineLayout(logicalDevice, descriptorSetLayouts, pushConstantRanges);
 
 		// -- DEPTH STENCIL TESTING --
 		VkPipelineDepthStencilStateCreateInfo depthStencilCreateInfo = {};
 		depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		depthStencilCreateInfo.depthTestEnable = VK_TRUE;
+		depthStencilCreateInfo.depthTestEnable = depthWriteEnable;
 		depthStencilCreateInfo.depthWriteEnable = depthWriteEnable;
 		depthStencilCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
 		depthStencilCreateInfo.depthBoundsTestEnable = VK_FALSE;	//Does depth value exists between bounds
@@ -166,9 +192,9 @@ namespace fre
 		pipelineCreateInfo.pInputAssemblyState = &inputAssembly;
 		pipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
 		pipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
-		pipelineCreateInfo.pMultisampleState = &multisamplineCreateInfo;
 		pipelineCreateInfo.pRasterizationState = &rasterizerCreateInfo;
-		pipelineCreateInfo.pColorBlendState = &colourBlendingCreateInfo;
+		pipelineCreateInfo.pMultisampleState = &multisamplingCreateInfo;
+		pipelineCreateInfo.pColorBlendState = &colorBlendingCreateInfo;
 		pipelineCreateInfo.pDepthStencilState = &depthStencilCreateInfo;
 		pipelineCreateInfo.layout = mPipelineLayout;
 		pipelineCreateInfo.renderPass = renderPass;
@@ -178,21 +204,37 @@ namespace fre
 		pipelineCreateInfo.basePipelineIndex = -1;	//or index of pipeline being created to derive from (in case creating multiple at once)
 
 		//Create graphics pipeline
-		result = vkCreateGraphicsPipelines(logicalDevice, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &mPipeline);
-		if (result != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create a graphics pipeline!");
-		}
-
-		//Destroy shader modules, no longer neede after Pipeline created
-		std::for_each(shaders.begin(), shaders.end(), [logicalDevice](VulkanShader& shader)
-			{shader.destroy(logicalDevice);}
-		);
+		VK_CHECK(vkCreateGraphicsPipelines(logicalDevice, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &mPipeline));
     }
+
+	void VulkanPipeline::create(
+        VkDevice logicalDevice,
+        VulkanShader& shader,
+        std::vector<VkDescriptorSetLayout> descriptorSetLayouts,
+		std::vector<VkPushConstantRange> pushConstantRanges)
+	{
+		mPipelineLayout = createPipelineLayout(logicalDevice, descriptorSetLayouts, pushConstantRanges);
+
+		VkComputePipelineCreateInfo pipelineInfo{};
+		pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+		pipelineInfo.layout = mPipelineLayout;
+		pipelineInfo.stage = getPipelineShaderStageCreateInfo(shader);
+
+		VK_CHECK(vkCreateComputePipelines(logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &mPipeline));
+
+		mIsCompute = true;
+
+		shader.destroy(logicalDevice);
+	}
 
 	void VulkanPipeline::destroy(VkDevice logicalDevice)
 	{
 		vkDestroyPipeline(logicalDevice, mPipeline, nullptr);
 		vkDestroyPipelineLayout(logicalDevice, mPipelineLayout, nullptr);
+	}
+
+	bool VulkanPipeline::isCompute() const
+	{
+		return mIsCompute;
 	}
 }

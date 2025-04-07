@@ -5,15 +5,17 @@ namespace fre
 	static uint32_t gMeshId = 0;
 
 	Mesh::Mesh()
-	: mId(gMeshId++)
+		: mId(gMeshId++)
+		, mGeneratedVerticesCount(0)
 	{
 	}
 
 	Mesh::Mesh(uint32_t materialId)
-	: mId(gMeshId++)
+		: mId(gMeshId++)
+		, mMaterialId(materialId)
+		, mGeneratedVerticesCount(0)
 	{
-		mModelMatrix = glm::mat4(1.0f);
-		mMaterialId = materialId;
+		
 	}
 
 	Mesh::~Mesh()
@@ -25,42 +27,28 @@ namespace fre
 		return mId;
 	}
 
-	void Mesh::addVertex(const Vertex& vertex)
+	void Mesh::setVertices(const Vertices& vertices, uint32_t vertexSize)
 	{
-		mVertices.push_back(vertex);
+		mVertices = vertices;
+		mVertexSize = vertexSize;
 	}
 
-	void Mesh::addIndex(const uint32_t index)
+	void Mesh::setIndices(const Indices& index)
 	{
-		mIndices.push_back(index);
+		mIndices = index;
 	}
 
-	void Mesh::setModelMatrix(glm::mat4 modelMatrix)
+	uint32_t Mesh::getVertexSize() const
 	{
-		mModelMatrix = modelMatrix;
+		return mVertexSize;
 	}
 
-	const glm::mat4& Mesh::getModelMatrix() const
+	uint32_t Mesh::getVertexCount() const
 	{
-		return mModelMatrix;
+		return mVertexSize > 0 ? static_cast<int>(mVertices.size() / mVertexSize) : 0;
 	}
 
-	int Mesh::getMaterialId() const
-	{
-		return mMaterialId;
-	}
-	
-	void Mesh::setMaterialId(int materialId)
-	{
-		mMaterialId = materialId;
-	}
-
-	int Mesh::getVertexCount() const
-	{
-		return static_cast<int>(mVertices.size());
-	}
-
-	int Mesh::getIndexCount() const
+	uint32_t Mesh::getIndexCount() const
 	{
 		return static_cast<int>(mIndices.size());
 	}

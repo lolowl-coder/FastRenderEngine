@@ -1,4 +1,5 @@
 #include "Renderer/VulkanSwapchain.hpp"
+#include "Log.hpp"
 
 #include <stdexcept>
 #include <array>
@@ -10,6 +11,8 @@ namespace fre
 		int8_t graphicsQueueFamilyId, int8_t presentationQueueFamilyId,
         VkSurfaceKHR surface)
 	{
+		LOG_INFO("Create swapchain");
+
 		//Get swap chain details so we can pick best settings
 		SwapChainDetails swapChainDetails = getSwapChainDetails(mainDevice.physicalDevice, surface);
 
@@ -71,17 +74,15 @@ namespace fre
 		swapChainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
 
 		//Create swapchain
-		VkResult result = vkCreateSwapchainKHR(mainDevice.logicalDevice, &swapChainCreateInfo, nullptr, &mSwapChain);
-		if (result != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create a swapchain!");
-		}
+		VK_CHECK(vkCreateSwapchainKHR(mainDevice.logicalDevice, &swapChainCreateInfo, nullptr, &mSwapChain));
 
 		//Store for later reference
 		mSwapChainImageFormat = surfaceFormat.format;
 		mSwapChainExtent = extent;
 
         createSwapChainImageViews(mainDevice);
+
+		LOG_INFO("Swapchain created");
 	}
 
     void VulkanSwapChain::destroy(VkDevice logicalDevice)
@@ -98,9 +99,9 @@ namespace fre
 	{
 		//Get swap chain images
 		uint32_t swapChainImageCount;
-		vkGetSwapchainImagesKHR(mainDevice.logicalDevice, mSwapChain, &swapChainImageCount, nullptr);
+		VK_CHECK(vkGetSwapchainImagesKHR(mainDevice.logicalDevice, mSwapChain, &swapChainImageCount, nullptr));
 		std::vector<VkImage> images(swapChainImageCount);
-		vkGetSwapchainImagesKHR(mainDevice.logicalDevice, mSwapChain, &swapChainImageCount, images.data());
+		VK_CHECK(vkGetSwapchainImagesKHR(mainDevice.logicalDevice, mSwapChain, &swapChainImageCount, images.data()));
 
 		mSwapChainImages.clear();
 		for (VkImage image : images)
@@ -123,26 +124,26 @@ namespace fre
 
 		//-- CAPABILITIES --
 		//Get the surface capabilities for the given surface on the given physical device
-		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &swapChainDetails.surfaceCapabilities);
+		VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &swapChainDetails.surfaceCapabilities));
 
 		//-- FORMATS --
 		uint32_t formatCount = 0;
-		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+		VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr));
 
 		if (formatCount != 0)
 		{
 			swapChainDetails.formats.resize(formatCount);
-			vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, swapChainDetails.formats.data());
+			VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, swapChainDetails.formats.data()));
 		}
 
 		//-- PRESENTATION MODES --
 		uint32_t presentationCount = 0;
-		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentationCount, nullptr);
+		VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentationCount, nullptr));
 
 		if (presentationCount != 0)
 		{
 			swapChainDetails.presentationModes.resize(presentationCount);
-			vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentationCount, swapChainDetails.presentationModes.data());
+			VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentationCount, swapChainDetails.presentationModes.data()));
 		}
 
 		return swapChainDetails;

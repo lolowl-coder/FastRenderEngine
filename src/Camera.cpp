@@ -3,42 +3,41 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 
+using namespace glm;
+
 namespace fre
 {
-    void Camera::setPerspectiveProjection(float fov, float aspectRatio, float near, float far)
+    void Camera::setPerspectiveProjection(float fov, float aspectRatio)
     {
         mFov = fov;
-        mNear = near;
-        mFar = far;
-        mProjection = glm::perspective(
-			glm::radians(fov),
+        mProjection = perspective(
+			radians(fov),
 			aspectRatio,
 			mNear, mFar);
 		//In Vulkan Up direction points down
         mProjection[1][1] *= -1.0f;
     }
 
-    void Camera::setOrthogonalProjection(float l, float r, float b, float t, float near, float far)
+    void Camera::setOrthogonalProjection(float l, float r, float b, float t)
     {
-        mNear = near;
-        mFar = far;
-        mProjection = glm::ortho(l, r, b, t, mNear, mFar);
+        mProjection = ortho(l, r, b, t, mNear, mFar);
 		mProjection[1][1] *= -1.0f;
     }
 
-    void Camera::rotateBy(const glm::vec3& rotationAngles)
+    void Camera::rotateBy(const vec3& rotationAngles)
     {
         mRotationAngles += rotationAngles;
+        mRotationAngles.x = std::min(mMaxPitch, std::max(mMinPitch, mRotationAngles.x));
     }
 
-    void Camera::translateBy(const glm::vec3& translation)
+    void Camera::translateBy(const vec3& translation)
     {
         setEye(mEye + translation);
     }
 
     void Camera::setMovement(EMovement movement, bool value)
     {
-        mMovement[movement] = value;
+        mMovement[static_cast<int>(movement)] = value;
     }
 
     void Camera::update(float timeDelta)
@@ -51,83 +50,104 @@ namespace fre
     void Camera::updateMovement(float timeDelta)
     {
         //std::cout << "movement: " << mMovement[0] << " " << mMovement[1] << " " << mMovement[2] << " " << mMovement[3] << std::endl;
-        if(mMovement[M_FORWARD])
+        if(mMovement[static_cast<int>(EMovement::M_FORWARD)])
         {
-            translateBy(mForward * mMovementSpeed * timeDelta);
+            translateBy(normalize(vec3(mForward.x, 0.0f, mForward.z)) * mMovementSpeed * timeDelta);
         }
-        else if(mMovement[M_BACKWARD])
+        else if(mMovement[static_cast<int>(EMovement::M_BACKWARD)])
         {
-            translateBy(-mForward * mMovementSpeed * timeDelta);
+            translateBy(normalize(- vec3(mForward.x, 0.0f, mForward.z)) * mMovementSpeed * timeDelta);
         }
         
-        if(mMovement[M_RIGHT])
+        if(mMovement[static_cast<int>(EMovement::M_RIGHT)])
         {
             translateBy(mRight * mMovementSpeed * timeDelta);
         }
-        else if(mMovement[M_LEFT])
+        else if(mMovement[static_cast<int>(EMovement::M_LEFT)])
         {
             translateBy(-mRight * mMovementSpeed * timeDelta);
         }
-        else if(mMovement[M_DOWN])
+        else if(mMovement[static_cast<int>(EMovement::M_DOWN)])
         {
-            translateBy(glm::vec3(0.0f, 1.0f, 0.0f) * mMovementSpeed * timeDelta);
+            translateBy(vec3(0.0f, 1.0f, 0.0f) * mMovementSpeed * timeDelta);
         }
-        else if(mMovement[M_UP])
+        else if(mMovement[static_cast<int>(EMovement::M_UP)])
         {
-            translateBy(glm::vec3(0.0f, -1.0f, 0.0f) * mMovementSpeed * timeDelta);
+            translateBy(vec3(0.0f, -1.0f, 0.0f) * mMovementSpeed * timeDelta);
         }
     }
 
     void Camera::updateViewMatrix()
     {
-		glm::mat4 rotation = glm::mat4(1.0f);
+		mat4 rotation = mat4(1.0f);
 
-		rotation = glm::rotate(rotation, glm::radians(mRotationAngles.x), glm::vec3(1.0f, 0.0f, 0.0f));
-		rotation = glm::rotate(rotation, glm::radians(mRotationAngles.y), glm::vec3(0.0f, 1.0f, 0.0f));
-        rotation = glm::rotate(rotation, glm::radians(mRotationAngles.z), glm::vec3(0.0f, 0.0f, 1.0f));
+		rotation = rotate(rotation, radians(mRotationAngles.x), vec3(1.0f, 0.0f, 0.0f));
+		rotation = rotate(rotation, radians(mRotationAngles.y), vec3(0.0f, 1.0f, 0.0f));
+        rotation = rotate(rotation, radians(mRotationAngles.z), vec3(0.0f, 0.0f, 1.0f));
 
-		glm::mat4 translation;
-		translation = glm::translate(glm::mat4(1.0f), mEye);
+		mat4 translation;
+		translation = translate(mat4(1.0f), mEye);
+        mat4 invTranslation;
+		invTranslation = translate(mat4(1.0f), -mEye);
 
-		mView = rotation * translation;
+        mat4 scaling = scale(mat4(1.0f), vec3(mZoom));
+
+        if(mIsFirstPerson)
+        {
+            mView = scaling * rotation * translation;
+        }
+        else
+        {
+            mView = translation * rotation * scaling;
+        }
     }
 
     void Camera::updateVectors()
     {
-        mForward.x = -cos(glm::radians(mRotationAngles.x)) * sin(glm::radians(mRotationAngles.y));
-        mForward.y = sin(glm::radians(mRotationAngles.x));
-        mForward.z = cos(glm::radians(mRotationAngles.x)) * cos(glm::radians(mRotationAngles.y));
-        mForward = glm::normalize(mForward);
+        //if(mIsFirstPerson)
+        {
+            mForward.x = -cos(radians(mRotationAngles.x)) * sin(radians(mRotationAngles.y));
+            mForward.y = sin(radians(mRotationAngles.x));
+            mForward.z = cos(radians(mRotationAngles.x)) * cos(radians(mRotationAngles.y));
+            mForward = normalize(mForward);
+        }
+        /*else
+        {
+            mForward.x = -cos(radians(-mRotationAngles.x)) * sin(radians(-mRotationAngles.y));
+            mForward.y = sin(radians(-mRotationAngles.x));
+            mForward.z = cos(radians(-mRotationAngles.x)) * cos(radians(-mRotationAngles.y));
+            mForward = normalize(mForward);
+        }*/
 
-        mRight = glm::normalize(glm::cross(mForward, glm::vec3(0.0f, 1.0f, 0.0f)));
-        mUp = glm::normalize(glm::cross(mRight, mForward));
+        mRight = normalize(cross(mForward, vec3(0.0f, 1.0f, 0.0f)));
+        mUp = normalize(cross(mRight, mForward));
 
         //std::cout << "forward: " << mForward.x << " " << mForward.y << " " << mForward.z << std::endl;
     }
 
-    const glm::vec3& Camera::getForward() const
+    const vec3& Camera::getForward() const
     {
         return mForward;
     }
 
-    const glm::vec3& Camera::getRight() const
+    const vec3& Camera::getRight() const
     {
         return mRight;
     }
 
-    const glm::vec3& Camera::getUp() const
+    const vec3& Camera::getUp() const
     {
         return mUp;
     }
 
-    const glm::vec3& Camera::getEye() const
+    const vec3& Camera::getEye() const
     {
         return mEye;
     }
 
-    void Camera::setEye(const glm::vec3& eye)
+    void Camera::setEye(const vec3& eye)
     {
         mEye = eye;
-        std::cout << "Camera eye: " << mEye.x << ", " << mEye.y << ", " << mEye.z << std::endl;
+        //std::cout << "Camera eye: " << mEye.x << ", " << mEye.y << ", " << mEye.z << std::endl;
     }
 }

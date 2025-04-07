@@ -1,4 +1,5 @@
 #include "Renderer/VulkanDescriptorPool.hpp"
+#include "Utilities.hpp"
 
 #include <stdexcept>
 
@@ -7,20 +8,12 @@ namespace fre
     void VulkanDescriptorPool::create(
 		VkDevice logicalDevice,
 		VkDescriptorPoolCreateFlags flags,
-		uint32_t count,
-		std::vector<VkDescriptorType> descriptorTypes)
+		uint32_t setsCount,
+		const std::vector<VkDescriptorPoolSize>& poolSizes)
     {
         //CREATE UNIFORM DESCRIPTOR POOL
 		
 		//Type of descriptors + how many descriptors, not descriptor sets (combined makes the pool size)
-		//ViewProjection Pool
-		std::vector<VkDescriptorPoolSize> poolSizes;
-		poolSizes.resize(descriptorTypes.size());
-		for(uint32_t i = 0; i < poolSizes.size(); i++)
-		{
-			poolSizes[i].type = descriptorTypes[i];
-			poolSizes[i].descriptorCount = count;
-		}
 
 		//ModelMatrix Pool (dynamic)
 		/*VkDescriptorPoolSize modelPoolSize = {};
@@ -32,18 +25,14 @@ namespace fre
 		poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		poolCreateInfo.flags = flags;
         //Maximum number of descriptor sets that can be created from pool
-		poolCreateInfo.maxSets = count;
+		poolCreateInfo.maxSets = setsCount;
         //Amount of pool sizes being passed
 		poolCreateInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         //Pool sizes to create pool with
 		poolCreateInfo.pPoolSizes = poolSizes.data();
 
 		//Create descriptor pool
-		VkResult result = vkCreateDescriptorPool(logicalDevice, &poolCreateInfo, nullptr, &mDescriptorPool);
-		if (result != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create Descriptor Pool!");
-		}
+		VK_CHECK(vkCreateDescriptorPool(logicalDevice, &poolCreateInfo, nullptr, &mDescriptorPool));
     }
 
     void VulkanDescriptorPool::destroy(VkDevice logicalDevice)
