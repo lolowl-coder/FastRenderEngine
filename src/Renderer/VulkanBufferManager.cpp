@@ -17,9 +17,14 @@ namespace fre
     {
         for(auto& buffer : mBuffers)
         {
-            vkDestroyBuffer(logicalDevice, buffer.mBuffer, nullptr);
-            vkFreeMemory(logicalDevice, buffer.mBufferMemory, nullptr);
+			destroyBuffer(logicalDevice, buffer);
         }
+    }
+
+    void VulkanBufferManager::destroyBuffer(VkDevice logicalDevice, VulkanBuffer& buffer)
+    {
+		vkDestroyBuffer(logicalDevice, buffer.mBuffer, nullptr);
+		vkFreeMemory(logicalDevice, buffer.mBufferMemory, nullptr);
     }
 
 	VulkanBuffer VulkanBufferManager::createStagingBuffer(const MainDevice& mainDevice, VkQueue transferQueue,
@@ -29,10 +34,13 @@ namespace fre
 
 		fre::createBuffer(mainDevice, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			&result.mBuffer, &result.mBufferMemory);
+			VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
+			&result.mBuffer, &result.mDeviceAddress, &result.mBufferMemory);
 
 		//MAP MEMORY TO BUFFER
-		void* mappedData;		//1. Create pointer to a point in normal memory
+		
+		//Create pointer to a point in CPU memory
+		void* mappedData;
 		//Map the vertex buffer memory to that point
 		VK_CHECK(vkMapMemory(mainDevice.logicalDevice, result.mBufferMemory, 0, size, 0, &mappedData));
 		//Copy memory from vertices vector to the point
@@ -51,24 +59,24 @@ namespace fre
 		VkMemoryPropertyFlags memoryFlags, const void* data, size_t size)
 	{
 		//Temporary buffer to "stage" vertex data before transferring to GPU
-		VkBuffer stagingBuffer;
-		VkDeviceMemory stagingBufferMemory;
+		VulkanBuffer stagingBuffer;
 
 		try
 		{
 			//Create buffer and allocate memory for it
 			fre::createBuffer(mainDevice, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				&stagingBuffer, &stagingBufferMemory);
+				VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
+				&stagingBuffer.mBuffer, &stagingBuffer.mDeviceAddress, &stagingBuffer.mBufferMemory);
 
 			//MAP MEMORY TO BUFFER
 			void* mappedData;		//1. Create pointer to a point in normal memory
 			//Map the vertex buffer memory to that point
-			VK_CHECK(vkMapMemory(mainDevice.logicalDevice, stagingBufferMemory, 0, size, 0, &mappedData));
+			VK_CHECK(vkMapMemory(mainDevice.logicalDevice, stagingBuffer.mBufferMemory, 0, size, 0, &mappedData));
 			//Copy memory from vertices vector to the point
 			memcpy(mappedData, data, size);
 			//Unamp vertex buffer memory
-			vkUnmapMemory(mainDevice.logicalDevice, stagingBufferMemory);
+			vkUnmapMemory(mainDevice.logicalDevice, stagingBuffer.mBufferMemory);
 		}
 		catch (std::runtime_error& e)
 		{
@@ -84,15 +92,16 @@ namespace fre
 		//Create destination vertex buffer for GPU memory
 		fre::createBuffer(mainDevice, size,
 			VK_BUFFER_USAGE_TRANSFER_DST_BIT | bufferUsage,
-			memoryFlags, &buffer.mBuffer, &buffer.mBufferMemory);
+			VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
+			memoryFlags, &buffer.mBuffer, &buffer.mDeviceAddress, &buffer.mBufferMemory);
 
 		//Copy staging buffer to vertex buffer on GPU
-		copyBuffer(mainDevice.logicalDevice, transferQueue, transferCommandPool, stagingBuffer,
+		copyBuffer(mainDevice.logicalDevice, transferQueue, transferCommandPool, stagingBuffer.mBuffer,
 			buffer.mBuffer, size);
 
 		//Clean up staging buffer parts
-		vkDestroyBuffer(mainDevice.logicalDevice, stagingBuffer, nullptr);
-		vkFreeMemory(mainDevice.logicalDevice, stagingBufferMemory, nullptr);
+		vkDestroyBuffer(mainDevice.logicalDevice, stagingBuffer.mBuffer, nullptr);
+		vkFreeMemory(mainDevice.logicalDevice, stagingBuffer.mBufferMemory, nullptr);
 
 		return buffer;
 	}

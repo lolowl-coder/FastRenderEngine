@@ -13,12 +13,15 @@ namespace fre
     {
         VkBuffer mBuffer = VK_NULL_HANDLE;
 		VkDeviceMemory mBufferMemory = VK_NULL_HANDLE;
+        uint64_t mDeviceAddress = 0;
     };
 
     struct VulkanBufferManager
     {
         void destroy(VkDevice logicalDevice);
         
+        void destroyBuffer(VkDevice logicalDevice, VulkanBuffer& buffer);
+
         VulkanBuffer createStagingBuffer(const MainDevice& mainDevice, VkQueue transferQueue,
 		    VkCommandPool transferCommandPool, const void* data, size_t size);
         const VulkanBuffer& createBuffer(const MainDevice& mainDevice, VkQueue transferQueue,

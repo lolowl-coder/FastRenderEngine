@@ -15,5 +15,6 @@ namespace app
 	protected:
 		virtual void requestExtensions() override;
 		virtual void requestDeviceFeatures() override;
+		virtual bool isRayTracingSupported() { return true; }
 	};
 }

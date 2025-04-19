@@ -34,4 +34,37 @@ namespace fre
 		//Stop recording
 		VK_CHECK(vkEndCommandBuffer(mCommandBuffer));
     }
+
+    void VulkanCommandBuffer::flush(VkDevice device, VkQueue queue, const VkFence fence, const std::vector<VkSemaphore>& signalSemaphores) const
+	{
+		if(mCommandBuffer == VK_NULL_HANDLE)
+		{
+			return;
+		}
+
+		VK_CHECK(vkEndCommandBuffer(mCommandBuffer));
+
+		VkSubmitInfo submit_info{};
+		submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submit_info.commandBufferCount = 1;
+		submit_info.pCommandBuffers = &mCommandBuffer;
+		if(!signalSemaphores.empty())
+		{
+			submit_info.pSignalSemaphores = signalSemaphores.data();
+			submit_info.signalSemaphoreCount = signalSemaphores.size();
+		}
+
+		// Submit to the queue
+		VkResult result = vkQueueSubmit(queue, 1, &submit_info, fence);
+		// Wait for the fence to signal that command buffer has finished executing
+		VK_CHECK(vkWaitForFences(device, 1, &fence, VK_TRUE, MAX(uint64_t)));
+	}
+
+	void VulkanCommandBuffer::free(VkDevice device, VkCommandPool commandPool)
+	{
+		if(commandPool && free)
+		{
+			vkFreeCommandBuffers(device, commandPool, 1, &mCommandBuffer);
+		}
+	}
 }

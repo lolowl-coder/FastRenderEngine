@@ -1,3 +1,4 @@
+#include "Renderer/VulkanBufferManager.hpp"
 #include "Renderer/VulkanTextureManager.hpp"
 #include "Renderer/VulkanImage.hpp"
 #include "Log.hpp"
@@ -154,11 +155,12 @@ namespace fre
 		Image& image)
 	{
 		//Create staging buffer to hold loaded data, ready to copy to device
-		VkBuffer imageStagingBuffer;
+		VulkanBuffer imageStagingBuffer;
 		VkDeviceMemory imageStagingBufferMemory;
 		createBuffer(mainDevice, image.mDataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			&imageStagingBuffer, &imageStagingBufferMemory);
+			VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
+			&imageStagingBuffer.mBuffer, &imageStagingBuffer.mDeviceAddress, &imageStagingBuffer.mBufferMemory);
 
 		//Copy image data to staging buffer
 		void* data;
@@ -172,7 +174,7 @@ namespace fre
 		{
 			memset(data, 0, static_cast<size_t>(image.mDataSize));
 		}
-		vkUnmapMemory(mainDevice.logicalDevice, imageStagingBufferMemory);
+		vkUnmapMemory(mainDevice.logicalDevice, imageStagingBuffer.mBufferMemory);
 
 		//Create image to hold final texture
 		VkImage texImage;
@@ -198,7 +200,7 @@ namespace fre
 			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
 		copyImageBuffer(mainDevice.logicalDevice, transferQueueFamilyId, graphicsQueueFamilyId, queue, commandPool,
-			imageStagingBuffer, texImage, image.mDimension.x, image.mDimension.y);
+			imageStagingBuffer.mBuffer, texImage, image.mDimension.x, image.mDimension.y);
 
 		//Transition image to be shader readable for shader usage
 		transitionImageLayout(mainDevice.logicalDevice, queue, commandPool, texImage, VK_IMAGE_ASPECT_COLOR_BIT,
@@ -207,8 +209,8 @@ namespace fre
 		mTextureImages[image.mId] = texImage;
 
 		//Destroy staging buffers
-		vkDestroyBuffer(mainDevice.logicalDevice, imageStagingBuffer, nullptr);
-		vkFreeMemory(mainDevice.logicalDevice, imageStagingBufferMemory, nullptr);
+		vkDestroyBuffer(mainDevice.logicalDevice, imageStagingBuffer.mBuffer, nullptr);
+		vkFreeMemory(mainDevice.logicalDevice, imageStagingBuffer.mBufferMemory, nullptr);
 
 		image.destroy();
 	}

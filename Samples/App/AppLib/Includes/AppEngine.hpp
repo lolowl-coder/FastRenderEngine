@@ -1,9 +1,12 @@
 #pragma once
 
 #include "Renderer/VulkanShader.hpp"
+#include "Renderer/VulkanBufferManager.hpp"
+#include "Renderer/VulkanAccelerationStructure.hpp"
 #include "Engine.hpp"
 #include "Utilities.hpp"
 #include "Options.hpp"
+#include "Pointers.hpp"
 
 #include <filesystem>
 
@@ -22,6 +25,7 @@ namespace app
 
         virtual void setupCamera(const fre::BoundingBox2D& viewport);
 
+        virtual bool createCoreGPUResources() override;
         virtual bool createMeshGPUResources() override;
         virtual bool createLoadableGPUResources() override;
 
@@ -61,6 +65,8 @@ namespace app
         int getMainMenuHeight() const;
         fre::BoundingBox2D getMainViewport();
         fre::BoundingBox2D getCurrentViewport();
+        void createAS();
+        void createScene();
 
     private:
         //Render camera
@@ -69,5 +75,11 @@ namespace app
         fre::Camera mLastCamera;
 		uint64_t mFrameNumber = 0;
         int mMainMenuHeight = 24;
+
+        fre::VulkanBuffer mVertexBuffer;
+        fre::VulkanBuffer mIndexBuffer;
+        fre::VulkanBuffer mTransformMatrixBuffer;
+        fre::AccelerationStructure mBLAS;
+        fre::AccelerationStructure mTLAS;
     };
 }

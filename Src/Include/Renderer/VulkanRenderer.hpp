@@ -71,7 +71,9 @@ namespace fre
 		Image* createImage(bool isExternal) { return &mTextureManager.createImage(isExternal); }
 		Image* getImage(uint32_t id);
 
-		AccelerationStructure& createAccelerationStructure();
+		AccelerationStructure& createBLAS(VulkanBuffer& vbo, VulkanBuffer& ibo, VulkanBuffer& transform);
+		AccelerationStructure& createTLAS(const uint64_t refBlasAddress, const VkTransformMatrixKHR& transform);
+		AccelerationStructure& buildAccelerationStructure(VkAccelerationStructureGeometryKHR& acceleration_structure_geometry, const VkAccelerationStructureTypeKHR asType);
 		void destroyAccelerationStructure(AccelerationStructure& accelerationStructure);
 
 		void updateTextureImage(uint32_t imageId, Image& image);
@@ -277,6 +279,8 @@ namespace fre
 		virtual void renderSubPass(uint32_t subPassIndex, const Camera& camera,
 			const Light& light);
 
+		virtual bool isRayTracingSupported() { return false; }
+
 	private:
 		void loadShader(const std::string& shadeFilerName);
 		void loadUsedShaders();
@@ -404,8 +408,8 @@ namespace fre
 
 		int mFogShaderId = -1;
 
-		std::vector<VkBuffer> mVPUniformBuffer;
-		std::vector<VkDeviceMemory> mVPUniformBufferMemory;
+		//std::vector<VkBuffer> mUniformBuffers;
+		//std::vector<VkDeviceMemory> mVPUniformBufferMemory;
 
 		/*std::vector<VkBuffer> modelDUniformBuffer;
 		std::vector<VkDeviceMemory> modelDUniformBufferMemory;
@@ -422,7 +426,9 @@ namespace fre
 		VkCommandPool mTransferCommandPool = VK_NULL_HANDLE;
 		VkCommandPool mComputeCommandPool = VK_NULL_HANDLE;
 
-		// - Acceleration structures
+		// - Ray tracing
+		VkPhysicalDeviceRayTracingPipelinePropertiesKHR  mRayTracingPipelineProperties{};
+		VkPhysicalDeviceAccelerationStructureFeaturesKHR mAccelerationStructureFeatures{};
 		std::vector<AccelerationStructure> mAccelerationStructures;
 
 		// - Synchronization

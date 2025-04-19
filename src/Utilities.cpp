@@ -71,7 +71,7 @@ namespace fre
 	}
 
     void createBuffer(const MainDevice& mainDevice, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage,
-		VkMemoryPropertyFlags bufferProperties, VkBuffer* buffer, VkDeviceMemory* bufferMemory)
+		VkMemoryPropertyFlags bufferProperties, VkMemoryAllocateFlags allocFlags, VkBuffer* buffer, uint64_t* deviceAddress, VkDeviceMemory* bufferMemory)
 	{
 		//Information to create a buffer (doesn't include assigning memory)
 		VkBufferCreateInfo bufferInfo = {};
@@ -88,9 +88,14 @@ namespace fre
 		VkMemoryRequirements memRequirements;
 		vkGetBufferMemoryRequirements(mainDevice.logicalDevice, *buffer, &memRequirements);
 
+		VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo = {};
+		memoryAllocateFlagsInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO;
+		memoryAllocateFlagsInfo.flags = allocFlags;
+
 		//ALLOCATE MEMORY TO BUFFER
 		VkMemoryAllocateInfo memoryAllocInfo = {};
 		memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		memoryAllocInfo.pNext = &memoryAllocateFlagsInfo;
 		memoryAllocInfo.allocationSize = memRequirements.size;
 		//index of memory type on Physical Device that has required bit flags
 		memoryAllocInfo.memoryTypeIndex = findMemoryTypeIndex(mainDevice.physicalDevice, memRequirements.memoryTypeBits,
@@ -103,6 +108,11 @@ namespace fre
 
 		//Allocate memory for given buffer
 		VK_CHECK(vkBindBufferMemory(mainDevice.logicalDevice, *buffer, *bufferMemory, 0));
+
+		VkBufferDeviceAddressInfoKHR buffer_device_address_info{};
+		buffer_device_address_info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+		buffer_device_address_info.buffer = *buffer;
+		*deviceAddress = vkGetBufferDeviceAddressKHR(mainDevice.logicalDevice, &buffer_device_address_info);
 	}
 
     VkCommandBuffer beginCommandBuffer(VkDevice device, VkCommandPool commandPool)

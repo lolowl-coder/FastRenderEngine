@@ -101,7 +101,7 @@ namespace fre
 	uint32_t findMemoryTypeIndex(VkPhysicalDevice physicalDevice, uint32_t allowedTypes, VkMemoryPropertyFlags properties);
 
 	void createBuffer(const MainDevice& mainDevice, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage,
-		VkMemoryPropertyFlags bufferProperties, VkBuffer* buffer, VkDeviceMemory* bufferMemory);
+		VkMemoryPropertyFlags bufferProperties, VkMemoryAllocateFlags allocFlags, VkBuffer* buffer, uint64_t* deviceAddress, VkDeviceMemory* bufferMemory);
 
 	VkCommandBuffer beginCommandBuffer(VkDevice device, VkCommandPool commandPool);
 
