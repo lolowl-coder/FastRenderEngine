@@ -10,6 +10,8 @@ namespace fre
         const std::vector<VkDescriptorType>& descriptorTypes,
         const std::vector<uint32_t>& stageFlags)
     {
+		assert(descriptorTypes.size() == stageFlags.size());
+
         std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
         layoutBindings.resize(descriptorTypes.size());
 		assert(descriptorTypes.size() == stageFlags.size());

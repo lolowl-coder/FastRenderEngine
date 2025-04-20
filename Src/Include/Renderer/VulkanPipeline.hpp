@@ -12,7 +12,7 @@ namespace fre
 
     struct VulkanPipeline
     {
-        void create(
+        void createGeometryPipeline(
             VkDevice logicalDevice,
             std::vector<VulkanShader*> shaders,
             VkPrimitiveTopology topology,
@@ -27,11 +27,13 @@ namespace fre
             float lineWidth,
             VkCullModeFlags cullMode);
 
-        void create(
+        void createComputePipeline(
             VkDevice logicalDevice,
             VulkanShader& shader,
             std::vector<VkDescriptorSetLayout> descriptorSetLayouts,
 		    std::vector<VkPushConstantRange> pushConstantRanges);
+
+        void createRTPipeline
 
         void destroy(VkDevice logicalDevice);
 

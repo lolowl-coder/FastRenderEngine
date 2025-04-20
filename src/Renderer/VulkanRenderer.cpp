@@ -1188,7 +1188,7 @@ namespace fre
 					shader.mComputePipelineIds.push_back(static_cast<uint32_t>(mPipelines.size()));
 					mPipelines.push_back(VulkanPipeline());
 					auto& pipeline = mPipelines.back();
-					pipeline.create(
+					pipeline.createComputePipeline(
 						mainDevice.logicalDevice,
 						shader.mComputeShader,
 						shaderMetaData.mDescriptorSetLayouts,
@@ -1202,7 +1202,7 @@ namespace fre
 					shader.mGraphicsPipelineIds.push_back(static_cast<uint32_t>(mPipelines.size()));
 					mPipelines.push_back(VulkanPipeline());
 					auto& pipeline = mPipelines.back();
-					pipeline.create(
+					pipeline.createGeometryPipeline(
 						mainDevice.logicalDevice,
 						{&shader.mVertexShader, &shader.mFragmentShader},
 						shaderMetaData.mTopology,
@@ -1218,6 +1218,15 @@ namespace fre
 						shaderMetaData.mCullMode
 					);
 				}
+
+				if(shader.mRTShader.mShaderModule != VK_NULL_HANDLE)
+				{
+					shader.mRTPipelineIds.push_back(static_cast<uint32_t>(mPipelines.size()));
+					mPipelines.push_back(VulkanPipeline());
+					auto& pipeline = mPipelines.back();
+					pipeline.createRTPipeline();
+				}
+
 			}
 			
 			//Destroy shader modules, no longer neede after Pipeline created
@@ -2382,9 +2391,35 @@ namespace fre
 			};
 			md.mPushConstantRanges = {mModelMatrixPCR, mLightingPCR};
 			md.mPushConstantsCallback = commonPushConstantsCallback;
-			md.mBindDescriptorSetsCallback = commonBindDescriptorSetsCallback;
+			md.mBindDescriptorSetsCallback =
+			[this, md](const Mesh::Ptr& mesh, const Material& material, VkPipelineLayout pipelineLayout, uint32_t instanceId)
+			{
+				std::vector<VkDescriptorSet> descriptorSets;
+				throw::std::runtime_error("Not all descriptorsets passet to rt shader");
+				for(const auto textureId : material.mTextureIds)
+				{
+					descriptorSets.push_back(getSamplerDS(textureId.second, false));
+				}
+
+				bindDescriptorSets(pipelineLayout, descriptorSets, false);
+			};
 			md.mDepthTestEnabled = true;
 			md.mVertexSize = sizeof(Vertex);
+			md.mSubPassIndex = 0;
+
+			result.push_back(md);
+		}
+		if(shaderFileName == "rt")
+		{
+			ShaderMetaData md;
+			auto asLayout = addDescriptorSetLayout(
+				{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE},
+				{VK_SHADER_STAGE_RAYGEN_BIT_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR});
+			md.mDescriptorSetLayouts.push_back(asLayout->mDescriptorSetLayout);
+			md.mPushConstantRanges = {mModelMatrixPCR, mLightingPCR};
+			md.mPushConstantsCallback = commonPushConstantsCallback;
+			md.mBindDescriptorSetsCallback = commonBindDescriptorSetsCallback;
+			md.mDepthTestEnabled = true;
 			md.mSubPassIndex = 0;
 
 			result.push_back(md);

@@ -22,10 +22,12 @@ namespace fre
         VulkanShader mVertexShader;
         VulkanShader mFragmentShader;
         VulkanShader mComputeShader;
+        VulkanShader mRTShader;
         //Name for debugging purposes
         std::string mName;
         //Pipeline associated with this shader
         std::vector<uint32_t> mGraphicsPipelineIds;
         std::vector<uint32_t> mComputePipelineIds;
+        std::vector<uint32_t> mRTPipelineIds;
     };
 }
