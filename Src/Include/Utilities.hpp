@@ -98,10 +98,25 @@ namespace fre
 
 	std::vector<char> readFile(const std::string& fileName);
 
+	inline uint32_t alignedSize(uint32_t value, uint32_t alignment)
+	{
+		return (value + alignment - 1) & ~(alignment - 1);
+	}
+
 	uint32_t findMemoryTypeIndex(VkPhysicalDevice physicalDevice, uint32_t allowedTypes, VkMemoryPropertyFlags properties);
 
+
+	inline uint64_t getBufferDeviceAddress(VkDevice device, VkBuffer buffer)
+	{
+		VkBufferDeviceAddressInfoKHR buffer_device_address_info{};
+		buffer_device_address_info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+		buffer_device_address_info.buffer = buffer;
+		return vkGetBufferDeviceAddressKHR(device, &buffer_device_address_info);
+	}
+
 	void createBuffer(const MainDevice& mainDevice, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage,
-		VkMemoryPropertyFlags bufferProperties, VkMemoryAllocateFlags allocFlags, VkBuffer* buffer, uint64_t* deviceAddress, VkDeviceMemory* bufferMemory);
+		VkMemoryPropertyFlags bufferProperties, VkMemoryAllocateFlags allocFlags,
+		VkBuffer* buffer, uint64_t* deviceAddress, VkDeviceMemory* bufferMemory);
 
 	VkCommandBuffer beginCommandBuffer(VkDevice device, VkCommandPool commandPool);
 

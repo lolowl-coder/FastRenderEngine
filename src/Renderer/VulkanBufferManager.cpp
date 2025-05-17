@@ -15,7 +15,8 @@ namespace fre
 {
     void VulkanBufferManager::destroy(VkDevice logicalDevice)
     {
-        for(auto& buffer : mBuffers)
+		auto buffersToDestroy = mBuffers;
+        for(auto& buffer : buffersToDestroy)
         {
 			destroyBuffer(logicalDevice, buffer);
         }
@@ -23,8 +24,14 @@ namespace fre
 
     void VulkanBufferManager::destroyBuffer(VkDevice logicalDevice, VulkanBuffer& buffer)
     {
+        auto& bufferIt = std::find(mBuffers.begin(), mBuffers.end(), buffer);
+        if(bufferIt != mBuffers.end())
+		{
+			mBuffers.erase(bufferIt);
+		}
 		vkDestroyBuffer(logicalDevice, buffer.mBuffer, nullptr);
 		vkFreeMemory(logicalDevice, buffer.mBufferMemory, nullptr);
+        LOG_TRACE("Buffer destroyed: {}", (uint64_t)buffer.mBuffer);
     }
 
 	VulkanBuffer VulkanBufferManager::createStagingBuffer(const MainDevice& mainDevice, VkQueue transferQueue,
@@ -34,8 +41,8 @@ namespace fre
 
 		fre::createBuffer(mainDevice, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
-			&result.mBuffer, &result.mDeviceAddress, &result.mBufferMemory);
+			0,
+			&result.mBuffer, nullptr, &result.mBufferMemory);
 
 		//MAP MEMORY TO BUFFER
 		
@@ -55,7 +62,7 @@ namespace fre
     
     //Data size in bytes. Example: sizeof(Vertex) * mVertices.size();
     const VulkanBuffer& VulkanBufferManager::createBuffer(const MainDevice& mainDevice, VkQueue transferQueue,
-		VkCommandPool transferCommandPool, VkBufferUsageFlagBits bufferUsage,
+		VkCommandPool transferCommandPool, VkBufferUsageFlags bufferUsage,
 		VkMemoryPropertyFlags memoryFlags, const void* data, size_t size)
 	{
 		//Temporary buffer to "stage" vertex data before transferring to GPU
@@ -66,16 +73,24 @@ namespace fre
 			//Create buffer and allocate memory for it
 			fre::createBuffer(mainDevice, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
-				&stagingBuffer.mBuffer, &stagingBuffer.mDeviceAddress, &stagingBuffer.mBufferMemory);
+				0,
+				&stagingBuffer.mBuffer, nullptr, &stagingBuffer.mBufferMemory);
 
 			//MAP MEMORY TO BUFFER
-			void* mappedData;		//1. Create pointer to a point in normal memory
-			//Map the vertex buffer memory to that point
+			//1. Create pointer in CPU-side memory
+			void* mappedData;
+			//Map the vertex buffer memory to that pointer
 			VK_CHECK(vkMapMemory(mainDevice.logicalDevice, stagingBuffer.mBufferMemory, 0, size, 0, &mappedData));
-			//Copy memory from vertices vector to the point
-			memcpy(mappedData, data, size);
-			//Unamp vertex buffer memory
+			if(data != nullptr)
+			{
+				//Copy memory from vertices vector to the point
+				memcpy(mappedData, data, size);
+			}
+			else
+			{
+                memset(mappedData, 0, size);
+			}
+			//Unamp buffer memory
 			vkUnmapMemory(mainDevice.logicalDevice, stagingBuffer.mBufferMemory);
 		}
 		catch (std::runtime_error& e)
@@ -90,10 +105,11 @@ namespace fre
 		mBuffers.push_back(VulkanBuffer());
 		auto& buffer = mBuffers.back();
 		//Create destination vertex buffer for GPU memory
+		const bool deviceAddressRequested = (bufferUsage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) != 0;
 		fre::createBuffer(mainDevice, size,
 			VK_BUFFER_USAGE_TRANSFER_DST_BIT | bufferUsage,
-			VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
-			memoryFlags, &buffer.mBuffer, &buffer.mDeviceAddress, &buffer.mBufferMemory);
+			memoryFlags, deviceAddressRequested ? VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR : 0,
+			&buffer.mBuffer, deviceAddressRequested ? &buffer.mDeviceAddress : nullptr, &buffer.mBufferMemory);
 
 		//Copy staging buffer to vertex buffer on GPU
 		copyBuffer(mainDevice.logicalDevice, transferQueue, transferCommandPool, stagingBuffer.mBuffer,
@@ -107,7 +123,7 @@ namespace fre
 	}
 
 	const VulkanBuffer& VulkanBufferManager::createExternalBuffer(
-		const MainDevice& mainDevice, VkBufferUsageFlagBits bufferUsage,
+		const MainDevice& mainDevice, VkBufferUsageFlags bufferUsage,
             VkMemoryPropertyFlags memoryFlags, VkExternalMemoryHandleTypeFlagsKHR extMemHandleType, VkDeviceSize size)
 	{
 		VkBufferCreateInfo bufferInfo = {};
@@ -128,6 +144,10 @@ namespace fre
 		if(vkCreateBuffer(mainDevice.logicalDevice, &bufferInfo, nullptr, &buffer.mBuffer) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create buffer!");
+		}
+		else
+		{
+            LOG_TRACE("External Vulkan buffer created: {}", (uint64_t)buffer.mBuffer);
 		}
 
 		VkMemoryRequirements memRequirements;

@@ -198,7 +198,7 @@ function(buildApp appName sources headers libs includes)
 	# Shaders
 	set (SHADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Data/Shaders)
 	# Get a list of all shaders in the shaders directory
-	file(GLOB_RECURSE SHADER_SOURCES "${SHADERS_DIR}/*.vert" "${SHADERS_DIR}/*.frag" "${SHADERS_DIR}/*.comp")
+	file(GLOB_RECURSE SHADER_SOURCES "${SHADERS_DIR}/*.vert" "${SHADERS_DIR}/*.frag" "${SHADERS_DIR}/*.comp" "${SHADERS_DIR}/*.rgen" "${SHADERS_DIR}/*.rchit" "${SHADERS_DIR}/*.rmiss")
 
 	# Create a source group for the shaders
 	source_group("Shaders" FILES ${SHADER_SOURCES})
@@ -217,7 +217,10 @@ function(buildApp appName sources headers libs includes)
 		# Add a custom command to compile the shader
 		add_custom_command(
 			OUTPUT ${SPV_FILE}
-			COMMAND glslc -o ${SPV_FILE} ${SHADER}
+            #glslc -std=450 --target-spv=spv1.4 -mfmt=num --target-env=vulkan1.2 -o shader.rchit.spv shader.rchit
+			#COMMAND glslc -std=460 --target-spv=spv1.4 -mfmt=num --target-env=vulkan1.2 -o ${SPV_FILE} ${SHADER}
+		    COMMAND glslc --target-spv=spv1.4 -o ${SPV_FILE} ${SHADER}
+			#COMMAND glslc -o ${SPV_FILE} ${SHADER}
 			DEPENDS ${SHADER}
 		)
 	endforeach()

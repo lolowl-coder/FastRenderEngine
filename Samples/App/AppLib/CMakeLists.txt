@@ -13,7 +13,7 @@ set(HEADERS
 	"${CMAKE_CURRENT_SOURCE_DIR}/Includes/AppData.hpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/Includes/AppEngine.hpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/Includes/Options.hpp"
-	"${CMAKE_CURRENT_SOURCE_DIR}/Includes/Pointers.hpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/Includes/AppPointers.hpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/Includes/resource.h"
 	)
 

@@ -1,4 +1,4 @@
-#version 450
+#version 460
 
 layout(set = 0, input_attachment_index = 0, binding = 0) uniform subpassInput inputColor;
 layout(set = 1, binding = 0) uniform sampler2D inputDepth;

@@ -9,6 +9,8 @@
 #include <stdexcept>
 #include <mutex>
 
+using namespace glm;
+
 namespace fre
 {
     std::mutex gImagesMutex;
@@ -145,6 +147,34 @@ namespace fre
 		std::lock_guard<std::mutex> lock(gImagesMutex);
 		return static_cast<uint32_t>(mImages.size());
 	}
+	
+	VulkanImage createImageGPU(
+		const MainDevice& mainDevice,
+		VkQueue queue,
+		VkCommandPool commandPool,
+		VkFormat format,
+        VkImageTiling tiling,
+        VkImageUsageFlags usageFlags,
+        VkMemoryPropertyFlags memoryFlags,
+		VkImageLayout layout,
+		vec2 size)
+	{
+		VulkanImage result;
+
+		//Create image to hold final texture
+		result.mImage = fre::createImage(mainDevice, size.x, size.y,
+			format, tiling,
+			usageFlags,
+			memoryFlags,
+			&result.mImageMemory,
+			result.mActualSize);
+		result.mImageView = createImageView(mainDevice.logicalDevice,
+			result.mImage, format,
+			VK_IMAGE_ASPECT_COLOR_BIT);
+
+		transitionImageLayout(mainDevice.logicalDevice, queue, commandPool, result.mImage, VK_IMAGE_ASPECT_COLOR_BIT,
+			VK_IMAGE_LAYOUT_UNDEFINED, layout);
+	}
 
 	void VulkanTextureManager::createTextureImage(
 		const MainDevice& mainDevice,
@@ -159,12 +189,12 @@ namespace fre
 		VkDeviceMemory imageStagingBufferMemory;
 		createBuffer(mainDevice, image.mDataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
-			&imageStagingBuffer.mBuffer, &imageStagingBuffer.mDeviceAddress, &imageStagingBuffer.mBufferMemory);
+			0,
+			&imageStagingBuffer.mBuffer, nullptr, &imageStagingBuffer.mBufferMemory);
 
 		//Copy image data to staging buffer
 		void* data;
-		VK_CHECK(vkMapMemory(mainDevice.logicalDevice, imageStagingBufferMemory, 0, image.mDataSize, 0, &data));
+		VK_CHECK(vkMapMemory(mainDevice.logicalDevice, imageStagingBuffer.mBufferMemory, 0, image.mDataSize, 0, &data));
 		//Fill texture with zeoes if filename is not provided
 		if(image.mData != nullptr)
 		{
@@ -233,10 +263,12 @@ namespace fre
 		{
 			//Create staging buffer to hold loaded data, ready to copy to device
 			VkBuffer imageStagingBuffer;
+			uint64_t imageDeviceAddress = 0;
 			VkDeviceMemory imageStagingBufferMemory;
 			createBuffer(mainDevice, image.mDataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				&imageStagingBuffer, &imageStagingBufferMemory);
+				VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
+				&imageStagingBuffer, &imageDeviceAddress, &imageStagingBufferMemory);
 
 			//Copy image data to staging buffer
 			void* data;

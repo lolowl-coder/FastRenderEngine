@@ -60,9 +60,9 @@ namespace fre
 		VK_CHECK(vkWaitForFences(device, 1, &fence, VK_TRUE, MAX(uint64_t)));
 	}
 
-	void VulkanCommandBuffer::free(VkDevice device, VkCommandPool commandPool)
+	void VulkanCommandBuffer::free(VkDevice device, VkCommandPool commandPool, const bool cleanup)
 	{
-		if(commandPool && free)
+		if(commandPool && cleanup)
 		{
 			vkFreeCommandBuffers(device, commandPool, 1, &mCommandBuffer);
 		}

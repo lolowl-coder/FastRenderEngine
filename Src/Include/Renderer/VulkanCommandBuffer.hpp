@@ -13,7 +13,7 @@ namespace fre
         void begin() const;
         void end() const;
         void flush(VkDevice device, VkQueue queue, const VkFence fence, const std::vector<VkSemaphore>& signalSemaphores) const;
-        void free(VkDevice device, VkCommandPool commandPool);
+        void free(VkDevice device, VkCommandPool commandPool, const bool cleanup);
 
 
         VkCommandBuffer mCommandBuffer = VK_NULL_HANDLE;

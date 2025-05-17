@@ -83,50 +83,6 @@ namespace app
         );
     }
 
-    void AppEngine::createAS()
-    {
-        // Setup vertices and indices for a single triangle
-        struct Vertex
-        {
-            float pos[3];
-        };
-        std::vector<Vertex> vertices = {
-            {{1.0f, 1.0f, 0.0f}},
-            {{-1.0f, 1.0f, 0.0f}},
-            {{0.0f, -1.0f, 0.0f}} };
-        std::vector<uint32_t> indices = { 0, 1, 2 };
-
-        auto vertex_buffer_size = vertices.size() * sizeof(Vertex);
-        auto index_buffer_size = indices.size() * sizeof(uint32_t);
-        VkTransformMatrixKHR transform_matrix = {
-            1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f, 0.0f };
-
-        // Create buffers for the bottom level geometry
-        // For the sake of simplicity we won't stage the vertex data to the GPU memory
-
-        // Note that the buffer usage flags for buffers consumed by the bottom level acceleration structure require special flags
-        const VkBufferUsageFlags buffer_usage_flags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-
-        mVertexBuffer = mRenderer->createBuffer(buffer_usage_flags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertices.data(), vertex_buffer_size);
-        mIndexBuffer = mRenderer->createBuffer(buffer_usage_flags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indices.data(), index_buffer_size);
-
-        // Setup a single transformation matrix that can be used to transform the whole geometry for a single bottom level acceleration structure
-        mTransformMatrixBuffer = mRenderer->createBuffer(
-            buffer_usage_flags,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            &transform_matrix, sizeof(transform_matrix));
-
-        mBLAS = mRenderer->createBLAS(mVertexBuffer, mIndexBuffer, mTransformMatrixBuffer);
-        mTLAS = mRenderer->createTLAS(mBLAS.mDeviceAddress, transform_matrix);
-    }
-
-    void AppEngine::createScene()
-    {
-        createAS();
-    }
-
 	bool AppEngine::createCoreGPUResources()
 	{
 		bool result = Engine::createCoreGPUResources();
@@ -138,6 +94,7 @@ namespace app
     {
         setApplicationIcons(IDI_APP_ICON, 8);
         bool result = Engine::createDynamicGPUResources();
+
         return result;
     }
 

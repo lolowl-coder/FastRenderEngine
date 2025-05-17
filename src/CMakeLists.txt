@@ -80,6 +80,7 @@ set(HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Mesh.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/MeshModel.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Mutexes.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Pointers.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Shader.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Timer.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/ThreadPool.hpp"

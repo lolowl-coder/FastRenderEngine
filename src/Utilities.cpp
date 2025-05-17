@@ -71,7 +71,8 @@ namespace fre
 	}
 
     void createBuffer(const MainDevice& mainDevice, VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage,
-		VkMemoryPropertyFlags bufferProperties, VkMemoryAllocateFlags allocFlags, VkBuffer* buffer, uint64_t* deviceAddress, VkDeviceMemory* bufferMemory)
+		VkMemoryPropertyFlags bufferProperties, VkMemoryAllocateFlags allocFlags,
+		VkBuffer* buffer, uint64_t* deviceAddress, VkDeviceMemory* bufferMemory)
 	{
 		//Information to create a buffer (doesn't include assigning memory)
 		VkBufferCreateInfo bufferInfo = {};
@@ -109,10 +110,18 @@ namespace fre
 		//Allocate memory for given buffer
 		VK_CHECK(vkBindBufferMemory(mainDevice.logicalDevice, *buffer, *bufferMemory, 0));
 
-		VkBufferDeviceAddressInfoKHR buffer_device_address_info{};
-		buffer_device_address_info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-		buffer_device_address_info.buffer = *buffer;
-		*deviceAddress = vkGetBufferDeviceAddressKHR(mainDevice.logicalDevice, &buffer_device_address_info);
+		if(deviceAddress != nullptr)
+		{
+			if((bufferUsage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) != 0)
+			{
+				*deviceAddress = getBufferDeviceAddress(mainDevice.logicalDevice, *buffer);
+			}
+			else
+			{
+				LOG_ERROR("createBuffer: failed to get device address. Buffer usage should contain VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT flag.");
+			}
+		}
+		LOG_TRACE("Vulkan buffer created: {}", (uint64_t)*buffer);
 	}
 
     VkCommandBuffer beginCommandBuffer(VkDevice device, VkCommandPool commandPool)

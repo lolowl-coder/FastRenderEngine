@@ -3,6 +3,8 @@
 #include <volk.h>
 #include <GLFW/glfw3.h>
 
+#include "Renderer/VulkanBufferManager.hpp"
+
 #include <vector>
 
 namespace fre
@@ -33,15 +35,24 @@ namespace fre
             std::vector<VkDescriptorSetLayout> descriptorSetLayouts,
 		    std::vector<VkPushConstantRange> pushConstantRanges);
 
-        void createRTPipeline
+        void createShaderBindingTables(MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool,
+            const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& mRayTracingPipelineProperties, VulkanBufferManager& bufferManager);
+
+        void createRTPipeline(VkDevice logicalDevice,
+            std::vector<VulkanShader*> shaders,
+            std::vector<VkDescriptorSetLayout> descriptorSetLayouts,
+            std::vector<VkPushConstantRange> pushConstantRanges);
 
         void destroy(VkDevice logicalDevice);
 
         bool isCompute() const;
 
         VkPipeline mPipeline = VK_NULL_HANDLE;
+        VkPipelineBindPoint mBindPoint = VK_PIPELINE_BIND_POINT_MAX_ENUM;
         VkPipelineLayout mPipelineLayout = VK_NULL_HANDLE;
-    private:
-        bool mIsCompute = false;
+        std::vector<VkRayTracingShaderGroupCreateInfoKHR> mShaderGroups{};
+        VulkanBuffer mRaygenShaderBindingTable;
+        VulkanBuffer mMissShaderBindingTable;
+        VulkanBuffer mHhitShaderBindingTable;
     };
 }

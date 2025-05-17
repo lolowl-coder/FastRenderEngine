@@ -1,4 +1,4 @@
-#version 450
+#version 460
 
 layout(location = 0) in float fragPosZ;
 layout(set = 1, binding = 0) uniform sampler2D textureSampler;

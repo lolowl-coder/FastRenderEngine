@@ -13,14 +13,12 @@
 #include "Utilities.hpp"
 #include "Renderer/VulkanBufferManager.hpp"
 #include "Renderer/VulkanCommandBuffer.hpp"
-#include "Renderer/VulkanDescriptorPool.hpp"
-#include "Renderer/VulkanDescriptorSet.hpp"
-#include "Renderer/VulkanDescriptorSetLayout.hpp"
 #include "Renderer/VulkanFrameBuffer.hpp"
 #include "Renderer/VulkanPipeline.hpp"
 #include "Renderer/VulkanRenderPass.hpp"
 #include "Renderer/VulkanSwapchain.hpp"
 #include "Renderer/VulkanTextureManager.hpp"
+#include "Pointers.hpp"
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -56,11 +54,11 @@ namespace fre
 		virtual void destroy();
 		virtual void destroyGPUResources();
 
-		VulkanDescriptorPool::Ptr& addDescriptorPool(VkDescriptorPoolCreateFlags flags, uint32_t count,
+		VulkanDescriptorPoolPtr& createDescriptorPool(VkDescriptorPoolCreateFlags flags, uint32_t count,
 			const std::vector<VkDescriptorPoolSize>& poolSizes);
-		VulkanDescriptorSetLayout::Ptr& addDescriptorSetLayout(const std::vector<VkDescriptorType>& descriptorTypes,
+		VulkanDescriptorSetLayoutPtr& createDescriptorSetLayout(const std::vector<VkDescriptorType>& descriptorTypes,
 			const std::vector<uint32_t>& stageFlags);
-		VulkanDescriptorSet::Ptr& addDescriptorSet(
+		VulkanDescriptorSetPtr& allocateDescriptorSet(
 			const VkDescriptorPool& descriptorPool,
 			const VkDescriptorSetLayout& descriptorSetLayout);
 
@@ -97,15 +95,15 @@ namespace fre
 		uint32_t getImageIndex(){ return mImageIndex; }
 		uint32_t getCurrentFrameIndex(){ return mCurrentFrame; }
 		//Push shader constants
-		void pushConstants(VkPushConstantRange pushConstants, const void* data, VkPipelineLayout pipelineLayout, bool compute);
+		void pushConstants(VkPushConstantRange pushConstants, const void* data, VkPipelineLayout pipelineLayout, VkPipelineBindPoint pipelineBindPoint);
 		//Bind descriptor sets
-		void bindDescriptorSets(VkPipelineLayout pipelineLayout, const std::vector<VkDescriptorSet>& sets, bool compute);
+		void bindDescriptorSets(VkPipelineLayout pipelineLayout, const std::vector<VkDescriptorSet>& sets, VkPipelineBindPoint pipelineBindPoint);
 		VulkanBuffer createStagingBuffer(const void* data, size_t size);
-		const VulkanBuffer& createBuffer(uint32_t usage, VkMemoryPropertyFlags memoryFlags, void* data, size_t dataSize);
-		const VulkanBuffer& createExternalBuffer(int bufferUsage, VkMemoryPropertyFlags memoryFlags,
+		const VulkanBuffer& createBuffer(VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags, void* data, size_t dataSize);
+		const VulkanBuffer& createExternalBuffer(VkBufferUsageFlags bufferUsage, VkMemoryPropertyFlags memoryFlags,
 			VkExternalMemoryHandleTypeFlagsKHR extMemHandleType, VkDeviceSize size);
-		void copyBuffer(VkBuffer src, VkBuffer dst, size_t dataSize, bool compute) const;
-		void createBarrier(VkBuffer buffer, bool compute);
+		void copyBuffer(VkBuffer src, VkBuffer dst, size_t dataSize, VkPipelineBindPoint pipelineBindPoint) const;
+		void createBarrier(VkBuffer buffer, VkPipelineBindPoint pipelineBindPoint);
 		const VulkanBuffer* getVertexBuffer(const uint32_t meshId) const;
 		const VulkanBuffer* getIndexBuffer(const uint32_t meshId) const;
 		//External shader meta data provider
@@ -120,9 +118,9 @@ namespace fre
 		//Default shininess if material loaded from scene does not have this property
 		void setDefaultShininess(const float shininess);
 
-		VulkanDescriptorPool::Ptr& getDP(uint32_t id){ return mDescriptorPools[id]; }
-		VulkanDescriptorSetLayout::Ptr& getDSL(uint32_t id){ return mDescriptorSetLayouts[id]; }
-		VulkanDescriptorSet::Ptr& getDS(uint32_t id){ return mDescriptorSets[id]; }
+		VulkanDescriptorPoolPtr& getDP(uint32_t id){ return mDescriptorPools[id]; }
+		VulkanDescriptorSetLayoutPtr& getDSL(uint32_t id){ return mDescriptorSetLayouts[id]; }
+		VulkanDescriptorSetPtr& getDS(uint32_t id){ return mDescriptorSets[id]; }
 
 		VulkanFrameBuffer& getFramBuffer(){ return mFrameBuffers[mImageIndex]; }
 
@@ -131,7 +129,7 @@ namespace fre
 		
 		VkDescriptorSetLayout getDepthDSL() const { return mDepthDescriptorSetLayout.mDescriptorSetLayout; }
 		VkDescriptorSet getDepthDS(uint32_t index) const { return mDepthDescriptorSets[index].mDescriptorSet; }
-		void transitionDepthLayout(VkImageLayout from, VkImageLayout to, bool compute);
+		void transitionDepthLayout(VkImageLayout from, VkImageLayout to, VkPipelineBindPoint pipelineBindPoint);
 
 		//Returns uniforms descriptor set layout
 		VkDescriptorSetLayout getUniformDSL() const { return mUniformDescriptorSetLayout.mDescriptorSetLayout; }
@@ -142,12 +140,12 @@ namespace fre
 		//Returns sampler descriptor set layout
 		VkDescriptorSetLayout getSamplerDSL() const { return mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout; }
 		VulkanTextureManager& getTextureManager() { return mTextureManager; }
-		const VkDescriptorSet& getSamplerDS(uint32_t textureId, bool compute)
+		const VkDescriptorSet& getSamplerDS(uint32_t textureId, VkPipelineBindPoint pipelineBindPoint)
 		{
 			return mTextureManager.getDescriptorSet(mainDevice, mTransferQueueFamilyId,
-				compute ? mComputeQueueFamilyId : mGraphicsQueueFamilyId,
-				compute ? mComputeQueue : mGraphicsQueue,
-				compute ? mGraphicsCommandPool : mComputeCommandPool, textureId).mDescriptorSet;
+				pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeQueueFamilyId : mGraphicsQueueFamilyId,
+				pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeQueue : mGraphicsQueue,
+				pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mGraphicsCommandPool : mComputeCommandPool, textureId).mDescriptorSet;
 		}
 
 		VkSemaphore getExternalWaitSemaphore() { return mExternalWaitSemaphore; }
@@ -183,6 +181,7 @@ namespace fre
 		void setHasExternalResources(bool hasExternalResources) { mHasExternalResources = hasExternalResources; }
 
 	protected:
+		BoundingBox2D getViewport() const;
 		virtual void createPipelines();
 		virtual void cleanupPipelines(VkDevice logicalDevice);
 		//Returns shader metadata associated with shader by its file name
@@ -220,9 +219,9 @@ namespace fre
 		VulkanDescriptorPool mDepthDescriptorPool;
 		VulkanDescriptorPool mUIDescriptorPool;
 
-		std::vector<VulkanDescriptorPool::Ptr> mDescriptorPools;
-		std::vector<VulkanDescriptorSetLayout::Ptr> mDescriptorSetLayouts;
-		std::vector<VulkanDescriptorSet::Ptr> mDescriptorSets;
+		std::vector<VulkanDescriptorPoolPtr> mDescriptorPools;
+		std::vector<VulkanDescriptorSetLayoutPtr> mDescriptorSetLayouts;
+		std::vector<VulkanDescriptorSetPtr> mDescriptorSets;
 
 		std::vector<VulkanDescriptorSet> mUniformDescriptorSets;
 		std::vector<VulkanDescriptorSet> mInputDescriptorSets;
@@ -268,12 +267,12 @@ namespace fre
 
 		// - Render
 		void bindPipeline(const VulkanPipeline& pipeline);
-		void bindVertexBuffers(const VkBuffer* buffers, uint32_t count, VkDeviceSize* offsets, bool compute);
-		void bindIndexBuffer(const VkBuffer buffer, bool compute);
+		void bindVertexBuffers(const VkBuffer* buffers, uint32_t count, VkDeviceSize* offsets, VkPipelineBindPoint pipelineBindPoint);
+		void bindIndexBuffer(const VkBuffer buffer, VkPipelineBindPoint pipelineBindPoint);
 		virtual void recordMeshCommands(
 			const MeshModel::Ptr& model, const Mesh::Ptr& mesh, const Camera& camera,
-			const Light& light, bool compute, uint32_t subPass, uint32_t instanceId);
-		void recordSceneCommands(const Camera& camera, const Light& light, bool compute, uint32_t subPass);
+			const Light& light, VkPipelineBindPoint pipelineBindPoint, uint32_t subPass, uint32_t instanceId);
+		void recordSceneCommands(const Camera& camera, const Light& light, VkPipelineBindPoint pipelineBindPoint, uint32_t subPass);
 
 		void renderFullscreenTriangle(VkPipelineLayout pipelineLayout);
 		virtual void renderSubPass(uint32_t subPassIndex, const Camera& camera,
@@ -281,7 +280,7 @@ namespace fre
 
 		virtual bool isRayTracingSupported() { return false; }
 
-	private:
+	protected:
 		void loadShader(const std::string& shadeFilerName);
 		void loadUsedShaders();
 		//Load images in different thread
@@ -293,6 +292,7 @@ namespace fre
 		void createInstance();
 
 		void createLogicalDevice();
+		void createSwapChain();
 		void createSwapChainFrameBuffers();
 		void createSurface();
 		void createUniformDescriptorPool();
@@ -322,21 +322,21 @@ namespace fre
 		// - Cleanup methods
 		void cleanupSwapChainFrameBuffers();
 
-		void cleanupUniformDescriptorPool();
-		void cleanupInputDescriptorPool();
-		void cleanupUIDescriptorPool();
-		void cleanupInputDescriptorSetLayout();
-		void cleanupUniformDescriptorSetLayout();
-		void cleanupSwapchainImagesSemaphores();
-		void cleanupRenderFinishedSemaphores();
-		void cleanupComputeFinishedSemaphores();
-		void cleanupDrawFences();
-		void cleanupComputeFences();
-		void cleanupTransferSynchronisation();
-		void cleanupSemaphores();
-		void cleanupUI();
-		void cleanupRayTracing();
-
+		virtual void cleanupUniformDescriptorPool();
+		virtual void cleanupInputDescriptorPool();
+		virtual void cleanupUIDescriptorPool();
+		virtual void cleanupInputDescriptorSetLayout();
+		virtual void cleanupUniformDescriptorSetLayout();
+		virtual void cleanupSwapchainImagesSemaphores();
+		virtual void cleanupRenderFinishedSemaphores();
+		virtual void cleanupComputeFinishedSemaphores();
+		virtual void cleanupDrawFences();
+		virtual void cleanupComputeFences();
+		virtual void cleanupTransferSynchronisation();
+		virtual void cleanupSemaphores();
+		virtual void cleanupUI();
+		virtual void cleanupRayTracing();
+        virtual void cleanupSwapChain();
 		// - Recreate methods
 		void recreateSwapChain();
 
@@ -358,6 +358,11 @@ namespace fre
 		void createSynchronisation();
 		void createTransferSynchronisation();
 		void initRayTracing();
+
+	protected:
+		uint32_t mImageIndex = std::numeric_limits<uint32_t>::max();
+		VkQueue mGraphicsQueue = VK_NULL_HANDLE;
+		VkCommandPool mGraphicsCommandPool = VK_NULL_HANDLE;
 
 	private:
 		
@@ -383,14 +388,11 @@ namespace fre
 		std::vector<const char*> mRequestedInstanceExtensions;
 		VkPhysicalDeviceFeatures2 mDeviceFeatures = {};
 
-		uint32_t mImageIndex = std::numeric_limits<uint32_t>::max();
-
 		std::vector<VulkanQueueFamily> mQueueFamilies;
 		int8_t mGraphicsQueueFamilyId = -1;
 		int8_t mPresentationQueueFamilyId = -1;
 		int8_t mTransferQueueFamilyId = -1;
 		int8_t mComputeQueueFamilyId = -1;
-		VkQueue mGraphicsQueue = VK_NULL_HANDLE;
 		VkQueue mPresentationQueue = VK_NULL_HANDLE;
 		VkQueue mTransferQueue = VK_NULL_HANDLE;
 		VkQueue mComputeQueue = VK_NULL_HANDLE;
@@ -422,7 +424,6 @@ namespace fre
 		std::vector<VulkanFrameBuffer> mFrameBuffers;
 
 		// - Pools -
-		VkCommandPool mGraphicsCommandPool = VK_NULL_HANDLE;
 		VkCommandPool mTransferCommandPool = VK_NULL_HANDLE;
 		VkCommandPool mComputeCommandPool = VK_NULL_HANDLE;
 

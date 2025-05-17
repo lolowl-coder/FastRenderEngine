@@ -3,6 +3,9 @@
 #include "Renderer/VulkanRenderer.hpp"
 #include "Renderer/FeatureStorage.hpp"
 #include "Renderer/FeatureMacro.hpp"
+#include "Renderer/VulkanDescriptorPool.hpp"
+#include "Renderer/VulkanDescriptorSet.hpp"
+#include "Renderer/VulkanDescriptorSetLayout.hpp"
 
 #include "FileSystem/FileSystem.hpp"
 #include "VulkanAccelerationStructure.hpp"
@@ -182,7 +185,7 @@ namespace fre
 
 			for(auto& dp : mDescriptorPools)
 			{
-				dp->destroy(mainDevice.logicalDevice);
+				dp.get()->destroy(mainDevice.logicalDevice);
 			}
 
 			for(auto& dsl : mDescriptorSetLayouts)
@@ -239,27 +242,27 @@ namespace fre
 		vkDestroyInstance(mInstance, nullptr);
 	}
 	
-	VulkanDescriptorPool::Ptr& VulkanRenderer::addDescriptorPool(VkDescriptorPoolCreateFlags flags, uint32_t count,
+	VulkanDescriptorPoolPtr& VulkanRenderer::createDescriptorPool(VkDescriptorPoolCreateFlags flags, uint32_t count,
 		const std::vector<VkDescriptorPoolSize>& poolSizes)
 	{
-		mDescriptorPools.push_back(VulkanDescriptorPool::Ptr(new VulkanDescriptorPool()));
+		mDescriptorPools.push_back(std::make_shared<VulkanDescriptorPool>());
 		mDescriptorPools.back()->create(mainDevice.logicalDevice, flags, count, poolSizes);
 		return mDescriptorPools.back();
 	}
 
-	VulkanDescriptorSetLayout::Ptr& VulkanRenderer::addDescriptorSetLayout(const std::vector<VkDescriptorType>& descriptorTypes,
+	VulkanDescriptorSetLayoutPtr& VulkanRenderer::createDescriptorSetLayout(const std::vector<VkDescriptorType>& descriptorTypes,
         const std::vector<uint32_t>& stageFlags)
 	{
-		mDescriptorSetLayouts.push_back(VulkanDescriptorSetLayout::Ptr(new VulkanDescriptorSetLayout()));
+		mDescriptorSetLayouts.push_back(std::make_shared<VulkanDescriptorSetLayout>());
 		mDescriptorSetLayouts.back()->create(mainDevice.logicalDevice, descriptorTypes, stageFlags);
 		return mDescriptorSetLayouts.back();
 	}
 
-	VulkanDescriptorSet::Ptr& VulkanRenderer::addDescriptorSet(
+	VulkanDescriptorSetPtr& VulkanRenderer::allocateDescriptorSet(
 		const VkDescriptorPool& descriptorPool,
         const VkDescriptorSetLayout& descriptorSetLayout)
 	{
-		mDescriptorSets.push_back(VulkanDescriptorSet::Ptr(new VulkanDescriptorSet()));
+		mDescriptorSets.push_back(std::make_shared<VulkanDescriptorSet>());
 		mDescriptorSets.back()->allocate(
 			mainDevice.logicalDevice, descriptorPool, descriptorSetLayout);
 		return mDescriptorSets.back();
@@ -330,7 +333,7 @@ namespace fre
 				const auto commandBuffer = mComputeCommandBuffers[mImageIndex];
 				VK_CHECK(vkResetCommandBuffer(commandBuffer.mCommandBuffer, 0));
 				commandBuffer.begin();
-				recordSceneCommands(camera, light, true, 0);
+				recordSceneCommands(camera, light, VK_PIPELINE_BIND_POINT_COMPUTE, 0);
 				commandBuffer.end();
 
 				submitInfo.commandBufferCount = 1;
@@ -491,10 +494,10 @@ namespace fre
 		}
 	}
 
-	void VulkanRenderer::pushConstants(VkPushConstantRange pushConstants, const void* data, VkPipelineLayout pipelineLayout, bool compute)
+	void VulkanRenderer::pushConstants(VkPushConstantRange pushConstants, const void* data, VkPipelineLayout pipelineLayout, VkPipelineBindPoint pipelineBindPoint)
 	{
         vkCmdPushConstants(
-			compute ? mComputeCommandBuffers[mImageIndex].mCommandBuffer : mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
+			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeCommandBuffers[mImageIndex].mCommandBuffer : mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
             pipelineLayout,
             pushConstants.stageFlags,
             pushConstants.offset,
@@ -519,6 +522,7 @@ namespace fre
 	void VulkanRenderer::cleanupInputDescriptorPool()
 	{
 		mInputDescriptorPool.destroy(mainDevice.logicalDevice);
+		mInputStorageImageDescriptorPool.destroy(mainDevice.logicalDevice);
 		mDepthDescriptorPool.destroy(mainDevice.logicalDevice);
 	}
 
@@ -530,6 +534,7 @@ namespace fre
 	void VulkanRenderer::cleanupInputDescriptorSetLayout()
 	{
 		mInputDescriptorSetLayout.destroy(mainDevice.logicalDevice);
+		mInputDescriptorSetStorageImageLayout.destroy(mainDevice.logicalDevice);
 		mDepthDescriptorSetLayout.destroy(mainDevice.logicalDevice);
 	}
 
@@ -690,7 +695,7 @@ namespace fre
 		as.mBuffer = createBuffer(
 			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			nullptr,
+			&as.mDeviceAddress,
 			acceleration_structure_build_sizes_info.accelerationStructureSize);
 
 		// Create the acceleration structure
@@ -808,11 +813,11 @@ namespace fre
 		lighting.lightSpecularColor = vec4(light.mSpecularColor, 1.0f);
 	}
 
-	void VulkanRenderer::transitionDepthLayout(VkImageLayout from, VkImageLayout to, bool compute)
+	void VulkanRenderer::transitionDepthLayout(VkImageLayout from, VkImageLayout to, VkPipelineBindPoint pipelineBindPoint)
 	{
 		transitionImageLayout(mainDevice.logicalDevice,
-			compute ? mComputeQueue : mGraphicsQueue,
-			compute ? mComputeCommandPool : mGraphicsCommandPool,
+			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeQueue : mGraphicsQueue,
+			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeCommandPool : mGraphicsCommandPool,
 			mFrameBuffers[mImageIndex].mDepthAttachment.mImage,
 			VK_IMAGE_ASPECT_DEPTH_BIT,
 			from, to);
@@ -1167,7 +1172,7 @@ namespace fre
 		mInputDescriptorSetLayout.create(
 			mainDevice.logicalDevice,
 			{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT},
-			{VK_SHADER_STAGE_FRAGMENT_BIT});
+			{VK_SHADER_STAGE_FRAGMENT_BIT });
 		mDepthDescriptorSetLayout.create(
 			mainDevice.logicalDevice,
 			{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER},
@@ -1180,6 +1185,8 @@ namespace fre
 	{
 		for(auto& shader : mShaders)
 		{
+			LOG_TRACE("Create pipeline for shader: {}", shader.mName);
+
 			ShaderMetaDatum& shaderMetaDatum = mShaderMetaDatum[shader.mId];
 			for(const auto& shaderMetaData : shaderMetaDatum)
 			{
@@ -1219,17 +1226,26 @@ namespace fre
 					);
 				}
 
-				if(shader.mRTShader.mShaderModule != VK_NULL_HANDLE)
+				if(
+					shader.mRayGenShader.mShaderModule != VK_NULL_HANDLE &&
+					shader.mRayMissShader.mShaderModule != VK_NULL_HANDLE &&
+					shader.mRayClosestHitShader.mShaderModule != VK_NULL_HANDLE)
 				{
 					shader.mRTPipelineIds.push_back(static_cast<uint32_t>(mPipelines.size()));
 					mPipelines.push_back(VulkanPipeline());
 					auto& pipeline = mPipelines.back();
-					pipeline.createRTPipeline();
+					pipeline.createRTPipeline(
+						mainDevice.logicalDevice,
+						{&shader.mRayGenShader, &shader.mRayMissShader,&shader.mRayClosestHitShader},
+						shaderMetaData.mDescriptorSetLayouts,
+						shaderMetaData.mPushConstantRanges);
+					pipeline.createShaderBindingTables(mainDevice, mTransferQueue, mTransferCommandPool,
+						mRayTracingPipelineProperties, mBufferManager);
 				}
 
 			}
 			
-			//Destroy shader modules, no longer neede after Pipeline created
+			//Destroy shader modules, no longer needed after Pipeline created
 			shader.destroy(mainDevice.logicalDevice);
 		}
 
@@ -1366,6 +1382,17 @@ namespace fre
 				},
 				//We don't need a sampler, because we will read it in other way in shader
 				{VK_NULL_HANDLE});
+			mInputDescriptorSetsStorageImage[i].update(
+				mainDevice.logicalDevice,
+				{ VK_IMAGE_LAYOUT_GENERAL },
+				{
+					mSwapChain.mSwapChainImages[i].imageView,
+				},
+				{
+					VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+				},
+				//We don't need a sampler, because we will read it in other way in shader
+				{ VK_NULL_HANDLE });
 
 			mDepthDescriptorSets[i].allocate(mainDevice.logicalDevice,
 				mDepthDescriptorPool.mDescriptorPool,
@@ -1457,13 +1484,14 @@ namespace fre
 	void VulkanRenderer::recordMeshCommands(
 		const MeshModel::Ptr& model, const Mesh::Ptr& mesh,
 		const Camera& camera, const Light& light,
-		bool compute, uint32 subPass, uint32_t instanceId)
+		VkPipelineBindPoint pipelineBindPoint, uint32 subPass, uint32_t instanceId)
 	{
 		const auto& material = mMaterials[mesh->getMaterialId()];
 		const auto computeShaderId = mesh->getComputeShaderId();
-		if((!compute || mesh->getComputeShaderId() != std::numeric_limits<uint32_t>::max()) && model->isVisible())
+		if((pipelineBindPoint != VK_PIPELINE_BIND_POINT_COMPUTE || mesh->getComputeShaderId() != std::numeric_limits<uint32_t>::max())
+			&& model->isVisible())
 		{
-			const auto& shader = compute ? mShaders[computeShaderId] : mShaders[material.mShaderId];
+			const auto& shader = pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mShaders[computeShaderId] : mShaders[material.mShaderId];
 
 			const auto* vertexBuffer = getVertexBuffer(mesh->getId());
 			bool needToProcess =
@@ -1472,18 +1500,19 @@ namespace fre
 				shader.mComputeShader.mShaderStage != 0;
 			if(needToProcess)
 			{
-				const auto& pipelineIds = compute ? shader.mComputePipelineIds : shader.mGraphicsPipelineIds;
+				const auto& pipelineIds = pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? shader.mComputePipelineIds :
+					(shader.mRayGenShader.mShaderStage != 0 ? shader.mRTPipelineIds : shader.mGraphicsPipelineIds);
 				const auto& shaderMetaDatum = mShaderMetaDatum[shader.mId];
 				for(uint32_t i = 0; i < pipelineIds.size(); i++)
 				{
 					const auto& pipeline = mPipelines[pipelineIds[i]];
 					const auto& shaderMetaData = shaderMetaDatum[i];
 
-					if(shaderMetaData.mSubPassIndex == subPass) 
+					if(shaderMetaData.mSubPassIndex == subPass && pipeline.mBindPoint == pipelineBindPoint) 
 					{
 						if(mesh->getBeforeRecordCallback() != nullptr)
 						{
-							mesh->getBeforeRecordCallback()(this, subPass, compute);
+							mesh->getBeforeRecordCallback()(this, subPass, pipelineBindPoint);
 						}
 						
 						bindPipeline(pipeline);
@@ -1497,17 +1526,17 @@ namespace fre
 							shaderMetaData.mPushConstantsCallback(mesh, modelMatrix, camera, light, pipeline.mPipelineLayout, instanceId);
 						}
 			
-						if(vertexBuffer != nullptr && !compute)
+						if(vertexBuffer != nullptr && pipelineBindPoint != VK_PIPELINE_BIND_POINT_COMPUTE)
 						{
 							VkBuffer vertexBuffers[] = { vertexBuffer->mBuffer };	//Buffers to bind
 							VkDeviceSize offsets[] = { 0 };		//Offsets into buffers being bound
-							bindVertexBuffers(vertexBuffers, 1, offsets, compute);
+							bindVertexBuffers(vertexBuffers, 1, offsets, pipelineBindPoint);
 						}
 
 						const auto* indexBuffer = getIndexBuffer(mesh->getId());
-						if(indexBuffer != nullptr && !compute)
+						if(indexBuffer != nullptr && pipelineBindPoint != VK_PIPELINE_BIND_POINT_COMPUTE)
 						{
-							bindIndexBuffer(indexBuffer->mBuffer, compute);
+							bindIndexBuffer(indexBuffer->mBuffer, pipelineBindPoint);
 						}
 
 						if(shaderMetaData.mBindDescriptorSetsCallback != nullptr)
@@ -1515,36 +1544,73 @@ namespace fre
 							shaderMetaData.mBindDescriptorSetsCallback(mesh, material, pipeline.mPipelineLayout, instanceId);
 						}
 
-						auto commandBuffer = compute ?
+						auto commandBuffer = pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ?
 							mComputeCommandBuffers[mImageIndex].mCommandBuffer :
 							mGraphicsCommandBuffers[mImageIndex].mCommandBuffer;
-						if(compute)
+
+						switch(pipeline.mBindPoint)
 						{
-							const auto& computeSpace = mesh->getComputeSpace();
-							vkCmdDispatch(commandBuffer, computeSpace.x, computeSpace.y, computeSpace.z);
-						}
-						else
-						{
-							if(shaderMetaData.mLineWidth > 0.0f)
+						case VK_PIPELINE_BIND_POINT_COMPUTE:
 							{
-								vkCmdSetLineWidth(commandBuffer, shaderMetaData.mLineWidth);
+								const auto& computeSpace = mesh->getComputeSpace();
+								vkCmdDispatch(commandBuffer, computeSpace.x, computeSpace.y, computeSpace.z);
 							}
-							if(mesh->getGeneratedVerticesCount() > 0)
+							break;
+						case VK_PIPELINE_BIND_POINT_GRAPHICS:
 							{
-								vkCmdDraw(commandBuffer, mesh->getGeneratedVerticesCount(), 1, 0, 0);
+								if(shaderMetaData.mLineWidth > 0.0f)
+								{
+									vkCmdSetLineWidth(commandBuffer, shaderMetaData.mLineWidth);
+								}
+								if(mesh->getGeneratedVerticesCount() > 0)
+								{
+									vkCmdDraw(commandBuffer, mesh->getGeneratedVerticesCount(), 1, 0, 0);
+								}
+								else if(indexBuffer != nullptr)
+								{
+									vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->getIndexCount()), 1, 0, 0, 0);
+								}
+								else
+								{
+									vkCmdDraw(commandBuffer, mesh->getVertexCount(), 1, 0, 0);
+								}
 							}
-							else if(indexBuffer != nullptr)
+							break;
+						case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
 							{
-								vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->getIndexCount()), 1, 0, 0, 0);
+								const uint32_t handle_size_aligned = alignedSize(mRayTracingPipelineProperties.shaderGroupHandleSize, mRayTracingPipelineProperties.shaderGroupHandleAlignment);
+								VkStridedDeviceAddressRegionKHR raygen_shader_sbt_entry{};
+								raygen_shader_sbt_entry.deviceAddress = pipeline.mRaygenShaderBindingTable.mDeviceAddress;
+								raygen_shader_sbt_entry.stride = handle_size_aligned;
+								raygen_shader_sbt_entry.size = handle_size_aligned;
+
+								VkStridedDeviceAddressRegionKHR miss_shader_sbt_entry{};
+								miss_shader_sbt_entry.deviceAddress = pipeline.mMissShaderBindingTable.mDeviceAddress;
+								miss_shader_sbt_entry.stride = handle_size_aligned;
+								miss_shader_sbt_entry.size = handle_size_aligned;
+
+								VkStridedDeviceAddressRegionKHR hit_shader_sbt_entry{};
+								hit_shader_sbt_entry.deviceAddress = pipeline.mHhitShaderBindingTable.mDeviceAddress;
+								hit_shader_sbt_entry.stride = handle_size_aligned;
+								hit_shader_sbt_entry.size = handle_size_aligned;
+
+								VkStridedDeviceAddressRegionKHR callable_shader_sbt_entry{};
+
+								vkCmdTraceRaysKHR(
+									commandBuffer,
+									&raygen_shader_sbt_entry,
+									&miss_shader_sbt_entry,
+									&hit_shader_sbt_entry,
+									&callable_shader_sbt_entry,
+									mSwapChain.mSwapChainExtent.width,
+									mSwapChain.mSwapChainExtent.height,
+									1);
 							}
-							else
-							{
-								vkCmdDraw(commandBuffer, mesh->getVertexCount(), 1, 0, 0);
-							}
+							break;
 						}
 						if(mesh->getAfterRecordCallback() != nullptr)
 						{
-							mesh->getAfterRecordCallback()(this, subPass, compute);
+							mesh->getAfterRecordCallback()(this, subPass, pipelineBindPoint);
 						}
 					}
 				}
@@ -1552,7 +1618,7 @@ namespace fre
 		}
 	}
 
-	void VulkanRenderer::recordSceneCommands(const Camera& camera, const Light& light, bool compute, uint32_t subPass)
+	void VulkanRenderer::recordSceneCommands(const Camera& camera, const Light& light, VkPipelineBindPoint pipelineBindPoint, uint32_t subPass)
 	{
 		for (size_t j = 0; j < mMeshModels.size(); j++)
 		{
@@ -1563,19 +1629,19 @@ namespace fre
 				const auto& mesh = model->getMesh(k);
 				if(mesh->getBeforeVisitCallback())
 				{
-					mesh->getBeforeVisitCallback()(this, subPass, compute);
+					mesh->getBeforeVisitCallback()(this, subPass, pipelineBindPoint);
 				}
 				if(mesh->getVisible())
 				{
 					auto count = mesh->getInstanceCount();
 					for(uint32_t i = 0; i < count; i++)
 					{
-						recordMeshCommands(model, mesh, camera, light, compute, subPass, i);
+						recordMeshCommands(model, mesh, camera, light, pipelineBindPoint, subPass, i);
 					}
 				}
 				if(mesh->getAfterVisitCallback())
 				{
-					mesh->getAfterVisitCallback()(this, subPass, compute);
+					mesh->getAfterVisitCallback()(this, subPass, pipelineBindPoint);
 				}
 			}
 		}
@@ -1587,19 +1653,24 @@ namespace fre
 		vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 	}
 
+    BoundingBox2D VulkanRenderer::getViewport() const
+    {
+        return BoundingBox2D(
+			vec2(0.0f),
+			vec2(mSwapChain.mSwapChainExtent.width, mSwapChain.mSwapChainExtent.height));
+    }
+
 	void VulkanRenderer::renderSubPass(uint32_t subPassIndex, const Camera& camera,
 		const Light& light)
 	{
-		auto maxViewSize = BoundingBox2D(
-			vec2(0.0f),
-			vec2(mSwapChain.mSwapChainExtent.width, mSwapChain.mSwapChainExtent.height));
+		auto maxViewSize = getViewSize();
 		setViewport(maxViewSize);
         setScissor(maxViewSize);
         switch(subPassIndex)
         {
 			case 0:
 				{
-					recordSceneCommands(camera, light, false, subPassIndex);
+					recordSceneCommands(camera, light, VK_PIPELINE_BIND_POINT_GRAPHICS, subPassIndex);
 				}
 				break;
 			case 1:
@@ -1622,11 +1693,11 @@ namespace fre
 							mInputDescriptorSets[mImageIndex].mDescriptorSet,
 							mDepthDescriptorSets[mImageIndex].mDescriptorSet
 						},
-						false);
+						VK_PIPELINE_BIND_POINT_GRAPHICS);
 					renderFullscreenTriangle(fogPipeline.mPipelineLayout);
 				}
 			
-				recordSceneCommands(camera, light, false, subPassIndex);
+				recordSceneCommands(camera, light, VK_PIPELINE_BIND_POINT_GRAPHICS, subPassIndex);
 				drawUI();
             }
             break;
@@ -1640,6 +1711,9 @@ namespace fre
 		shader.mVertexShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shader.mFragmentShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 		shader.mComputeShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+		shader.mRayGenShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".rgen.spv", VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		shader.mRayMissShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR);
+		shader.mRayClosestHitShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
 		shader.mName = shaderFileName;
 		mShaders.push_back(shader);
 	}
@@ -1672,35 +1746,35 @@ namespace fre
 	{
 		vkCmdBindPipeline(
 				pipeline.isCompute() ? mComputeCommandBuffers[mImageIndex].mCommandBuffer : mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
-				pipeline.isCompute() ? VK_PIPELINE_BIND_POINT_COMPUTE : VK_PIPELINE_BIND_POINT_GRAPHICS,
+				pipeline.mBindPoint,
 				pipeline.mPipeline);
 	}
 
-	void VulkanRenderer::bindVertexBuffers(const VkBuffer* buffers, uint32_t count, VkDeviceSize* offsets, bool compute)
+	void VulkanRenderer::bindVertexBuffers(const VkBuffer* buffers, uint32_t count, VkDeviceSize* offsets, VkPipelineBindPoint pipelineBindPoint)
 	{
 		vkCmdBindVertexBuffers(
-			compute ?
+			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ?
 				mComputeCommandBuffers[mImageIndex].mCommandBuffer :
 				mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
 			0, count, buffers, offsets);
 	}
 
-	void VulkanRenderer::bindIndexBuffer(const VkBuffer buffer, bool compute)
+	void VulkanRenderer::bindIndexBuffer(const VkBuffer buffer, VkPipelineBindPoint pipelineBindPoint)
 	{
 		vkCmdBindIndexBuffer(
-			compute ?
+			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ?
 				mComputeCommandBuffers[mImageIndex].mCommandBuffer :
 				mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
 			buffer, 0, VK_INDEX_TYPE_UINT32);
 	}
 
-	void VulkanRenderer::bindDescriptorSets(VkPipelineLayout pipelineLayout, const std::vector<VkDescriptorSet>& sets, bool compute)
+	void VulkanRenderer::bindDescriptorSets(VkPipelineLayout pipelineLayout, const std::vector<VkDescriptorSet>& sets, VkPipelineBindPoint pipelineBindPoint)
 	{
 		vkCmdBindDescriptorSets(
-			compute ?
+			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ?
 				mComputeCommandBuffers[mImageIndex].mCommandBuffer :
 				mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
-			compute ? VK_PIPELINE_BIND_POINT_COMPUTE : VK_PIPELINE_BIND_POINT_GRAPHICS,
+			pipelineBindPoint,
 			pipelineLayout,
 			0,
 			sets.size(),
@@ -1709,23 +1783,23 @@ namespace fre
 			nullptr);
 	}
 
-	const VulkanBuffer& VulkanRenderer::createBuffer(uint32_t usage, VkMemoryPropertyFlags memoryFlags, void* data, size_t dataSize)
+	const VulkanBuffer& VulkanRenderer::createBuffer(VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags, void* data, size_t dataSize)
 	{
 		const auto& result = mBufferManager.createBuffer(
 			mainDevice, 
 			mTransferQueue,
 			mTransferCommandPool,
-			static_cast<VkBufferUsageFlagBits>(usage),
+			usage,
 			memoryFlags,
 			data, dataSize);
 
 		return result;
 	}
 
-	const VulkanBuffer& VulkanRenderer::createExternalBuffer(int bufferUsage, VkMemoryPropertyFlags memoryFlags,
+	const VulkanBuffer& VulkanRenderer::createExternalBuffer(VkBufferUsageFlags bufferUsage, VkMemoryPropertyFlags memoryFlags,
 		VkExternalMemoryHandleTypeFlagsKHR extMemHandleType, VkDeviceSize size)
 	{
-		const auto& result = mBufferManager.createExternalBuffer(mainDevice, static_cast<VkBufferUsageFlagBits>(bufferUsage), memoryFlags, extMemHandleType, size);
+		const auto& result = mBufferManager.createExternalBuffer(mainDevice, bufferUsage, memoryFlags, extMemHandleType, size);
 
 		return result;
 	}
@@ -1740,11 +1814,11 @@ namespace fre
 		return result;
 	}
 
-	void VulkanRenderer::copyBuffer(VkBuffer src, VkBuffer dst, size_t dataSize, bool compute) const
+	void VulkanRenderer::copyBuffer(VkBuffer src, VkBuffer dst, size_t dataSize, VkPipelineBindPoint pipelineBindPoint) const
 	{
 		fre::copyBuffer(mainDevice.logicalDevice,
-			compute ? mComputeQueue : mTransferQueue,
-			compute ? mComputeCommandPool : mTransferCommandPool,
+			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeQueue : mTransferQueue,
+			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeCommandPool : mTransferCommandPool,
 			src, dst, dataSize);
 	}
 
@@ -1784,6 +1858,9 @@ namespace fre
 		}
 
 		mRenderPass.end(commandBuffer);
+
+		recordSceneCommands(camera, light, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, 0);
+
 		mGraphicsCommandBuffers[mImageIndex].end();
 	}
 
@@ -1850,6 +1927,27 @@ namespace fre
 		modetTransferSpace = (ModelMatrix*)_aligned_malloc(modelUniformAlignment * MAX_OBJECTS, modelUniformAlignment);*/
 	}
 
+	void VulkanRenderer::cleanupSwapChain()
+	{
+		mSwapChain.destroy(mainDevice.logicalDevice);
+		cleanupSwapChainFrameBuffers();
+		cleanupInputDescriptorPool();
+		cleanupInputDescriptorSetLayout();
+		cleanupSwapchainImagesSemaphores();
+	}
+
+	void VulkanRenderer::createSwapChain()
+	{
+		mSwapChain.create(mWindow, mainDevice, mGraphicsQueueFamilyId,
+			mPresentationQueueFamilyId, mSurface);
+		createSwapChainFrameBuffers();
+		createInputDescriptorPool();
+		createInputDescriptorSetLayout();
+		allocateInputDescriptorSets();
+
+		createSwapchainImagesSemaphores();
+	}
+
 	void VulkanRenderer::recreateSwapChain()
 	{
 		LOG_INFO("Recreate swapchain");
@@ -1864,20 +1962,9 @@ namespace fre
 
 		VK_CHECK(vkDeviceWaitIdle(mainDevice.logicalDevice));
 
-		mSwapChain.destroy(mainDevice.logicalDevice);
-		cleanupSwapChainFrameBuffers();
-		cleanupInputDescriptorPool();
-		cleanupInputDescriptorSetLayout();
-		cleanupSwapchainImagesSemaphores();
+		cleanupSwapChain();
 
-		mSwapChain.create(mWindow, mainDevice, mGraphicsQueueFamilyId,
-			mPresentationQueueFamilyId, mSurface);
-		createSwapChainFrameBuffers();
-		createInputDescriptorPool();
-		createInputDescriptorSetLayout();
-		allocateInputDescriptorSets();
-
-		createSwapchainImagesSemaphores();
+        createSwapChain();
 
 		LOG_INFO("Swapchain recreated");
 	}
@@ -2308,7 +2395,7 @@ namespace fre
 		}
 	}
 
-	void VulkanRenderer::createBarrier(VkBuffer buffer, bool compute)
+	void VulkanRenderer::createBarrier(VkBuffer buffer, VkPipelineBindPoint pipelineBindPoint)
 	{
 		VkBufferMemoryBarrier barrier{};
 		barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -2321,7 +2408,7 @@ namespace fre
 		barrier.size = VK_WHOLE_SIZE;
 
 		vkCmdPipelineBarrier(
-			compute ? mComputeCommandBuffers[mImageIndex].mCommandBuffer
+			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeCommandBuffers[mImageIndex].mCommandBuffer
 				: mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
 			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
 			VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
@@ -2341,14 +2428,14 @@ namespace fre
 			{
 				if (mesh != nullptr)
 				{
-					pushConstants(mModelMatrixPCR, &modelMatrix[0], pipelineLayout, false);
+					pushConstants(mModelMatrixPCR, &modelMatrix[0], pipelineLayout, VK_PIPELINE_BIND_POINT_GRAPHICS);
 
 					fillLightingPushConstant(mesh, modelMatrix, camera, light, mLighting);
 					//std::cout << "mat3 size: " << sizeof(mat3) << std::endl;
 					//std::cout << "Lighting.normalMatrix: " << offsetof(Lighting, normalMatrix) << std::endl;
 					//std::cout << "Lighting.cameraEye: " << offsetof(Lighting, cameraEye) << std::endl;
 					//std::cout << "Lighting.lightPos: " << offsetof(Lighting, lightPos) << std::endl;
-					pushConstants(mLightingPCR, &mLighting, pipelineLayout, false);
+					pushConstants(mLightingPCR, &mLighting, pipelineLayout, VK_PIPELINE_BIND_POINT_GRAPHICS);
 				}
 			};
 
@@ -2361,10 +2448,10 @@ namespace fre
 			
 				for(const auto textureId : material.mTextureIds)
 				{
-					descriptorSets.push_back(getSamplerDS(textureId.second, false));
+					descriptorSets.push_back(getSamplerDS(textureId.second, VK_PIPELINE_BIND_POINT_GRAPHICS));
 				}
 
-				bindDescriptorSets(pipelineLayout, descriptorSets, false);
+				bindDescriptorSets(pipelineLayout, descriptorSets, VK_PIPELINE_BIND_POINT_GRAPHICS);
 			};
 
 		if(shaderFileName == "pbr")
@@ -2398,28 +2485,13 @@ namespace fre
 				throw::std::runtime_error("Not all descriptorsets passet to rt shader");
 				for(const auto textureId : material.mTextureIds)
 				{
-					descriptorSets.push_back(getSamplerDS(textureId.second, false));
+					descriptorSets.push_back(getSamplerDS(textureId.second, VK_PIPELINE_BIND_POINT_GRAPHICS));
 				}
 
-				bindDescriptorSets(pipelineLayout, descriptorSets, false);
+				bindDescriptorSets(pipelineLayout, descriptorSets, VK_PIPELINE_BIND_POINT_GRAPHICS);
 			};
 			md.mDepthTestEnabled = true;
 			md.mVertexSize = sizeof(Vertex);
-			md.mSubPassIndex = 0;
-
-			result.push_back(md);
-		}
-		if(shaderFileName == "rt")
-		{
-			ShaderMetaData md;
-			auto asLayout = addDescriptorSetLayout(
-				{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE},
-				{VK_SHADER_STAGE_RAYGEN_BIT_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR});
-			md.mDescriptorSetLayouts.push_back(asLayout->mDescriptorSetLayout);
-			md.mPushConstantRanges = {mModelMatrixPCR, mLightingPCR};
-			md.mPushConstantsCallback = commonPushConstantsCallback;
-			md.mBindDescriptorSetsCallback = commonBindDescriptorSetsCallback;
-			md.mDepthTestEnabled = true;
 			md.mSubPassIndex = 0;
 
 			result.push_back(md);
@@ -2519,7 +2591,7 @@ namespace fre
 					const Light& light, VkPipelineLayout pipelineLayout, uint32_t instanceId)
 				{
 					vec2 nearFar(camera.mNear, camera.mFar);
-					pushConstants(mNearFarPCR, &nearFar, pipelineLayout, false);
+					pushConstants(mNearFarPCR, &nearFar, pipelineLayout, VK_PIPELINE_BIND_POINT_GRAPHICS);
 				};
 			md.mDepthTestEnabled = false;
 			md.mVertexSize = 0;

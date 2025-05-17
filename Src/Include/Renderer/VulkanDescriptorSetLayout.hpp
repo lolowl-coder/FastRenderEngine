@@ -8,12 +8,8 @@
 
 namespace fre
 {
-    struct MainDevice;
-
     struct VulkanDescriptorSetLayout
     {
-        using Ptr = std::shared_ptr<VulkanDescriptorSetLayout>;
-
         void create(
             VkDevice logicalDevice,
             const std::vector<VkDescriptorType>& descriptorTypes,

@@ -111,4 +111,23 @@ namespace fre
         vkUpdateDescriptorSets(logicalDevice, writeDescriptorSets.size(),
             writeDescriptorSets.data(), 0, nullptr);
     }
+
+    void VulkanDescriptorSet::update(VkDevice logicalDevice, VkAccelerationStructureKHR& as)
+    {
+        // Setup the descriptor for binding our top level acceleration structure to the ray tracing shaders
+        VkWriteDescriptorSetAccelerationStructureKHR writeExt{};
+        writeExt.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+        writeExt.accelerationStructureCount = 1;
+        writeExt.pAccelerationStructures = &as;
+
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = mDescriptorSet;
+        write.dstBinding = 0;
+        write.descriptorCount = 1;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+        // The acceleration structure descriptor has to be chained via pNext
+        write.pNext = &writeExt;
+        vkUpdateDescriptorSets(logicalDevice, 1, &write, 0, VK_NULL_HANDLE);
+    }
 }

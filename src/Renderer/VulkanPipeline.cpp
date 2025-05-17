@@ -7,18 +7,24 @@
 
 namespace fre
 {
-	VkPipelineShaderStageCreateInfo getPipelineShaderStageCreateInfo(const VulkanShader& shader)
+	std::vector<VkPipelineShaderStageCreateInfo> getPipelineShaderStageCreateInfo(const std::vector<VulkanShader*> shaders)
 	{
-		VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
-		shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		//Shader stage name
-		shaderStageCreateInfo.stage = shader.mShaderStage;
-		//Shader module to be used by stage
-		shaderStageCreateInfo.module = shader.mShaderModule;
-		//Entry point in to shader
-		shaderStageCreateInfo.pName = "main";
+		std::vector<VkPipelineShaderStageCreateInfo> result;
+		for(auto shader : shaders)
+		{
+			VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
+			shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+			//Shader stage name
+			shaderStageCreateInfo.stage = shader->mShaderStage;
+			//Shader module to be used by stage
+			shaderStageCreateInfo.module = shader->mShaderModule;
+			//Entry point in to shader
+			shaderStageCreateInfo.pName = "main";
 
-		return shaderStageCreateInfo;
+			result.push_back(shaderStageCreateInfo);
+		}
+
+		return result;
 	}
 
 	VkPipelineLayout createPipelineLayout(
@@ -39,7 +45,7 @@ namespace fre
 		return pipelineLayout;
 	}
 
-    void VulkanPipeline::create(
+    void VulkanPipeline::createGeometryPipeline(
 		VkDevice logicalDevice,
 		std::vector<VulkanShader*> shaders,
 		VkPrimitiveTopology topology,
@@ -56,12 +62,8 @@ namespace fre
     {
         //Put shader stage creation info in to container
 		//Graphics Pipeline creation info requires array of shader stage creates
-        std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
-        for(auto shader : shaders)
-        {
-            shaderStages.push_back(getPipelineShaderStageCreateInfo(*shader));
-        }
-
+        auto shaderStages = getPipelineShaderStageCreateInfo(shaders);
+        
 		//How the data for an attribute is defined within a vertex
 		std::vector<VkVertexInputAttributeDescription> attributeDescriptions;
         attributeDescriptions.resize(vertexAttributes.size());
@@ -203,11 +205,13 @@ namespace fre
 		pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;	//Existing pipeline to derive from...
 		pipelineCreateInfo.basePipelineIndex = -1;	//or index of pipeline being created to derive from (in case creating multiple at once)
 
+		mBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+
 		//Create graphics pipeline
 		VK_CHECK(vkCreateGraphicsPipelines(logicalDevice, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &mPipeline));
     }
 
-	void VulkanPipeline::create(
+	void VulkanPipeline::createComputePipeline(
         VkDevice logicalDevice,
         VulkanShader& shader,
         std::vector<VkDescriptorSetLayout> descriptorSetLayouts,
@@ -218,13 +222,86 @@ namespace fre
 		VkComputePipelineCreateInfo pipelineInfo{};
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
 		pipelineInfo.layout = mPipelineLayout;
-		pipelineInfo.stage = getPipelineShaderStageCreateInfo(shader);
+        auto shaderStageInfos = getPipelineShaderStageCreateInfo({&shader});
+		pipelineInfo.stage = shaderStageInfos.front();
 
 		VK_CHECK(vkCreateComputePipelines(logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &mPipeline));
 
-		mIsCompute = true;
+        mBindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
 
 		shader.destroy(logicalDevice);
+	}
+
+	void VulkanPipeline::createShaderBindingTables(
+		MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool,
+		const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& mRayTracingPipelineProperties,
+		VulkanBufferManager& bufferManager)
+	{
+		const uint32_t           handle_size = mRayTracingPipelineProperties.shaderGroupHandleSize;
+		const uint32_t           handle_size_aligned = alignedSize(mRayTracingPipelineProperties.shaderGroupHandleSize, mRayTracingPipelineProperties.shaderGroupHandleAlignment);
+		const uint32_t           handle_alignment = mRayTracingPipelineProperties.shaderGroupHandleAlignment;
+		const uint32_t           group_count = static_cast<uint32_t>(mShaderGroups.size());
+		const uint32_t           sbt_size = group_count * handle_size_aligned;
+		const VkBufferUsageFlags sbt_buffer_usage_flags = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		const VkMemoryPropertyFlags     sbt_memory_usage = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+		// Copy the pipeline's shader handles into a host buffer
+		std::vector<uint8_t> shader_handle_storage(sbt_size);
+		VK_CHECK(vkGetRayTracingShaderGroupHandlesKHR(mainDevice.logicalDevice, mPipeline, 0, group_count, sbt_size, shader_handle_storage.data()));
+
+		// Raygen
+		// Create binding table buffers for each shader type
+		mRaygenShaderBindingTable = bufferManager.createBuffer(mainDevice, transferQueue, transferCommandPool,
+			sbt_buffer_usage_flags, sbt_memory_usage, shader_handle_storage.data(), handle_size);
+		mMissShaderBindingTable = bufferManager.createBuffer(mainDevice, transferQueue, transferCommandPool,
+			sbt_buffer_usage_flags, sbt_memory_usage, shader_handle_storage.data() + handle_size_aligned, handle_size);
+		mHhitShaderBindingTable = bufferManager.createBuffer(mainDevice, transferQueue, transferCommandPool,
+			sbt_buffer_usage_flags, sbt_memory_usage, shader_handle_storage.data() + handle_size_aligned * 2, handle_size);
+	}
+
+	void VulkanPipeline::createRTPipeline(VkDevice logicalDevice,
+		std::vector<VulkanShader*> shaders,
+		std::vector<VkDescriptorSetLayout> descriptorSetLayouts,
+		std::vector<VkPushConstantRange> pushConstantRanges)
+	{
+		mPipelineLayout = createPipelineLayout(logicalDevice, descriptorSetLayouts, pushConstantRanges);
+		
+		auto shaderStageInfos = getPipelineShaderStageCreateInfo(shaders);
+
+		for(uint32_t i = 0; i < shaderStageInfos.size(); i++)
+		{
+			VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
+			shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+			if(shaders[i]->mShaderStage == VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR)
+			{
+				shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+				shaderGroup.generalShader = VK_SHADER_UNUSED_KHR;
+				shaderGroup.closestHitShader = i;
+				shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+				shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+			}
+			else
+			{
+				shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+				shaderGroup.generalShader = i;
+				shaderGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
+				shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+				shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+			}
+			mShaderGroups.push_back(shaderGroup);
+		}
+
+		VkRayTracingPipelineCreateInfoKHR raytracing_pipeline_create_info{};
+		raytracing_pipeline_create_info.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
+		raytracing_pipeline_create_info.stageCount = static_cast<uint32_t>(shaderStageInfos.size());
+		raytracing_pipeline_create_info.pStages = shaderStageInfos.data();
+		raytracing_pipeline_create_info.groupCount = static_cast<uint32_t>(mShaderGroups.size());
+		raytracing_pipeline_create_info.pGroups = mShaderGroups.data();
+		raytracing_pipeline_create_info.maxPipelineRayRecursionDepth = 1;
+		raytracing_pipeline_create_info.layout = mPipelineLayout;
+		VK_CHECK(vkCreateRayTracingPipelinesKHR(logicalDevice, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &raytracing_pipeline_create_info, nullptr, &mPipeline));
+		
+		mBindPoint = VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR;
 	}
 
 	void VulkanPipeline::destroy(VkDevice logicalDevice)
@@ -235,6 +312,6 @@ namespace fre
 
 	bool VulkanPipeline::isCompute() const
 	{
-		return mIsCompute;
+		return mBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE;
 	}
 }

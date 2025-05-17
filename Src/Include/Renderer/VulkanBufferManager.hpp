@@ -14,6 +14,11 @@ namespace fre
         VkBuffer mBuffer = VK_NULL_HANDLE;
 		VkDeviceMemory mBufferMemory = VK_NULL_HANDLE;
         uint64_t mDeviceAddress = 0;
+
+        bool operator ==(const VulkanBuffer& other) const
+        {
+            return mBuffer == other.mBuffer;
+        }
     };
 
     struct VulkanBufferManager
@@ -25,9 +30,9 @@ namespace fre
         VulkanBuffer createStagingBuffer(const MainDevice& mainDevice, VkQueue transferQueue,
 		    VkCommandPool transferCommandPool, const void* data, size_t size);
         const VulkanBuffer& createBuffer(const MainDevice& mainDevice, VkQueue transferQueue,
-            VkCommandPool transferCommandPool, VkBufferUsageFlagBits bufferUsage,
+            VkCommandPool transferCommandPool, VkBufferUsageFlags bufferUsage,
             VkMemoryPropertyFlags memoryFlags, const void* data, size_t size);
-        const VulkanBuffer& createExternalBuffer(const MainDevice& mainDevice, VkBufferUsageFlagBits bufferUsage,
+        const VulkanBuffer& createExternalBuffer(const MainDevice& mainDevice, VkBufferUsageFlags bufferUsage,
             VkMemoryPropertyFlags memoryFlags, VkExternalMemoryHandleTypeFlagsKHR extMemHandleType, VkDeviceSize size);
 
         bool isBufferAvailable(uint32_t index) const;

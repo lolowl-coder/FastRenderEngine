@@ -16,7 +16,10 @@ namespace fre
 		namespace fs = std::filesystem;
 		if(fs::exists(path))
 		{
+			LOG_TRACE("Loading shader: {}", path);
+
 			auto shaderCode = readFile(path);
+
 			mShaderModule = createShaderModule(logicalDevice, shaderCode);
 			mShaderStage = shaderStage;
 		}

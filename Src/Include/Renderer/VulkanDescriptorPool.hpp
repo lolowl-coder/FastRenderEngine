@@ -8,12 +8,8 @@
 
 namespace fre
 {
-    struct MainDevice;
-
     struct VulkanDescriptorPool
     {
-        using Ptr = std::shared_ptr<VulkanDescriptorPool>;
-
         void create(
             VkDevice logicalDevice,
             VkDescriptorPoolCreateFlags flags,

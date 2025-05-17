@@ -12,8 +12,6 @@ namespace fre
 
     struct VulkanDescriptorSet
     {
-        using Ptr = std::shared_ptr<VulkanDescriptorSet>;
-
         void allocate(
             VkDevice logicalDevice,
             VkDescriptorPool descriptorPool,
@@ -26,6 +24,7 @@ namespace fre
             const std::vector<VkBuffer>& buffers,
             const std::vector<VkDescriptorType> descriptorTypes,
             const std::vector<VkDeviceSize> sizes);
+        void update(VkDevice logicalDevice, VkAccelerationStructureKHR& as);
 
         VkDescriptorSet mDescriptorSet = VK_NULL_HANDLE;
     };

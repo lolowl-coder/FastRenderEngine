@@ -26,6 +26,16 @@ namespace fre
 		Image& createImage(bool isExternal);
 		Image* getImage(uint32_t id);
 		uint32_t getImagesCount() const;
+		VulkanImage createImageGPU(
+			const MainDevice& mainDevice,
+			VkQueue queue,
+			VkCommandPool commandPool,
+			VkFormat format,
+			VkImageTiling tiling,
+			VkImageUsageFlags usageFlags,
+			VkMemoryPropertyFlags memoryFlags,
+			VkImageLayout layout,
+			glm::vec2 size);
 		void createTextureImage(
 			const MainDevice& mainDevice,
 			int8_t transferFamilyId,

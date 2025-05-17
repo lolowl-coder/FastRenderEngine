@@ -18,7 +18,7 @@ namespace fre
 	{
 	public:
 		using Ptr = std::shared_ptr<Mesh>;
-		using RecordCallback = std::function<void(VulkanRenderer* renderer, uint32_t subPass, bool compute)>;
+		using RecordCallback = std::function<void(VulkanRenderer* renderer, uint32_t subPass, VkPipelineBindPoint pipelineBindPoint)>;
 
 		//Vertices are raw data
 		using Vertices = std::vector<uint8_t>;
