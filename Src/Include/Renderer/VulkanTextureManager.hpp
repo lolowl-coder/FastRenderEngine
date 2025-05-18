@@ -3,7 +3,7 @@
 #include <volk.h>
 #include <GLFW/glfw3.h>
 
-#include "Image.hpp"
+#include "Pointers.hpp"
 #include "Renderer/VulkanDescriptorPool.hpp"
 #include "Renderer/VulkanDescriptorSet.hpp"
 #include "Renderer/VulkanDescriptorSetLayout.hpp"
@@ -22,20 +22,23 @@ namespace fre
 		void destroy(VkDevice logicalDevice);
 		int getImageIdByFilename(const std::string& fileName) const;
 		bool isImageCreated(const std::string& fileName) const;
-		Image& createImage(const std::string& fileName, bool isExternal);
-		Image& createImage(bool isExternal);
-		Image* getImage(uint32_t id);
+		VulkanTexturePtr createTexture(const std::string& fileName, bool isExternal);
+		VulkanTexturePtr createImage(bool isExternal);
+		VulkanTexturePtr getTexture(uint32_t id);
 		uint32_t getImagesCount() const;
-		VulkanImage createImageGPU(
+		VulkanTexturePtr createTexture(
 			const MainDevice& mainDevice,
-			VkQueue queue,
-			VkCommandPool commandPool,
-			VkFormat format,
-			VkImageTiling tiling,
-			VkImageUsageFlags usageFlags,
-			VkMemoryPropertyFlags memoryFlags,
-			VkImageLayout layout,
-			glm::vec2 size);
+		int8_t transferQueueFamilyId,
+		int8_t graphicsQueueFamilyId,
+			const VkQueue queue,
+			const VkCommandPool commandPool,
+			const VkFormat format,
+			const VkSamplerAddressMode addressMode,
+			const VkImageTiling tiling,
+			const VkImageUsageFlags usageFlags,
+			const VkMemoryPropertyFlags memoryFlags,
+			const VkImageLayout layout,
+			Image& hostImage);
 		void createTextureImage(
 			const MainDevice& mainDevice,
 			int8_t transferFamilyId,
@@ -68,10 +71,7 @@ namespace fre
 
 	private:
 		VulkanDescriptorPool mSamplerDescriptorPool;
-		std::map<uint32_t, VkImage> mTextureImages;
-		std::map<uint32_t, VkDeviceMemory> mTextureImageMemory;
-		std::map<uint32_t, VkImageView> mTextureImageViews;
-		std::map<uint32_t, Image> mImages;
+		std::map<uint32_t, VulkanTexturePtr> mTextures;
 		uint32_t mDefaultTextureId = 0;
 
 	public:

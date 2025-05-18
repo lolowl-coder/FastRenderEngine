@@ -3,19 +3,13 @@
 #include <volk.h>
 #include <GLFW/glfw3.h>
 
+#include "Image.hpp"
+
 #include <vector>
 
 namespace fre
 {
 	struct MainDevice;
-
-	struct VulkanImage
-	{
-		VkImage mImage = VK_NULL_HANDLE;
-		VkDeviceMemory mImageMemory = VK_NULL_HANDLE;
-		VkImageView mImageView = VK_NULL_HANDLE;
-        uint32_t mActualSize = 0;
-	};
 
 	VkFormat chooseSupportedImageFormat(VkPhysicalDevice physicalDevice, const std::vector<VkFormat>& formats, VkImageTiling tiling, VkFormatFeatureFlags featureFlags);
 

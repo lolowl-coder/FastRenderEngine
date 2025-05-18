@@ -32,7 +32,6 @@ namespace fre
         uint32_t mDataSize = 0;
         void* mData = nullptr;
         VkFormat mFormat = VK_FORMAT_R8G8B8A8_UNORM;
-        VkImageTiling mTiling = VK_IMAGE_TILING_OPTIMAL;
         std::string mFileName;
         bool mIsExternal = false;
         //Actual size in GPU memory, bytes
