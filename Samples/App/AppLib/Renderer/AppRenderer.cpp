@@ -60,9 +60,7 @@ namespace app
 
 	void AppRenderer::cleanupSwapChain()
 	{
-		mStorageImage.
-		cleanupStorageImage();
-		cleanupStorageImageDP()
+		VulkanRenderer::cleanupSwapChain();
 	}
 
 	void AppRenderer::createSwapChain()
@@ -70,9 +68,6 @@ namespace app
         VulkanRenderer::createSwapChain();
 
 		createSorageImage();
-		createStorageImageDP();
-		createStorageImageDSL();
-		allocateStorageImageDS();
 	}
 	
 	ShaderMetaDatum AppRenderer::getShaderMetaData(const std::string& shaderFileName)
@@ -115,86 +110,38 @@ namespace app
     void AppRenderer::createSorageImage()
     {
 		auto maxViewSize = getViewport().getSize();
-        mStorageImage = mTextureManager.createImageGPU(
+		auto textureInfo = mTextureManager.createTextureInfo(
+			VK_FORMAT_R8G8B8A8_UNORM,
+			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			VK_IMAGE_LAYOUT_GENERAL,
+			false,
+			Image());
+		mStorageImage = mTextureManager.createTexture(
 			mainDevice,
+			mTransferQueueFamilyId,
+            mGraphicsQueueFamilyId,
 			mGraphicsQueue,
 			mGraphicsCommandPool,
-			VK_FORMAT_R8G8B8A8_UNORM,
-			VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_LAYOUT_GENERAL, maxViewSize);
+            textureInfo);
     }
-
-    void AppRenderer::createStorageImageDP()
-	{
-        mStorageImageDP = createDescriptorPool(
-            0,
-            MAX_FRAME_DRAWS,
-            { {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, MAX_FRAME_DRAWS} }
-        );
-        LOG_INFO("Storage Image descriptor pool created");
-	}
-
-    void AppRenderer::createStorageImageDSL()
-    {
-        mStorageImageDSL = createDescriptorSetLayout(
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE },
-            { VK_SHADER_STAGE_COMPUTE_BIT });
-    }
-
-	void AppRenderer::allocateStorageImageDS()
-	{
-		mStorageImageDS->allocate(mainDevice.logicalDevice,
-			mStorageImageDP->mDescriptorPool,
-			mStorageImageDSL->mDescriptorSetLayout);
-	}
-
-	void AppRenderer::createASDescriptorPool()
-	{
-		LOG_INFO("Create Descriptor Pool");
-		mASDescriptorPool = createDescriptorPool(
-			0,
-			MAX_FRAME_DRAWS,
-			{ {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, MAX_FRAME_DRAWS} }
-		);
-		LOG_INFO("Descriptor Pool created");
-	}
-
-	void AppRenderer::createASDescriptorSetLayout()
-	{
-		LOG_INFO("Create Acceleration Structure descriptor set layout");
-
-		mASDescriptorSetLayout = createDescriptorSetLayout(
-			{ VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE },
-			{ VK_SHADER_STAGE_RAYGEN_BIT_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR });
-		LOG_INFO("Acceleration Structure descriptor set layout created");
-	}
-
-	void AppRenderer::allocateASDescriptorSets()
-	{
-		LOG_INFO("Allocate Acceleration Structure descriptor sets");
-
-		//Resize descriptor set array for each swap chain image
-		mASDescriptorSet = allocateDescriptorSet(
-			mASDescriptorPool->mDescriptorPool,
-			mASDescriptorSetLayout->mDescriptorSetLayout);
-		mASDescriptorSet->update(mainDevice.logicalDevice, mTLAS.mHandle);
-
-		LOG_INFO("Acceleration Structure descriptor sets allocated");
-	}
 
 	void AppRenderer::loadMeshModel()
 	{
 		Material material;
-		//For better match with old viewer use shininess value of 128 and define USE_DIRECTIONAL_LIGHT in heightMap.frag
-		//material.mShininess = 128.0f;
 		material.mShininess = 1.0f;
-		material.mShaderFileName = "rt";
+		mRTShaderId = addShader("rt");
+		material.mShaderId = mRTShaderId;
 		addMaterial(material);
 
 		mMeshModel = createMeshModel("Models/unitQuad/unitQuad.obj", {});
         mMesh = mMeshModel->getMesh(0);
 		mMesh->setMaterialId(material.mId);
+		mTLASDescriptor = std::make_shared<DescriptorAccelerationStructure>(mTLAS.mHandle);
+		mStorageImageDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+		mMesh->setDescriptors({{mTLASDescriptor}, {mStorageImageDescriptor}});
 	}
 
 	int AppRenderer::createDynamicGPUResources()
@@ -202,10 +149,6 @@ namespace app
         int result = VulkanRenderer::createDynamicGPUResources();
 
 		createScene();
-
-		createASDescriptorPool();
-		createASDescriptorSetLayout();
-		allocateASDescriptorSets();
 
 		return result;
 	}

@@ -26,7 +26,6 @@ namespace fre
         //Chack file name for validity
         bool isFileNameValid() const;
 
-        uint32_t mId = std::numeric_limits<uint32_t>::max();
         glm::ivec2 mDimension;
         //Data size stored in mData, bytes
         uint32_t mDataSize = 0;
@@ -34,8 +33,6 @@ namespace fre
         VkFormat mFormat = VK_FORMAT_R8G8B8A8_UNORM;
         std::string mFileName;
         bool mIsExternal = false;
-        //Actual size in GPU memory, bytes
-        uint32_t mActualSize = 0;
         //Pixel size, bytes
         uint32_t mStride = 0;
         //Does this image own the data

@@ -7,7 +7,6 @@ namespace fre
 {
     void VulkanDescriptorPool::create(
 		VkDevice logicalDevice,
-		VkDescriptorPoolCreateFlags flags,
 		uint32_t setsCount,
 		const std::vector<VkDescriptorPoolSize>& poolSizes)
     {
@@ -23,7 +22,7 @@ namespace fre
 		//Data to create descriptor pool
 		VkDescriptorPoolCreateInfo poolCreateInfo = {};
 		poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		poolCreateInfo.flags = flags;
+		poolCreateInfo.flags = 0;
         //Maximum number of descriptor sets that can be created from pool
 		poolCreateInfo.maxSets = setsCount;
         //Amount of pool sizes being passed

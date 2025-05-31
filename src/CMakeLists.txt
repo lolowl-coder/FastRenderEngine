@@ -15,6 +15,7 @@ set(SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanAttachment.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanBufferManager.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanCommandBuffer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanDescriptor.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanDescriptorPool.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanDescriptorSet.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanDescriptorSetLayout.cpp"
@@ -36,6 +37,8 @@ set(SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/misc/cpp/imgui_stdlib.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../External/implot/implot.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../External/implot/implot_items.cpp"
+    "${spirv-reflect_SOURCE_DIR}/spirv_reflect.c"
+
 )
 
 if(WIN32)
@@ -56,6 +59,7 @@ set(HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanAttachment.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanBufferManager.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanCommandBuffer.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanDescriptor.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanDescriptorPool.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanDescriptorSet.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanDescriptorSetLayout.hpp"
@@ -65,8 +69,11 @@ set(HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanQueueFamily.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanRenderer.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanRenderPass.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanResourceCache.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanSampler.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanShader.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanSwapChain.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanTexture.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanTextureManager.hpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/Include/Serialization/BaseTypesSerialization.hpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/Include/Serialization/MathSerialization.hpp"
@@ -100,6 +107,7 @@ set(HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/misc/cpp/imgui_stdlib.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/../External/implot/implot.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/../External/implot/implot_internal.h"
+    "${spirv-reflect_SOURCE_DIR}/spirv_reflect.h"
 )
 set(INCLUDES_PUBLIC
     "./"
@@ -119,6 +127,7 @@ set(INCLUDES_PUBLIC
     "${tiff_INCLUDE_DIRS}"
 	"${spdlog_SOURCE_DIR}/include"
     "${VOLK_INCLUDES}"
+    "${spirv-reflect_SOURCE_DIR}"
     )
 set(INCLUDES_PRIVATE
 	)

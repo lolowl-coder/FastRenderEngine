@@ -8,11 +8,20 @@
 
 namespace fre
 {
+    struct VulkanDescriptorPoolKey
+    {
+        std::vector<VkDescriptorPoolSize> mPoolSizes;
+
+        bool operator == (const VulkanDescriptorPoolKey& other) const
+        {
+            return mPoolSizes == other.mPoolSizes;
+        }
+    };
+
     struct VulkanDescriptorPool
     {
         void create(
             VkDevice logicalDevice,
-            VkDescriptorPoolCreateFlags flags,
             uint32_t count,
             //it's possible to create pool of multiple inputs.
             //e. g. color and depth attachments in one pool.

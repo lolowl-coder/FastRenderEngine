@@ -11,19 +11,21 @@ namespace fre
 		return !mDescriptorSetLayouts.empty();
 	}
 
-    void VulkanShader::create(VkDevice logicalDevice, const std::string& path, VkShaderStageFlagBits shaderStage)
-    {
+	const std::vector<char> VulkanShader::create(VkDevice logicalDevice, const std::string& path, VkShaderStageFlagBits shaderStage)
+	{
 		namespace fs = std::filesystem;
+		std::vector<char> shaderSource;
 		if(fs::exists(path))
 		{
 			LOG_TRACE("Loading shader: {}", path);
 
-			auto shaderCode = readFile(path);
-
-			mShaderModule = createShaderModule(logicalDevice, shaderCode);
+			shaderSource = readFile(path);
+			mShaderModule = createShaderModule(logicalDevice, shaderSource);
 			mShaderStage = shaderStage;
 		}
-    }
+
+		return shaderSource;
+	}
 
     VkShaderModule VulkanShader::createShaderModule(VkDevice logicalDevice, const std::vector<char>& code)
 	{
