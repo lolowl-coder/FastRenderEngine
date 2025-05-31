@@ -34,5 +34,7 @@ namespace fre
         std::vector<uint32_t> mGraphicsPipelineIds;
         std::vector<uint32_t> mComputePipelineIds;
         std::vector<uint32_t> mRTPipelineIds;
+        std::vector<uint32_t> mDSLs;
+        std::vector<uint32_t> mDSs;
     };
 }

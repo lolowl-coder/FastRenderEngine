@@ -8,12 +8,28 @@
 
 namespace fre
 {
+    struct VulkanDescriptorSetLayoutInfo
+    {
+        std::vector<VkDescriptorType> mDescriptorTypes;
+        std::vector<uint32_t> mBindings;
+        std::vector<uint32_t> mDescriptorCount;
+        std::vector<VkShaderStageFlags> mStageFlags;
+
+        bool operator==(const VulkanDescriptorSetLayoutInfo& other) const
+        {
+            return 
+                mDescriptorTypes == other.mDescriptorTypes &&
+                mBindings == other.mBindings &&
+                mDescriptorCount == other.mDescriptorCount &&
+                mStageFlags == other.mStageFlags;
+        }
+    };
+
     struct VulkanDescriptorSetLayout
     {
         void create(
             VkDevice logicalDevice,
-            const std::vector<VkDescriptorType>& descriptorTypes,
-            const std::vector<uint32_t>& stageFlags);
+            const VulkanDescriptorSetLayoutInfo& key);
         void destroy(VkDevice logicalDevice);
 
         VkDescriptorSetLayout mDescriptorSetLayout = VK_NULL_HANDLE;

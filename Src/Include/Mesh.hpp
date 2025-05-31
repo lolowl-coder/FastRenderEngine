@@ -3,12 +3,13 @@
 #include <volk.h>
 #include <GLFW/glfw3.h>
 
+#include "Renderer/Callbacks.hpp"
 #include "Member.hpp"
+#include "Pointers.hpp"
 #include "Utilities.hpp"
 
 #include <limits>
 #include <vector>
-#include <functional>
 
 namespace fre
 {
@@ -62,6 +63,16 @@ namespace fre
 		GETTER_SETTER(bool, Visible);
 
 		GETTER_SETTER(uint32_t, InstanceCount);
+
+		FIELD_NS(std::vector<uint32_t>, DescriptorSets, private, public, public);
+
+        FIELD_NS(std::vector<std::vector<VulkanDescriptorPtr>>, Descriptors, private, public, public);
+
+	public:
+		//Callback to pass variables to shader
+		PushConstantCallback mPushConstantsCallback = nullptr;
+		//Callback to pass data like textures or buffers to shader
+		BindDescriptorSetsCallback mBindDescriptorSetsCallback = nullptr;
 
 	private:
 		uint32_t mId = std::numeric_limits<uint32_t>::max();

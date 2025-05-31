@@ -12,6 +12,7 @@
 #include "Statistics.hpp"
 #include "Utilities.hpp"
 #include "Renderer/VulkanBufferManager.hpp"
+#include "Renderer/VulkanResourceCache.hpp"
 #include "Renderer/VulkanCommandBuffer.hpp"
 #include "Renderer/VulkanFrameBuffer.hpp"
 #include "Renderer/VulkanPipeline.hpp"
@@ -32,12 +33,15 @@
 
 namespace fre
 {
-	struct VulkanPipeline;
-	struct Camera;
-	struct Light;
-	class ThreadPool;
 	struct AccelerationStructure;
 	class FeatureStorageBase;
+	struct Camera;
+	struct Light;
+    struct ShaderInputParser;
+	class ThreadPool;
+	struct VulkanDescriptor;
+	struct VulkanPipeline;
+	struct VulkanSamplerKey;
 
 	class VulkanRenderer
 	{
@@ -54,28 +58,50 @@ namespace fre
 		virtual void destroy();
 		virtual void destroyGPUResources();
 
-		VulkanDescriptorPoolPtr& createDescriptorPool(VkDescriptorPoolCreateFlags flags, uint32_t count,
-			const std::vector<VkDescriptorPoolSize>& poolSizes);
-		VulkanDescriptorSetLayoutPtr& createDescriptorSetLayout(const std::vector<VkDescriptorType>& descriptorTypes,
-			const std::vector<uint32_t>& stageFlags);
-		VulkanDescriptorSetPtr& allocateDescriptorSet(
-			const VkDescriptorPool& descriptorPool,
-			const VkDescriptorSetLayout& descriptorSetLayout);
+		//Descriptor sets
+		uint32_t createDescriptorPool(const VulkanDescriptorPoolKey& key);
+        VulkanDescriptorPoolPtr& getDescriptorPool(const uint32_t index);
 
-		void addMaterial(Material& material);
-		int addTexture(const std::string& textureFileName, bool isExternal);
-		int createTexture(Image& image);
-		Image* createImage(const std::string& fileName, bool isExternal) { return &mTextureManager.createImage(fileName, isExternal); }
-		Image* createImage(bool isExternal) { return &mTextureManager.createImage(isExternal); }
-		Image* getImage(uint32_t id);
+		uint32_t createDescriptorSetLayout(const VulkanDescriptorSetLayoutInfo& key);
+        VulkanDescriptorSetLayoutPtr& getDescriptorSetLayout(const uint32_t index);
+
+		uint32_t createDescriptorSet(const VulkanDescriptorSetKey& key);
+        VulkanDescriptorSetPtr& getDescriptorSet(const uint32_t index);
+
+		void bindDescriptorSets(const std::vector<uint32_t>& setIds, VkPipelineLayout pipelineLayout, VkPipelineBindPoint pipelineBindPoint);
+
+		//Descriptors
+		uint32_t createSampler(const VulkanSamplerKey& key);
+		VkSampler getSampler(const uint32_t index);
+
+		VulkanTextureInfoPtr createTextureInfo(
+			const VkFormat format,
+			const VkSamplerAddressMode addressMode,
+			const VkImageTiling tiling,
+			const VkImageUsageFlags usageFlags,
+			const VkMemoryPropertyFlags memoryFlags,
+			const VkImageLayout layout,
+			const bool isExternal,
+			Image& image);
+		uint32_t createTexture(const VulkanTextureInfoPtr& info);
+		VulkanTexturePtr getTexture(const uint32_t id);
+		void updateTextureImage(const VulkanTextureInfoPtr& info);
+
+		VulkanBuffer createStagingBuffer(const void* data, size_t size);
+		const VulkanBuffer& createBuffer(VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags, void* data, size_t dataSize);
+		const VulkanBuffer& createExternalBuffer(VkBufferUsageFlags bufferUsage, VkMemoryPropertyFlags memoryFlags,
+			VkExternalMemoryHandleTypeFlagsKHR extMemHandleType, VkDeviceSize size);
+		void copyBuffer(VkBuffer src, VkBuffer dst, size_t dataSize, VkPipelineBindPoint pipelineBindPoint) const;
 
 		AccelerationStructure& createBLAS(VulkanBuffer& vbo, VulkanBuffer& ibo, VulkanBuffer& transform);
 		AccelerationStructure& createTLAS(const uint64_t refBlasAddress, const VkTransformMatrixKHR& transform);
 		AccelerationStructure& buildAccelerationStructure(VkAccelerationStructureGeometryKHR& acceleration_structure_geometry, const VkAccelerationStructureTypeKHR asType);
 		void destroyAccelerationStructure(AccelerationStructure& accelerationStructure);
 
-		void updateTextureImage(uint32_t imageId, Image& image);
+		void addMaterial(Material& material);
+
 		int addShader(const std::string& shaderFileName);
+		
 		//Load model file
 		MeshModel::Ptr& createMeshModel(std::string modelFile,
 			const std::vector<aiTextureType>& texturesLoadTypes);
@@ -86,6 +112,7 @@ namespace fre
 
 		//Update
 		virtual void update(const Camera& camera, const Light& light);
+		
 		//Draw all models and UI
 		virtual void draw(const Camera& camera, const Light& light);
 		void preprocessUI();
@@ -94,15 +121,9 @@ namespace fre
 		const MainDevice& getMainDevice(){ return mainDevice; }
 		uint32_t getImageIndex(){ return mImageIndex; }
 		uint32_t getCurrentFrameIndex(){ return mCurrentFrame; }
+
 		//Push shader constants
 		void pushConstants(VkPushConstantRange pushConstants, const void* data, VkPipelineLayout pipelineLayout, VkPipelineBindPoint pipelineBindPoint);
-		//Bind descriptor sets
-		void bindDescriptorSets(VkPipelineLayout pipelineLayout, const std::vector<VkDescriptorSet>& sets, VkPipelineBindPoint pipelineBindPoint);
-		VulkanBuffer createStagingBuffer(const void* data, size_t size);
-		const VulkanBuffer& createBuffer(VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags, void* data, size_t dataSize);
-		const VulkanBuffer& createExternalBuffer(VkBufferUsageFlags bufferUsage, VkMemoryPropertyFlags memoryFlags,
-			VkExternalMemoryHandleTypeFlagsKHR extMemHandleType, VkDeviceSize size);
-		void copyBuffer(VkBuffer src, VkBuffer dst, size_t dataSize, VkPipelineBindPoint pipelineBindPoint) const;
 		void createBarrier(VkBuffer buffer, VkPipelineBindPoint pipelineBindPoint);
 		const VulkanBuffer* getVertexBuffer(const uint32_t meshId) const;
 		const VulkanBuffer* getIndexBuffer(const uint32_t meshId) const;
@@ -118,10 +139,6 @@ namespace fre
 		//Default shininess if material loaded from scene does not have this property
 		void setDefaultShininess(const float shininess);
 
-		VulkanDescriptorPoolPtr& getDP(uint32_t id){ return mDescriptorPools[id]; }
-		VulkanDescriptorSetLayoutPtr& getDSL(uint32_t id){ return mDescriptorSetLayouts[id]; }
-		VulkanDescriptorSetPtr& getDS(uint32_t id){ return mDescriptorSets[id]; }
-
 		VulkanFrameBuffer& getFramBuffer(){ return mFrameBuffers[mImageIndex]; }
 
 		VkDescriptorSetLayout getInputDSL() const { return mInputDescriptorSetLayout.mDescriptorSetLayout; }
@@ -131,22 +148,7 @@ namespace fre
 		VkDescriptorSet getDepthDS(uint32_t index) const { return mDepthDescriptorSets[index].mDescriptorSet; }
 		void transitionDepthLayout(VkImageLayout from, VkImageLayout to, VkPipelineBindPoint pipelineBindPoint);
 
-		//Returns uniforms descriptor set layout
-		VkDescriptorSetLayout getUniformDSL() const { return mUniformDescriptorSetLayout.mDescriptorSetLayout; }
-		VkDescriptorSet getUniformDS()
-		{
-			return mUniformDescriptorSets[mImageIndex].mDescriptorSet;
-		}
-		//Returns sampler descriptor set layout
-		VkDescriptorSetLayout getSamplerDSL() const { return mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout; }
 		VulkanTextureManager& getTextureManager() { return mTextureManager; }
-		const VkDescriptorSet& getSamplerDS(uint32_t textureId, VkPipelineBindPoint pipelineBindPoint)
-		{
-			return mTextureManager.getDescriptorSet(mainDevice, mTransferQueueFamilyId,
-				pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeQueueFamilyId : mGraphicsQueueFamilyId,
-				pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeQueue : mGraphicsQueue,
-				pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mGraphicsCommandPool : mComputeCommandPool, textureId).mDescriptorSet;
-		}
 
 		VkSemaphore getExternalWaitSemaphore() { return mExternalWaitSemaphore; }
 		VkSemaphore getExternalSignalSemaphore() { return mExternalSignalSemaphore; }
@@ -219,9 +221,12 @@ namespace fre
 		VulkanDescriptorPool mDepthDescriptorPool;
 		VulkanDescriptorPool mUIDescriptorPool;
 
-		std::vector<VulkanDescriptorPoolPtr> mDescriptorPools;
-		std::vector<VulkanDescriptorSetLayoutPtr> mDescriptorSetLayouts;
-		std::vector<VulkanDescriptorSetPtr> mDescriptorSets;
+        uint32_t mSharedDescriptorPoolId = MAX(uint32_t);
+
+        VulkanResourceCache<VulkanSamplerKey, VkSampler> mSamplerCache;
+        VulkanResourceCache<VulkanDescriptorPoolKey, VulkanDescriptorPoolPtr> mDescriptorPoolCache;
+        VulkanResourceCache<VulkanDescriptorSetLayoutInfo, VulkanDescriptorSetLayoutPtr> mDescriptorSetLayoutCache;
+		VulkanResourceCache<VulkanDescriptorSetKey, VulkanDescriptorSetPtr> mDescriptorSetCache;
 
 		std::vector<VulkanDescriptorSet> mUniformDescriptorSets;
 		std::vector<VulkanDescriptorSet> mInputDescriptorSets;
@@ -281,7 +286,13 @@ namespace fre
 		virtual bool isRayTracingSupported() { return false; }
 
 	protected:
-		void loadShader(const std::string& shadeFilerName);
+		void loadShaderStage(
+			ShaderInputParser& parser,
+			VulkanShader& shader,
+			const std::string& shaderFileName,
+			VkShaderStageFlagBits stage,
+			std::vector<VulkanDescriptorSetLayoutInfo>& layouts);
+		void loadShader(const std::string& shadeFilerName, std::unordered_map<VkDescriptorType, uint32_t>& descriptorTypes);
 		void loadUsedShaders();
 		//Load images in different thread
 		void loadImages();
@@ -295,14 +306,11 @@ namespace fre
 		void createSwapChain();
 		void createSwapChainFrameBuffers();
 		void createSurface();
-		void createUniformDescriptorPool();
 		void createInputDescriptorPool();
 		void createUIDescriptorPool();
-		void createUniformDescriptorSetLayout();
 		void createInputDescriptorSetLayout();
 		void createCommandPools();
 		void createCommandBuffers();
-		void createUniformBuffers();
 		void allocateUniformDescriptorSets();
 		void allocateInputDescriptorSets();
 		void createUI();
@@ -364,8 +372,6 @@ namespace fre
 		VkQueue mGraphicsQueue = VK_NULL_HANDLE;
 		VkCommandPool mGraphicsCommandPool = VK_NULL_HANDLE;
 
-	private:
-		
 		GLFWwindow* mWindow;
 
 		int mCurrentFrame = 0;

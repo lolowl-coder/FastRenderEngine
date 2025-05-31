@@ -33,9 +33,6 @@ namespace app
 		void createStorageImageDP();
 		void createStorageImageDSL();
 		void allocateStorageImageDS();
-		void createASDescriptorPool();
-		void createASDescriptorSetLayout();
-		void allocateASDescriptorSets();
 		void loadMeshModel();
 		void createAS();
 		void createScene();
@@ -52,6 +49,8 @@ namespace app
 		fre::VulkanDescriptorSetLayout mResultDSL;
 		fre::VulkanDescriptorSet mResultDS;
 
+        uint32_t mRTShaderId = MAX(uint32_t);
+
 		fre::MeshPtr mMesh;
 		fre::MeshModelPtr mMeshModel;
 		fre::VulkanBuffer mVertexBuffer;
@@ -59,6 +58,8 @@ namespace app
 		fre::VulkanBuffer mTransformMatrixBuffer;
 		fre::AccelerationStructure mBLAS;
 		fre::AccelerationStructure mTLAS;
+		VulkanDescriptorPtr mTLASDescriptor;
+		VulkanDescriptorPtr mStorageImageDescriptor;
 
 		VkPushConstantRange mCameraMatricesPCR;
 	};

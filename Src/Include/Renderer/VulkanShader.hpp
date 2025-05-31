@@ -3,10 +3,11 @@
 #include <volk.h>
 #include <GLFW/glfw3.h>
 
+#include "Renderer/Callbacks.hpp"
+#include "Renderer/VulkanDescriptorSetLayout.hpp"
 #include "Mesh.hpp"
 
 #include <glm/glm.hpp>
-
 
 #include <string>
 #include <vector>
@@ -26,13 +27,6 @@ namespace fre
 
     struct ShaderMetaData
     {
-        //Callback types definitions for convenience
-        using PushConstantCallback = std::function<void(const Mesh::Ptr& mesh, const glm::mat4& modelMatrix,
-            const Camera& camera, const Light& light,
-            VkPipelineLayout pipelineLayout, uint32_t instanceId)>;
-        using BindDescriptorSetsCallback = std::function<void(const Mesh::Ptr& mesh,
-            const Material& material, VkPipelineLayout pipelineLayout, uint32_t instanceId)>;
-
         //Callback to pass variables to shader
         PushConstantCallback mPushConstantsCallback = nullptr;
         //Callback to pass data like textures or buffers to shader
@@ -75,7 +69,7 @@ namespace fre
     //Describes stages and all inputs for them (vertex input, attachments to read, etc.)
     struct VulkanShader
     {
-        void create(VkDevice logicalDevice, const std::string& path, VkShaderStageFlagBits shaderStage);
+        const std::vector<char> create(VkDevice logicalDevice, const std::string& path, VkShaderStageFlagBits shaderStage);
         void destroy(VkDevice logicalDevice);
 
         VkShaderStageFlagBits mShaderStage = static_cast<VkShaderStageFlagBits>(0);

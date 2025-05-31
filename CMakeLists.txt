@@ -137,6 +137,13 @@ if(USE_CPM)
         GIT_TAG v3.1.0-c-cpp
         GIT_SHALLOW TRUE
     )
+
+    CPMAddPackage(
+        NAME spirv-reflect
+        GITHUB_REPOSITORY KhronosGroup/spirv-reflect
+        GIT_TAG vulkan-sdk-1.4.313.0
+        GIT_SHALLOW TRUE
+    )
 endif()
 
 # Use FetchContent for single-header libs

@@ -1,11 +1,14 @@
 ﻿#include <volk.h>
 
+#include "Renderer/ShaderInputParser.hpp"
 #include "Renderer/VulkanRenderer.hpp"
 #include "Renderer/FeatureStorage.hpp"
 #include "Renderer/FeatureMacro.hpp"
+#include "Renderer/VulkanDescriptor.hpp"
 #include "Renderer/VulkanDescriptorPool.hpp"
 #include "Renderer/VulkanDescriptorSet.hpp"
 #include "Renderer/VulkanDescriptorSetLayout.hpp"
+#include "Renderer/VulkanSampler.hpp"
 
 #include "FileSystem/FileSystem.hpp"
 #include "VulkanAccelerationStructure.hpp"
@@ -46,7 +49,16 @@ namespace fre
 	: mThreadPool(threadPool)
 	{
 		LOG_TRACE("Number of concurent threads: {}", std::thread::hardware_concurrency());
-		addTexture("default.jpg", false);
+		Image image;
+        image.mFileName = "default.jpg";
+        createTextureInfo(
+			VK_FORMAT_R8G8B8A8_UNORM,
+			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			false, image);
 	}
 
 	VulkanRenderer::~VulkanRenderer()
@@ -88,12 +100,8 @@ namespace fre
 		int result = 0;
 		try
 		{
-			createUniformDescriptorPool();
 			createInputDescriptorPool();
-			createUniformDescriptorSetLayout();
 			createInputDescriptorSetLayout();
-			//allocateDynamicBufferTransferSpace();
-			createUniformBuffers();
 			allocateUniformDescriptorSets();
 			allocateInputDescriptorSets();
 			createCommandPools();
@@ -183,14 +191,25 @@ namespace fre
 
 			mBufferManager.destroy(mainDevice.logicalDevice);
 
-			for(auto& dp : mDescriptorPools)
+            int count = mDescriptorSetCache.size();
+			for(int i = 0; i < count; i++)
 			{
-				dp.get()->destroy(mainDevice.logicalDevice);
+				auto& dp = mDescriptorPoolCache.getByIndex(i);
+				dp->destroy(mainDevice.logicalDevice);
 			}
 
-			for(auto& dsl : mDescriptorSetLayouts)
+			count = mDescriptorSetLayoutCache.size();
+			for(int i = 0; i < count; i++)
 			{
+				auto& dsl = mDescriptorSetLayoutCache.getByIndex(i);
 				dsl->destroy(mainDevice.logicalDevice);
+			}
+
+			count = mSamplerCache.size();
+			for(int i = 0; i < count; i++)
+			{
+				auto& s = mSamplerCache.getByIndex(i);
+				vkDestroySampler(mainDevice.logicalDevice, s, nullptr);
 			}
 
 			cleanupUniformDescriptorPool();
@@ -241,31 +260,186 @@ namespace fre
 		vkDestroySurfaceKHR(mInstance, mSurface, nullptr);
 		vkDestroyInstance(mInstance, nullptr);
 	}
-	
-	VulkanDescriptorPoolPtr& VulkanRenderer::createDescriptorPool(VkDescriptorPoolCreateFlags flags, uint32_t count,
-		const std::vector<VkDescriptorPoolSize>& poolSizes)
+
+	uint32_t VulkanRenderer::createDescriptorPool(const VulkanDescriptorPoolKey& key)
 	{
-		mDescriptorPools.push_back(std::make_shared<VulkanDescriptorPool>());
-		mDescriptorPools.back()->create(mainDevice.logicalDevice, flags, count, poolSizes);
-		return mDescriptorPools.back();
+        return mDescriptorPoolCache.findOrCreate(key, [this](const VulkanDescriptorPoolKey& key)
+            {
+                VulkanDescriptorPoolPtr dp = std::make_shared<VulkanDescriptorPool>();
+                dp->create(mainDevice.logicalDevice, MAX_FRAME_DRAWS, key.mPoolSizes);
+                return dp;
+            });
+	};
+
+	VulkanDescriptorPoolPtr& VulkanRenderer::getDescriptorPool(const uint32_t index)
+	{
+		return mDescriptorPoolCache.getByIndex(index);
 	}
 
-	VulkanDescriptorSetLayoutPtr& VulkanRenderer::createDescriptorSetLayout(const std::vector<VkDescriptorType>& descriptorTypes,
-        const std::vector<uint32_t>& stageFlags)
+	uint32_t VulkanRenderer::createDescriptorSetLayout(const VulkanDescriptorSetLayoutInfo& key)
 	{
-		mDescriptorSetLayouts.push_back(std::make_shared<VulkanDescriptorSetLayout>());
-		mDescriptorSetLayouts.back()->create(mainDevice.logicalDevice, descriptorTypes, stageFlags);
-		return mDescriptorSetLayouts.back();
+		return mDescriptorSetLayoutCache.findOrCreate(key, [this](const VulkanDescriptorSetLayoutInfo& key)
+			{
+				VulkanDescriptorSetLayoutPtr dsl = std::make_shared<VulkanDescriptorSetLayout>();
+				dsl->create(mainDevice.logicalDevice, key);
+				return dsl;
+			});
 	}
 
-	VulkanDescriptorSetPtr& VulkanRenderer::allocateDescriptorSet(
-		const VkDescriptorPool& descriptorPool,
-        const VkDescriptorSetLayout& descriptorSetLayout)
+	VulkanDescriptorSetLayoutPtr& VulkanRenderer::getDescriptorSetLayout(const uint32_t index)
 	{
-		mDescriptorSets.push_back(std::make_shared<VulkanDescriptorSet>());
-		mDescriptorSets.back()->allocate(
-			mainDevice.logicalDevice, descriptorPool, descriptorSetLayout);
-		return mDescriptorSets.back();
+		return mDescriptorSetLayoutCache.getByIndex(index);
+	}
+
+    uint32_t VulkanRenderer::createDescriptorSet(const VulkanDescriptorSetKey& key)
+	{
+		return mDescriptorSetCache.findOrCreate(key, [this](const VulkanDescriptorSetKey& key)
+			{
+                VulkanDescriptorPoolPtr dp = mDescriptorPoolCache.getByIndex(key.mDPId);
+                VulkanDescriptorSetLayoutPtr dsl = mDescriptorSetLayoutCache.getByIndex(key.mDSLId);
+				VulkanDescriptorSetPtr ds = std::make_shared<VulkanDescriptorSet>();
+				ds->allocate(mainDevice.logicalDevice, dp->mDescriptorPool, dsl->mDescriptorSetLayout);
+				return ds;
+			});
+	}
+
+	VulkanDescriptorSetPtr& VulkanRenderer::getDescriptorSet(const uint32_t index)
+	{
+        return mDescriptorSetCache.getByIndex(index);
+	}
+
+	void VulkanRenderer::bindDescriptorSets(const std::vector<uint32_t>& setIds, VkPipelineLayout pipelineLayout, VkPipelineBindPoint pipelineBindPoint)
+	{
+		std::vector<VkDescriptorSet> sets;
+		for(const auto s : setIds)
+		{
+			sets.push_back(getDescriptorSet(s)->mDescriptorSet);
+		}
+
+		vkCmdBindDescriptorSets(
+			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ?
+			mComputeCommandBuffers[mImageIndex].mCommandBuffer :
+			mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
+			pipelineBindPoint,
+			pipelineLayout,
+			0,
+			sets.size(),
+			sets.data(),
+			0,
+			nullptr);
+	}
+
+	uint32_t VulkanRenderer::createSampler(const VulkanSamplerKey& key)
+	{
+		return mSamplerCache.findOrCreate(key, [this](const VulkanSamplerKey& key)
+			{
+				VkSamplerCreateInfo samplerCreateInfo = {};
+				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+				samplerCreateInfo.magFilter = key.mFilter;
+				samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+				samplerCreateInfo.addressModeU = key.mAddressMode;
+				samplerCreateInfo.addressModeV = key.mAddressMode;
+				samplerCreateInfo.addressModeW = key.mAddressMode;
+				//For border clamp only
+				samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
+				//normalized: 0-1 space, unnormalized: 0-imageSize
+				samplerCreateInfo.unnormalizedCoordinates = key.mUnnormalizedCoordinates;
+				samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+				//Level of details bias for mip level
+				samplerCreateInfo.mipLodBias = 0.0f;
+				samplerCreateInfo.minLod = 0.0f;
+				samplerCreateInfo.maxLod = 0.0f;
+				samplerCreateInfo.anisotropyEnable = VK_TRUE;
+				//Anisotropy sample level
+				samplerCreateInfo.maxAnisotropy = 16.0f;
+
+				VkSampler result = VK_NULL_HANDLE;
+				VK_CHECK(vkCreateSampler(mainDevice.logicalDevice, &samplerCreateInfo, nullptr, &result));
+
+				return result;
+			});
+	}
+
+	VkSampler VulkanRenderer::getSampler(const uint32_t id)
+	{
+		return mSamplerCache.getByIndex(id);
+	}
+
+	VulkanTextureInfoPtr VulkanRenderer::createTextureInfo(
+		const VkFormat format,
+		const VkSamplerAddressMode addressMode,
+		const VkImageTiling tiling,
+		const VkImageUsageFlags usageFlags,
+		const VkMemoryPropertyFlags memoryFlags,
+		const VkImageLayout layout,
+		const bool isExternal,
+		Image& image)
+	{
+		return mTextureManager.createTextureInfo(
+			format,
+			addressMode,
+			tiling,
+			usageFlags,
+			memoryFlags,
+			layout,
+			isExternal,
+			image);
+	}
+
+	uint32_t VulkanRenderer::createTexture(const VulkanTextureInfoPtr& info)
+	{
+		return mTextureManager.createTexture(mainDevice, mTransferQueueFamilyId,
+			mGraphicsQueueFamilyId, mGraphicsQueue, mGraphicsCommandPool, info);
+	}
+
+	VulkanTexturePtr VulkanRenderer::getTexture(const uint32_t id)
+	{
+		return mTextureManager.getTexture(id);
+	}
+
+	void VulkanRenderer::updateTextureImage(const VulkanTextureInfoPtr& info)
+	{
+		mTextureManager.updateTextureImage(mainDevice, mTransferQueueFamilyId, mGraphicsQueueFamilyId,
+			mGraphicsQueue, mGraphicsCommandPool, info);
+	}
+
+	VulkanBuffer VulkanRenderer::createStagingBuffer(const void* data, size_t size)
+	{
+		auto result = mBufferManager.createStagingBuffer(
+			mainDevice,
+			mTransferQueue,
+			mTransferCommandPool,
+			data, size);
+		return result;
+	}
+
+	const VulkanBuffer& VulkanRenderer::createBuffer(VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags, void* data, size_t dataSize)
+	{
+		const auto& result = mBufferManager.createBuffer(
+			mainDevice,
+			mTransferQueue,
+			mTransferCommandPool,
+			usage,
+			memoryFlags,
+			data, dataSize);
+
+		return result;
+	}
+
+	const VulkanBuffer& VulkanRenderer::createExternalBuffer(VkBufferUsageFlags bufferUsage, VkMemoryPropertyFlags memoryFlags,
+		VkExternalMemoryHandleTypeFlagsKHR extMemHandleType, VkDeviceSize size)
+	{
+		const auto& result = mBufferManager.createExternalBuffer(mainDevice, bufferUsage, memoryFlags, extMemHandleType, size);
+
+		return result;
+	}
+
+	void VulkanRenderer::copyBuffer(VkBuffer src, VkBuffer dst, size_t dataSize, VkPipelineBindPoint pipelineBindPoint) const
+	{
+		fre::copyBuffer(mainDevice.logicalDevice,
+			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeQueue : mTransferQueue,
+			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeCommandPool : mTransferCommandPool,
+			src, dst, dataSize);
 	}
 
 	MeshModel::Ptr& VulkanRenderer::addMeshModel(const MeshModel::MeshList& meshList)
@@ -522,7 +696,6 @@ namespace fre
 	void VulkanRenderer::cleanupInputDescriptorPool()
 	{
 		mInputDescriptorPool.destroy(mainDevice.logicalDevice);
-		mInputStorageImageDescriptorPool.destroy(mainDevice.logicalDevice);
 		mDepthDescriptorPool.destroy(mainDevice.logicalDevice);
 	}
 
@@ -534,7 +707,6 @@ namespace fre
 	void VulkanRenderer::cleanupInputDescriptorSetLayout()
 	{
 		mInputDescriptorSetLayout.destroy(mainDevice.logicalDevice);
-		mInputDescriptorSetStorageImageLayout.destroy(mainDevice.logicalDevice);
 		mDepthDescriptorSetLayout.destroy(mainDevice.logicalDevice);
 	}
 
@@ -1106,19 +1278,6 @@ namespace fre
 		LOG_INFO("Window surface created");
 	}
 
-	void VulkanRenderer::createUniformDescriptorPool()
-	{
-		LOG_INFO("Create uniform descriptor pool");
-
-		mUniformDescriptorPool.create(
-			mainDevice.logicalDevice,
-			0,
-			MAX_FRAME_DRAWS,
-			{{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_FRAME_DRAWS}});
-
-		LOG_INFO("Uniform descriptor pool created");
-	}
-
 	void VulkanRenderer::createInputDescriptorPool()
 	{
 		LOG_INFO("Create input descriptor pool");
@@ -1147,22 +1306,9 @@ namespace fre
 		//pool for color and depth attachments
 		mUIDescriptorPool.create(
 			mainDevice.logicalDevice,
-			VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+			0,
 			MAX_OBJECTS,
 			{{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_OBJECTS}});
-	}
-
-	void VulkanRenderer::createUniformDescriptorSetLayout()
-	{
-		LOG_INFO("Create uniform descriptor set layout");
-
-		//Uniforms layout
-		mUniformDescriptorSetLayout.create(
-			mainDevice.logicalDevice,
-			{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER},
-			{VK_SHADER_STAGE_VERTEX_BIT});
-
-		LOG_INFO("Uniform descriptor set layout created");
 	}
 
 	void VulkanRenderer::createInputDescriptorSetLayout()
@@ -1310,55 +1456,6 @@ namespace fre
 		LOG_INFO("Command buffers created");
 	}
 
-	void VulkanRenderer::createUniformBuffers()
-	{
-		/*LOG_INFO("Create uniform buffers");
-
-		//ViewProjection buffer size will be size of all three variables (will offset to access)
-		VkDeviceSize vpBufferSize = sizeof(UboViewProjection);
-
-		//ModelMatrix buffer size
-		//VkDeviceSize modelBufferSize = modelUniformAlignment * MAX_OBJECTS;
-
-		//One uniform buffer for each image (and by extension, command buffer)
-		mVPUniformBuffer.resize(mSwapChain.mSwapChainImages.size());
-		mVPUniformBufferMemory.resize(mSwapChain.mSwapChainImages.size());
-
-		//modelDUniformBuffer.resize(swapChainImages.size());
-		//modelDUniformBufferMemory.resize(swapChainImages.size());
-
-		//Create uniform buffers
-		for (size_t i = 0; i < mSwapChain.mSwapChainImages.size(); i++)
-		{
-			fre::createBuffer(mainDevice, vpBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &mVPUniformBuffer[i], &mVPUniformBufferMemory[i]);
-			//createBuffer(mainDevice.physicalDevice, mainDevice.logicalDevice, modelBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			//	VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &modelDUniformBuffer[i], &modelDUniformBufferMemory[i]);
-		}
-
-		LOG_INFO("Uniform buffers created");*/
-	}
-
-	void VulkanRenderer::allocateUniformDescriptorSets()
-	{
-		/*LOG_INFO("Allocate uniform descriptor sets");
-
-		mUniformDescriptorSets.resize(mSwapChain.mSwapChainImages.size());
-		for(uint32_t i = 0; i < mUniformDescriptorSets.size(); i++)
-		{
-			mUniformDescriptorSets[i].allocate(mainDevice.logicalDevice,
-				mUniformDescriptorPool.mDescriptorPool,
-				mUniformDescriptorSetLayout.mDescriptorSetLayout);
-			mUniformDescriptorSets[i].update(
-				mainDevice.logicalDevice,
-				{mVPUniformBuffer[i]},
-				{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER},
-				{sizeof(UboViewProjection)});
-		}
-
-		LOG_INFO("Iniform descriptor sets allocated");*/
-	}
-
 	void VulkanRenderer::allocateInputDescriptorSets()
 	{
 		LOG_INFO("Allocate input descriptor sets");
@@ -1373,40 +1470,29 @@ namespace fre
 				mInputDescriptorSetLayout.mDescriptorSetLayout);
 			mInputDescriptorSets[i].update(
 				mainDevice.logicalDevice,
-				{VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
 				{
-					mFrameBuffers[i].mColorAttachments[0].mImageView,
-				},
-				{
-					VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-				},
-				//We don't need a sampler, because we will read it in other way in shader
-				{VK_NULL_HANDLE});
-			mInputDescriptorSetsStorageImage[i].update(
-				mainDevice.logicalDevice,
-				{ VK_IMAGE_LAYOUT_GENERAL },
-				{
-					mSwapChain.mSwapChainImages[i].imageView,
-				},
-				{
-					VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-				},
-				//We don't need a sampler, because we will read it in other way in shader
-				{ VK_NULL_HANDLE });
+					std::make_shared<DescriptorImage>(
+						VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+						VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+						mFrameBuffers[i].mColorAttachments[0].mImageView,
+						//We don't need a sampler, because we will read it in other way in shader
+						VK_NULL_HANDLE)
+				}
+			);
 
 			mDepthDescriptorSets[i].allocate(mainDevice.logicalDevice,
 				mDepthDescriptorPool.mDescriptorPool,
 				mDepthDescriptorSetLayout.mDescriptorSetLayout);
+			auto samplerId = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE });
 			mDepthDescriptorSets[i].update(
 				mainDevice.logicalDevice,
-				{VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL},
 				{
-					mFrameBuffers[i].mDepthAttachment.mImageView,
-				},
-				{
-					VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-				},
-				{mTextureManager.mTextureSampler});
+					std::make_shared<DescriptorImage>(
+						VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+						VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+						mFrameBuffers[i].mDepthAttachment.mImageView,
+						getSampler(samplerId))
+				});
 		}
 
 		LOG_INFO("Input descriptor sets allocated");
@@ -1482,9 +1568,8 @@ namespace fre
 	}
 
 	void VulkanRenderer::recordMeshCommands(
-		const MeshModel::Ptr& model, const Mesh::Ptr& mesh,
-		const Camera& camera, const Light& light,
-		VkPipelineBindPoint pipelineBindPoint, uint32 subPass, uint32_t instanceId)
+		const MeshModel::Ptr& model, const Mesh::Ptr& mesh, const Camera& camera,
+		const Light& light, VkPipelineBindPoint pipelineBindPoint, uint32_t subPass, uint32_t instanceId)
 	{
 		const auto& material = mMaterials[mesh->getMaterialId()];
 		const auto computeShaderId = mesh->getComputeShaderId();
@@ -1525,6 +1610,11 @@ namespace fre
 						{
 							shaderMetaData.mPushConstantsCallback(mesh, modelMatrix, camera, light, pipeline.mPipelineLayout, instanceId);
 						}
+
+                        if(mesh->mPushConstantsCallback != nullptr)
+                        {
+                            mesh->mPushConstantsCallback(mesh, modelMatrix, camera, light, pipeline.mPipelineLayout, instanceId);
+                        }
 			
 						if(vertexBuffer != nullptr && pipelineBindPoint != VK_PIPELINE_BIND_POINT_COMPUTE)
 						{
@@ -1538,6 +1628,32 @@ namespace fre
 						{
 							bindIndexBuffer(indexBuffer->mBuffer, pipelineBindPoint);
 						}
+
+                        if(mesh->getDescriptorSets().empty())
+                        {
+							for(const auto& dslId : shader.mDSLs)
+							{
+								std::vector<uint32_t> descriptorSetIds;
+								const VulkanDescriptorSetKey key = { shader.mId, mSharedDescriptorPoolId, dslId, mesh->getId() };
+								auto setId = createDescriptorSet(key);
+                                descriptorSetIds.push_back(setId);
+							}
+						}
+
+                        auto descriptorSets = mesh->getDescriptorSets();
+						auto shaderInputs = mesh->getDescriptors();
+						if(descriptorSets.size() == shaderInputs.size())
+						{
+							for(int i = 0; i < descriptorSets.size(); i++)
+							{
+								const auto& dsId = descriptorSets[i];
+								auto& descriptorSet = getDescriptorSet(dsId);
+								descriptorSet->update(mainDevice.logicalDevice, shaderInputs[i]);
+							}
+						}
+
+                        //Bind descriptor sets
+						bindDescriptorSets(mesh->getDescriptorSets(), pipeline.mPipelineLayout, pipelineBindPoint);
 
 						if(shaderMetaData.mBindDescriptorSetsCallback != nullptr)
 						{
@@ -1663,7 +1779,7 @@ namespace fre
 	void VulkanRenderer::renderSubPass(uint32_t subPassIndex, const Camera& camera,
 		const Light& light)
 	{
-		auto maxViewSize = getViewSize();
+		auto maxViewSize = getViewport();
 		setViewport(maxViewSize);
         setScissor(maxViewSize);
         switch(subPassIndex)
@@ -1688,11 +1804,12 @@ namespace fre
 						shaderMetaData.mPushConstantsCallback(nullptr, mat4(1.0f), camera, light, fogPipeline.mPipelineLayout, 0);
 					}
 
-					bindDescriptorSets(fogPipeline.mPipelineLayout,
+					bindDescriptorSets(
 						{
 							mInputDescriptorSets[mImageIndex].mDescriptorSet,
 							mDepthDescriptorSets[mImageIndex].mDescriptorSet
 						},
+						fogPipeline.mPipelineLayout,
 						VK_PIPELINE_BIND_POINT_GRAPHICS);
 					renderFullscreenTriangle(fogPipeline.mPipelineLayout);
 				}
@@ -1704,17 +1821,53 @@ namespace fre
         }
 	}
 
-	void VulkanRenderer::loadShader(const std::string& shaderFileName)
+	void VulkanRenderer::loadShaderStage(
+		ShaderInputParser& parser,
+		VulkanShader& shader,
+		const std::string& shaderFileName,
+		VkShaderStageFlagBits stage,
+		std::vector<VulkanDescriptorSetLayoutInfo>& layouts)
+	{
+		std::string stageStr;
+		switch(stage)
+		{
+			case VK_SHADER_STAGE_VERTEX_BIT: stageStr = "vert"; break;
+			case VK_SHADER_STAGE_FRAGMENT_BIT: stageStr = "frag"; break;
+			case VK_SHADER_STAGE_COMPUTE_BIT: stageStr = "comp"; break;
+			default: stageStr = "unknown"; break;
+		}
+		parser.parseShaderInput(shader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + "." + stageStr + ".spv", stage), layouts);
+	}
+
+	void VulkanRenderer::loadShader(const std::string& shaderFileName, std::unordered_map<VkDescriptorType, uint32_t>& descriptorTypes)
 	{
 		Shader shader;
 		shader.mId = static_cast<uint32_t>(mShaders.size());
-		shader.mVertexShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		shader.mFragmentShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		shader.mComputeShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
-		shader.mRayGenShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".rgen.spv", VK_SHADER_STAGE_RAYGEN_BIT_KHR);
-		shader.mRayMissShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR);
-		shader.mRayClosestHitShader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + ".rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+		ShaderInputParser parser;
+		std::vector<VulkanDescriptorSetLayoutInfo> layoutInfos;
+		loadShaderStage(parser, shader.mVertexShader, shaderFileName, VK_SHADER_STAGE_VERTEX_BIT, layoutInfos);
+		loadShaderStage(parser, shader.mFragmentShader, shaderFileName, VK_SHADER_STAGE_FRAGMENT_BIT, layoutInfos);
+		loadShaderStage(parser, shader.mComputeShader, shaderFileName, VK_SHADER_STAGE_COMPUTE_BIT, layoutInfos);
+		loadShaderStage(parser, shader.mRayGenShader, shaderFileName, VK_SHADER_STAGE_RAYGEN_BIT_KHR, layoutInfos);
+		loadShaderStage(parser, shader.mRayMissShader, shaderFileName, VK_SHADER_STAGE_MISS_BIT_KHR, layoutInfos);
+		loadShaderStage(parser, shader.mRayClosestHitShader, shaderFileName, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, layoutInfos);
+
+		for(const auto& layoutInfo : layoutInfos)
+		{
+			uint32_t dslId = createDescriptorSetLayout(layoutInfo);
+			shader.mDSLs.push_back(dslId);
+			for(const auto dt : layoutInfo.mDescriptorTypes)
+			{
+                if(descriptorTypes.find(dt) == descriptorTypes.end())
+                {
+                    descriptorTypes[dt] = 0;
+                }
+				descriptorTypes[dt]++;
+			}
+		}
+
 		shader.mName = shaderFileName;
+
 		mShaders.push_back(shader);
 	}
 
@@ -1734,12 +1887,21 @@ namespace fre
 		
 		//Force to load fog shader
 		mFogShaderId = addShader("fog");
+        std::unordered_map<VkDescriptorType, uint32_t> descriptorTypes;
 
 		for(const auto& shaderFileName : mShaderFileNames)
 		{
 			mShaderMetaDatum.push_back(getShaderMetaData(shaderFileName));
-			loadShader(shaderFileName);
+			loadShader(shaderFileName, descriptorTypes);
 		}
+
+		VulkanDescriptorPoolKey descriptorPoolKey;
+        for(const auto& [descriptorType, count] : descriptorTypes)
+		{
+            descriptorPoolKey.mPoolSizes.push_back({ descriptorType, count * MAX_FRAME_DRAWS });
+		}
+        
+		mSharedDescriptorPoolId = createDescriptorPool(descriptorPoolKey);
 	}
 
 	void VulkanRenderer::bindPipeline(const VulkanPipeline& pipeline)
@@ -1766,60 +1928,6 @@ namespace fre
 				mComputeCommandBuffers[mImageIndex].mCommandBuffer :
 				mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
 			buffer, 0, VK_INDEX_TYPE_UINT32);
-	}
-
-	void VulkanRenderer::bindDescriptorSets(VkPipelineLayout pipelineLayout, const std::vector<VkDescriptorSet>& sets, VkPipelineBindPoint pipelineBindPoint)
-	{
-		vkCmdBindDescriptorSets(
-			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ?
-				mComputeCommandBuffers[mImageIndex].mCommandBuffer :
-				mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
-			pipelineBindPoint,
-			pipelineLayout,
-			0,
-			sets.size(),
-			sets.data(),
-			0,
-			nullptr);
-	}
-
-	const VulkanBuffer& VulkanRenderer::createBuffer(VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags, void* data, size_t dataSize)
-	{
-		const auto& result = mBufferManager.createBuffer(
-			mainDevice, 
-			mTransferQueue,
-			mTransferCommandPool,
-			usage,
-			memoryFlags,
-			data, dataSize);
-
-		return result;
-	}
-
-	const VulkanBuffer& VulkanRenderer::createExternalBuffer(VkBufferUsageFlags bufferUsage, VkMemoryPropertyFlags memoryFlags,
-		VkExternalMemoryHandleTypeFlagsKHR extMemHandleType, VkDeviceSize size)
-	{
-		const auto& result = mBufferManager.createExternalBuffer(mainDevice, bufferUsage, memoryFlags, extMemHandleType, size);
-
-		return result;
-	}
-
-	VulkanBuffer VulkanRenderer::createStagingBuffer(const void* data, size_t size)
-	{
-		auto result = mBufferManager.createStagingBuffer(
-			mainDevice, 
-			mTransferQueue,
-			mTransferCommandPool,
-			data, size);
-		return result;
-	}
-
-	void VulkanRenderer::copyBuffer(VkBuffer src, VkBuffer dst, size_t dataSize, VkPipelineBindPoint pipelineBindPoint) const
-	{
-		fre::copyBuffer(mainDevice.logicalDevice,
-			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeQueue : mTransferQueue,
-			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeCommandPool : mTransferCommandPool,
-			src, dst, dataSize);
 	}
 
 	const VulkanBuffer* VulkanRenderer::getVertexBuffer(const uint32_t meshId) const
@@ -2316,7 +2424,21 @@ namespace fre
 	{
 		//std::cout << "render tid: " << std::this_thread::get_id() << std::endl;
 		mStatistics.startMeasure("load images", static_cast<float>(Timer::getInstance().getTime()));
-		uint32_t cnt = mTextureManager.getImagesCount();
+		mTextureManager.loadImages(
+			[this](int imageIndex, int count)
+			{
+				if(imageIndex == count - 1)
+				{
+					this->mStatistics.stopMeasure("load images", static_cast<float>(Timer::getInstance().getTime()));
+					this->mStatistics.print();
+				}
+
+				this->requestRedraw();
+			},
+			mThreadPool
+		);
+
+		/*uint32_t cnt = mTextureManager.getImagesCount();
 		for(uint32_t i = 0; i < cnt; i++)
 		{
 			auto* image = mTextureManager.getImage(i);
@@ -2351,7 +2473,7 @@ namespace fre
 					}
 				);
 			}
-		}
+		}*/
 	}
 
 	void VulkanRenderer::loadMeshes()
@@ -2448,10 +2570,11 @@ namespace fre
 			
 				for(const auto textureId : material.mTextureIds)
 				{
+					mTextureManager.getTextureInfo
 					descriptorSets.push_back(getSamplerDS(textureId.second, VK_PIPELINE_BIND_POINT_GRAPHICS));
 				}
 
-				bindDescriptorSets(pipelineLayout, descriptorSets, VK_PIPELINE_BIND_POINT_GRAPHICS);
+				bindDescriptorSets(mesh->getDescriptorSets(), pipelineLayout, descriptorSets, VK_PIPELINE_BIND_POINT_GRAPHICS);
 			};
 
 		if(shaderFileName == "pbr")
@@ -2641,37 +2764,6 @@ namespace fre
 			material.mShaderId = addShader(shaderFileName);
 		}
 		mMaterials.push_back(material);
-	}
-
-	int VulkanRenderer::addTexture(const std::string& textureFileName, bool isExternal)
-	{
-		int result = mTextureManager.getImageIdByFilename(textureFileName);
-		if(result == -1)
-		{
-			result = static_cast<uint32_t>(mTextureManager.getImagesCount());
-			mTextureManager.createImage(textureFileName, isExternal);
-		}
-
-		return result;
-	}
-
-	int VulkanRenderer::createTexture(Image& image)
-	{
-		mTextureManager.createTexture(mainDevice, mTransferQueueFamilyId, mGraphicsQueueFamilyId,
-			mGraphicsQueue, mGraphicsCommandPool, image);
-		
-		return image.mId;
-	}
-
-	Image* VulkanRenderer::getImage(uint32_t id)
-	{
-		return mTextureManager.getImage(id);
-	}
-
-	void VulkanRenderer::updateTextureImage(uint32_t imageId, Image& image)
-	{
-		mTextureManager.updateTextureImage(mainDevice, mTransferQueueFamilyId, mGraphicsQueueFamilyId,
-			mGraphicsQueue, mGraphicsCommandPool, imageId, image);
 	}
 
 	int VulkanRenderer::addShader(const std::string& shaderFileName)
