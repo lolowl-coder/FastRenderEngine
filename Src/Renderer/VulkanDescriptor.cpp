@@ -41,6 +41,24 @@ namespace fre
         return writeDescriptorSet;
     };
 
+    VkWriteDescriptorSet DescriptorInputAttachment::getWriter(VkDescriptorSet ds, uint32_t binding) const
+    {
+        VkWriteDescriptorSetAccelerationStructureKHR writeExt{};
+        writeExt.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+        writeExt.accelerationStructureCount = 1;
+        writeExt.pAccelerationStructures = &mAccelerationStructure;
+        VkWriteDescriptorSet write{};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = ds;
+        write.dstBinding = binding;
+        write.dstArrayElement = 0;
+        write.descriptorCount = 1;
+        write.descriptorType = mType;
+        write.pNext = &writeExt;
+
+        return write;
+    }
+
     VkWriteDescriptorSet DescriptorAccelerationStructure::getWriter(VkDescriptorSet ds, uint32_t binding) const
     {
         VkWriteDescriptorSetAccelerationStructureKHR writeExt{};

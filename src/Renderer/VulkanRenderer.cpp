@@ -101,8 +101,6 @@ namespace fre
 		try
 		{
 			createInputDescriptorPool();
-			createInputDescriptorSetLayout();
-			allocateUniformDescriptorSets();
 			allocateInputDescriptorSets();
 			createCommandPools();
 			createCommandBuffers();
@@ -212,26 +210,15 @@ namespace fre
 				vkDestroySampler(mainDevice.logicalDevice, s, nullptr);
 			}
 
-			cleanupUniformDescriptorPool();
 			cleanupInputDescriptorPool();
 			cleanupUIDescriptorPool();
 
 			cleanupInputDescriptorSetLayout();
-			cleanupUniformDescriptorSetLayout();
 
 			mTextureManager.destroy(mainDevice.logicalDevice);
 
 			mSwapChain.destroy(mainDevice.logicalDevice);
 			cleanupSwapChainFrameBuffers();
-
-			/*for (size_t i = 0; i < mSwapChain.mSwapChainImages.size(); i++)
-			{
-				vkDestroyBuffer(mainDevice.logicalDevice, mVPUniformBuffer[i], nullptr);
-				vkFreeMemory(mainDevice.logicalDevice, mVPUniformBufferMemory[i], nullptr);
-			
-				//vkDestroyBuffer(mainDevice.logicalDevice, modelDUniformBuffer[i], nullptr);
-				//vkFreeMemory(mainDevice.logicalDevice, modelDUniformBufferMemory[i], nullptr);
-			}*/
 
 			cleanupSwapchainImagesSemaphores();
 			cleanupRenderFinishedSemaphores();
@@ -365,7 +352,7 @@ namespace fre
 		return mSamplerCache.getByIndex(id);
 	}
 
-	VulkanTextureInfoPtr VulkanRenderer::createTextureInfo(
+	uint32_t VulkanRenderer::createTextureInfo(
 		const VkFormat format,
 		const VkSamplerAddressMode addressMode,
 		const VkImageTiling tiling,
@@ -384,6 +371,11 @@ namespace fre
 			layout,
 			isExternal,
 			image);
+	}
+
+	VulkanTextureInfoPtr VulkanRenderer::getTextureInfo(const uint32_t id)
+	{
+		return mTextureManager.getTextureInfo(id);
 	}
 
 	uint32_t VulkanRenderer::createTexture(const VulkanTextureInfoPtr& info)
@@ -557,7 +549,6 @@ namespace fre
 				// -- GET NEXT IMAGE--
 				//Manually reset (close) fences
 				VK_CHECK(vkResetFences(mainDevice.logicalDevice, 1, &mDrawFences[mCurrentFrame]));
-				updateUniformBuffers(camera);
 			
 				VK_CHECK(vkResetCommandBuffer(mGraphicsCommandBuffers[mCurrentFrame].mCommandBuffer, 0));
 
@@ -688,31 +679,15 @@ namespace fre
 		}
 	}
 
-	void VulkanRenderer::cleanupUniformDescriptorPool()
-	{
-		mUniformDescriptorPool.destroy(mainDevice.logicalDevice);
-	}
-
 	void VulkanRenderer::cleanupInputDescriptorPool()
 	{
-		mInputDescriptorPool.destroy(mainDevice.logicalDevice);
-		mDepthDescriptorPool.destroy(mainDevice.logicalDevice);
+		mInputDescriptorPool->destroy(mainDevice.logicalDevice);
+		mDepthDescriptorPool->destroy(mainDevice.logicalDevice);
 	}
 
 	void VulkanRenderer::cleanupUIDescriptorPool()
 	{
-		mUIDescriptorPool.destroy(mainDevice.logicalDevice);
-	}
-
-	void VulkanRenderer::cleanupInputDescriptorSetLayout()
-	{
-		mInputDescriptorSetLayout.destroy(mainDevice.logicalDevice);
-		mDepthDescriptorSetLayout.destroy(mainDevice.logicalDevice);
-	}
-
-	void VulkanRenderer::cleanupUniformDescriptorSetLayout()
-	{
-		mUniformDescriptorSetLayout.destroy(mainDevice.logicalDevice);
+		mUIDescriptorPool->destroy(mainDevice.logicalDevice);
 	}
 
     void VulkanRenderer::cleanupSwapchainImagesSemaphores()
@@ -1282,21 +1257,12 @@ namespace fre
 	{
 		LOG_INFO("Create input descriptor pool");
 
+		auto inputDPId = createDescriptorPool( { { { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, MAX_FRAME_DRAWS } } } );
 		//pool for color and depth attachments
-		mInputDescriptorPool.create(
-			mainDevice.logicalDevice,
-			0,
-			MAX_FRAME_DRAWS,
-			{
-				{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, MAX_FRAME_DRAWS}
-			});
-		mDepthDescriptorPool.create(
-			mainDevice.logicalDevice,
-			0,
-			MAX_FRAME_DRAWS,
-			{
-				{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_FRAME_DRAWS}
-			});
+		mInputDescriptorPool = getDescriptorPool(inputDPId);
+
+		auto depthDPId = createDescriptorPool( { { { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_FRAME_DRAWS } } } );
+		mDepthDescriptorPool = getDescriptorPool(depthDPId);
 
 		LOG_INFO("Input descriptor pool created");
 	}
@@ -1304,27 +1270,8 @@ namespace fre
 	void VulkanRenderer::createUIDescriptorPool()
 	{
 		//pool for color and depth attachments
-		mUIDescriptorPool.create(
-			mainDevice.logicalDevice,
-			0,
-			MAX_OBJECTS,
-			{{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_OBJECTS}});
-	}
-
-	void VulkanRenderer::createInputDescriptorSetLayout()
-	{
-		LOG_INFO("Create input descriptor set layout");
-
-		mInputDescriptorSetLayout.create(
-			mainDevice.logicalDevice,
-			{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT},
-			{VK_SHADER_STAGE_FRAGMENT_BIT });
-		mDepthDescriptorSetLayout.create(
-			mainDevice.logicalDevice,
-			{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER},
-			{VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT});
-
-		LOG_INFO("Input descriptor set layout created");
+		auto uiDPId = createDescriptorPool( { { { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_FRAME_DRAWS } } } );
+		mUIDescriptorPool = getDescriptorPool(uiDPId);
 	}
 
 	void VulkanRenderer::createPipelines()
@@ -1466,7 +1413,7 @@ namespace fre
 		for(uint32_t i = 0; i < mInputDescriptorSets.size(); i++)
 		{
 			mInputDescriptorSets[i].allocate(mainDevice.logicalDevice,
-				mInputDescriptorPool.mDescriptorPool,
+				mInputDescriptorPool->mDescriptorPool,
 				mInputDescriptorSetLayout.mDescriptorSetLayout);
 			mInputDescriptorSets[i].update(
 				mainDevice.logicalDevice,
@@ -2437,43 +2384,6 @@ namespace fre
 			},
 			mThreadPool
 		);
-
-		/*uint32_t cnt = mTextureManager.getImagesCount();
-		for(uint32_t i = 0; i < cnt; i++)
-		{
-			auto* image = mTextureManager.getImage(i);
-			//load default texture in main thread
-			if(i == 0 && image != nullptr)
-			{
-				image->load();
-				mTextureManager.getDescriptorSet(mainDevice, mTransferQueueFamilyId,
-					mGraphicsQueueFamilyId, mGraphicsQueue, mGraphicsCommandPool, i);
-			}
-			else
-			{
-				mThreadPool.enqueue
-				(
-					[this, i, cnt]
-					{
-						std::lock_guard<std::mutex> lock(gRenderMutex);
-
-						auto* image = this->mTextureManager.getImage(i);
-						if(image != nullptr)
-						{
-							image->load();
-						}
-
-						if(i == cnt - 1)
-						{
-							this->mStatistics.stopMeasure("load images", static_cast<float>(Timer::getInstance().getTime()));
-							this->mStatistics.print();
-						}
-						
-						this->requestRedraw();
-					}
-				);
-			}
-		}*/
 	}
 
 	void VulkanRenderer::loadMeshes()

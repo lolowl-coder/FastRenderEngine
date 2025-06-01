@@ -12,6 +12,8 @@ namespace fre
 {
     struct MainDevice;
 
+    //We need a descriptor set per inputs combination.
+    //Thus key is hash of descriptors handles.
     struct VulkanDescriptorSetKey
     {
         uint32_t mShaderId = std::numeric_limits<uint32_t>::max();

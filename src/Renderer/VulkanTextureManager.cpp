@@ -60,7 +60,7 @@ namespace fre
 		return static_cast<uint32_t>(mTextures.size());
 	}
 	
-	VulkanTextureInfoPtr VulkanTextureManager::createTextureInfo(
+	uint32_t VulkanTextureManager::createTextureInfo(
 		const VkFormat format,
 		const VkSamplerAddressMode addressMode,
         const VkImageTiling tiling,
@@ -79,6 +79,18 @@ namespace fre
 		result->mMemoryFlags = memoryFlags;
 		result->mLayout = layout;
 		result->mImage = image;
+
+		return id;
+	}
+
+	VulkanTextureInfoPtr VulkanTextureManager::getTextureInfo(const uint32_t id)
+	{
+		VulkanTextureInfoPtr result;
+		auto found = mTextureInfos.find(id);
+		if(found != mTextureInfos.end())
+		{
+			result = found->second;
+		}
 
 		return result;
 	}
@@ -263,39 +275,6 @@ namespace fre
 	{
 		std::lock_guard<std::mutex> lock(mMutex);
 		return mTextureInfos.find(index) != mTextureInfos.end();
-	}
-
-	const VulkanDescriptorSet& VulkanTextureManager::getDescriptorSet(const MainDevice& mainDevice,
-		uint8_t transferQueueFamilyId, uint8_t graphicsQueueFamilyId, VkQueue queue,
-		VkCommandPool commandPool, uint32_t index)
-	{
-		const VulkanDescriptorSet* result = nullptr;
-		
-		if(isImageAvailable(index))
-		{
-			auto foundIt = mSamplerDescriptorSets.find(index);
-			if(foundIt != mSamplerDescriptorSets.end())
-			{
-				result = &(foundIt->second);
-			}
-			else
-			{
-				{
-					std::lock_guard<std::mutex> lock(mMutex);
-					createTexture(mainDevice, transferQueueFamilyId, graphicsQueueFamilyId,
-						queue, commandPool, mImages[index]);
-				}
-				result = &mSamplerDescriptorSets[index];
-			}
-		}
-		else
-		{
-			//Return default texture
-			result = &getDescriptorSet(mainDevice, transferQueueFamilyId, graphicsQueueFamilyId,
-				queue, commandPool, mDefaultTextureId);
-		}
-
-		return *result;
 	}
 
 	void VulkanTextureManager::destroyTexture(VkDevice logicalDevice, uint32_t id)

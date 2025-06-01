@@ -74,7 +74,7 @@ namespace fre
 		uint32_t createSampler(const VulkanSamplerKey& key);
 		VkSampler getSampler(const uint32_t index);
 
-		VulkanTextureInfoPtr createTextureInfo(
+		uint32_t createTextureInfo(
 			const VkFormat format,
 			const VkSamplerAddressMode addressMode,
 			const VkImageTiling tiling,
@@ -83,6 +83,8 @@ namespace fre
 			const VkImageLayout layout,
 			const bool isExternal,
 			Image& image);
+		VulkanTextureInfoPtr getTextureInfo(const uint32_t id);
+
 		uint32_t createTexture(const VulkanTextureInfoPtr& info);
 		VulkanTexturePtr getTexture(const uint32_t id);
 		void updateTextureImage(const VulkanTextureInfoPtr& info);
@@ -141,10 +143,8 @@ namespace fre
 
 		VulkanFrameBuffer& getFramBuffer(){ return mFrameBuffers[mImageIndex]; }
 
-		VkDescriptorSetLayout getInputDSL() const { return mInputDescriptorSetLayout.mDescriptorSetLayout; }
 		VkDescriptorSet getInputDS() const { return mInputDescriptorSets[mImageIndex].mDescriptorSet; }
 		
-		VkDescriptorSetLayout getDepthDSL() const { return mDepthDescriptorSetLayout.mDescriptorSetLayout; }
 		VkDescriptorSet getDepthDS(uint32_t index) const { return mDepthDescriptorSets[index].mDescriptorSet; }
 		void transitionDepthLayout(VkImageLayout from, VkImageLayout to, VkPipelineBindPoint pipelineBindPoint);
 
@@ -212,14 +212,9 @@ namespace fre
 		Lighting mLighting;
 
 		// - Descriptors
-		VulkanDescriptorSetLayout mUniformDescriptorSetLayout;
-		VulkanDescriptorSetLayout mInputDescriptorSetLayout;
-		VulkanDescriptorSetLayout mDepthDescriptorSetLayout;
-
-		VulkanDescriptorPool mUniformDescriptorPool;
-		VulkanDescriptorPool mInputDescriptorPool;
-		VulkanDescriptorPool mDepthDescriptorPool;
-		VulkanDescriptorPool mUIDescriptorPool;
+		VulkanDescriptorPoolPtr mInputDescriptorPool;
+		VulkanDescriptorPoolPtr mDepthDescriptorPool;
+		VulkanDescriptorPoolPtr mUIDescriptorPool;
 
         uint32_t mSharedDescriptorPoolId = MAX(uint32_t);
 
@@ -228,7 +223,6 @@ namespace fre
         VulkanResourceCache<VulkanDescriptorSetLayoutInfo, VulkanDescriptorSetLayoutPtr> mDescriptorSetLayoutCache;
 		VulkanResourceCache<VulkanDescriptorSetKey, VulkanDescriptorSetPtr> mDescriptorSetCache;
 
-		std::vector<VulkanDescriptorSet> mUniformDescriptorSets;
 		std::vector<VulkanDescriptorSet> mInputDescriptorSets;
 		std::vector<VulkanDescriptorSet> mDepthDescriptorSets;
 
@@ -308,10 +302,8 @@ namespace fre
 		void createSurface();
 		void createInputDescriptorPool();
 		void createUIDescriptorPool();
-		void createInputDescriptorSetLayout();
 		void createCommandPools();
 		void createCommandBuffers();
-		void allocateUniformDescriptorSets();
 		void allocateInputDescriptorSets();
 		void createUI();
 

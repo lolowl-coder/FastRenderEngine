@@ -28,7 +28,7 @@ namespace fre
 		int getImageIdByFilename(const std::string& fileName) const;
 		bool isImageCreated(const std::string& fileName) const;
 		uint32_t getImagesCount() const;
-		VulkanTextureInfoPtr createTextureInfo(
+		uint32_t createTextureInfo(
 			const VkFormat format,
 			const VkSamplerAddressMode addressMode,
 			const VkImageTiling tiling,
@@ -37,6 +37,7 @@ namespace fre
 			const VkImageLayout layout,
 			const bool isExternal,
 			Image& image);
+		VulkanTextureInfoPtr getTextureInfo(const uint32_t id);
 		uint32_t createTexture(
 			const MainDevice& mainDevice,
 			int8_t transferQueueFamilyId,
