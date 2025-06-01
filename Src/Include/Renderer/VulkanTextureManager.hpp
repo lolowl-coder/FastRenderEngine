@@ -29,7 +29,6 @@ namespace fre
 		bool isImageCreated(const std::string& fileName) const;
 		uint32_t getImagesCount() const;
 		uint32_t createTextureInfo(
-			const VkFormat format,
 			const VkSamplerAddressMode addressMode,
 			const VkImageTiling tiling,
 			const VkImageUsageFlags usageFlags,

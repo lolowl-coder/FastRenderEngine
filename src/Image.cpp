@@ -49,10 +49,12 @@ namespace fre
 			//Load pixel data of image
 			if(mFileName.find(".tiff") != std::string::npos || mFileName.find(".tif") != std::string::npos)
 			{
+				getInfoFromTiff(mFileName, mDimension, mFormat, mNumChannels);
 				loadTIFF(fs.find(mFileName));
 			}
 			else if(mFileName.find(".png") != std::string::npos || mFileName.find(".jpg") != std::string::npos)
 			{
+				getInfoFromTiff(mFileName, mDimension, mFormat, mNumChannels);
 				loadPng(fs.find(mFileName));
 			}
 
@@ -71,15 +73,9 @@ namespace fre
 	{
 		//Number of channels image uses
 		int channels;
-
-		auto format = STBI_rgb_alpha;
-		switch(mFormat)
-		{
-		case VK_FORMAT_R8_UNORM:
-			format = STBI_grey;
-			break;
-		}
-		mData = stbi_load(fileName.c_str(), &mDimension.x, &mDimension.y, &channels, format);
+		int width;
+		int height;
+		mData = stbi_load(fileName.c_str(), &width, &height, &channels, mNumChannels);
 		mIsPNG = true;
 	}
 
@@ -89,7 +85,7 @@ namespace fre
 		if (!tiff)
 		{
 			TIFFClose(tiff);
-			throw std::runtime_error("Failed to load a texture file! (" + mFileName + ")");
+			throw std::runtime_error("Failed to load a texture file! (" + fileName + ")");
 		}
 
 		uint32 width, height;
@@ -100,7 +96,7 @@ namespace fre
 		TIFFGetField(tiff, TIFFTAG_SAMPLESPERPIXEL, &samplePerPixel);
 		TIFFGetField(tiff, TIFFTAG_PHOTOMETRIC, &photometric);
 
-		if (bitsPerSample != 16 || samplePerPixel != 1 || photometric != PHOTOMETRIC_MINISBLACK) {
+		if(samplePerPixel != 1 || photometric != PHOTOMETRIC_MINISBLACK) {
 			TIFFClose(tiff);
 			throw std::runtime_error("Unsupported TIFF format: 16-bit grayscale image expected");
 		}
@@ -122,9 +118,6 @@ namespace fre
 				throw std::runtime_error("Failed to read image data");
 			}
 		}
-
-		mDimension.x = width;
-		mDimension.y = height;
 		
 		TIFFClose(tiff);
 	}
@@ -184,37 +177,135 @@ namespace fre
 	{
 		return !mFileName.empty() && mFileName.find('#') == std::string::npos;
 	}
-	
-    ivec2 Image::getDimensions(const std::string& fileName)
-    {
-        ivec2 result(0);
-        int numChannels = 0;
 
-		if(fileName.find(".tiff") != std::string::npos || fileName.find(".tif") != std::string::npos)
+	void getInfoFromTiff(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
+	{
+		size = ivec2(0);
+		format = VK_FORMAT_UNDEFINED;
+		TIFF* tiff = TIFFOpen(fileName.c_str(), "r");
+		if(tiff)
 		{
-			TIFF* tiff = TIFFOpen(fileName.c_str(), "r");
-			if(tiff)
+			if(TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &size.x) != 1 ||
+				TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &size.y) != 1)
 			{
-				// Get the width and height
-				if (TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &result.x) != 1 ||
-					TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &result.y) != 1)
-				{
-					LOG_ERROR("Could not retrieve the dimensions of the TIFF file: {}", fileName);
-				}
+				LOG_ERROR("Could not retrieve the dimensions of the TIFF file: {}", fileName);
+			}
 
-				// Close the TIFF file
-				TIFFClose(tiff);
+			uint16_t samplesPerPixel = 1;
+			uint16_t bitsPerSample = 1;
+			uint16_t sampleFormat = SAMPLEFORMAT_UINT;
+
+			if(
+				TIFFGetFieldDefaulted(tiff, TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel) != 1 ||
+				TIFFGetFieldDefaulted(tiff, TIFFTAG_BITSPERSAMPLE, &bitsPerSample) != 1 ||
+				TIFFGetFieldDefaulted(tiff, TIFFTAG_SAMPLEFORMAT, &sampleFormat) != 1)
+			{
+				LOG_ERROR("Could not retrieve the dimensions of the TIFF file: {}", fileName);
 			}
 			else
 			{
-				LOG_ERROR("Can't open TIFF file to retrieve the dimensions: {}", fileName);
+				bool isFloat = (sampleFormat == SAMPLEFORMAT_IEEEFP);
+				bool isSigned = (sampleFormat == SAMPLEFORMAT_INT);
+				bool isUnsigned = (sampleFormat == SAMPLEFORMAT_UINT);
+
+				// Map based on channels
+				if(samplesPerPixel == 1) {
+					if(bitsPerSample == 8)
+						format = isSigned ? VK_FORMAT_R8_SNORM :
+						VK_FORMAT_R8_UNORM;
+					if(bitsPerSample == 16)
+						format = isFloat ? VK_FORMAT_R16_SFLOAT :
+						isSigned ? VK_FORMAT_R16_SINT :
+						VK_FORMAT_R16_UINT;
+					if(bitsPerSample == 32)
+						format = isFloat ? VK_FORMAT_R32_SFLOAT :
+						isSigned ? VK_FORMAT_R32_SINT :
+						VK_FORMAT_R32_UINT;
+				}
+				if(samplesPerPixel == 2) {
+					if(bitsPerSample == 8)
+						format = isSigned ? VK_FORMAT_R8G8_SNORM :
+						VK_FORMAT_R8G8_UNORM;
+					if(bitsPerSample == 16)
+						format = isFloat ? VK_FORMAT_R16G16_SFLOAT :
+						isSigned ? VK_FORMAT_R16G16_SINT :
+						VK_FORMAT_R16G16_UINT;
+					if(bitsPerSample == 32)
+						format = isFloat ? VK_FORMAT_R32G32_SFLOAT :
+						isSigned ? VK_FORMAT_R32G32_SINT :
+						VK_FORMAT_R32G32_UINT;
+				}
+				if(samplesPerPixel == 3) {
+					if(bitsPerSample == 8)
+						format = isSigned ? VK_FORMAT_R8G8B8_SNORM :
+						VK_FORMAT_R8G8B8_UNORM;
+					if(bitsPerSample == 16)
+						format = isFloat ? VK_FORMAT_R16G16B16_SFLOAT :
+						isSigned ? VK_FORMAT_R16G16B16_SINT :
+						VK_FORMAT_R16G16B16_UINT;
+					if(bitsPerSample == 32)
+						format = isFloat ? VK_FORMAT_R32G32B32_SFLOAT :
+						isSigned ? VK_FORMAT_R32G32B32_SINT :
+						VK_FORMAT_R32G32B32_UINT;
+				}
+				if(samplesPerPixel == 4) {
+					if(bitsPerSample == 8)
+						format = isSigned ? VK_FORMAT_R8G8B8A8_SNORM :
+						VK_FORMAT_R8G8B8A8_UNORM;
+					if(bitsPerSample == 16)
+						format = isFloat ? VK_FORMAT_R16G16B16A16_SFLOAT :
+						isSigned ? VK_FORMAT_R16G16B16A16_SINT :
+						VK_FORMAT_R16G16B16A16_UINT;
+					if(bitsPerSample == 32)
+						format = isFloat ? VK_FORMAT_R32G32B32A32_SFLOAT :
+						isSigned ? VK_FORMAT_R32G32B32A32_SINT :
+						VK_FORMAT_R32G32B32A32_UINT;
+				}
+
+				numChannels = samplesPerPixel;
+
+				if(format == VK_FORMAT_UNDEFINED)
+				{
+					LOG_ERROR("Unsupported TIFF format: channels or bit depth not mapped");
+				}
 			}
+			TIFFClose(tiff);
+		}
+
+		LOG_ERROR("Can't open TIFF file to retrieve the dimensions: {}", fileName);
+	}
+	
+    void getInfoFromPng(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
+    {
+		stbi_info(fileName.c_str(), &size.x, &size.y, &numChannels);
+
+		switch(numChannels)
+		{
+			case 1:
+				format = VK_FORMAT_R8_UNORM;
+				break;
+			case 2:
+				format = VK_FORMAT_R8G8_UNORM;
+				break;
+			case 3:
+				format = VK_FORMAT_R8G8B8_UNORM;
+				break;
+			case 4:
+				format = VK_FORMAT_R8G8B8A8_UNORM;
+				break;
+			default: LOG_ERROR("Unsupported channel count for file: {}", fileName);
+		}
+	}
+
+	void Image::getInfo(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
+	{
+		if(fileName.find(".tiff") != std::string::npos || fileName.find(".tif") != std::string::npos)
+		{
+			getInfoFromTiff(fileName, size, format, numChannels);
 		}
 		else if(fileName.find(".png") != std::string::npos)
 		{
-			stbi_info(fileName.c_str(), &result.x, &result.y, &numChannels);
+			getInfoFromPng(fileName, size, format, numChannels);
 		}
-
-		return result;
     }
 }

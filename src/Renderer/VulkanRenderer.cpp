@@ -52,7 +52,6 @@ namespace fre
 		Image image;
         image.mFileName = "default.jpg";
         createTextureInfo(
-			VK_FORMAT_R8G8B8A8_UNORM,
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 			VK_IMAGE_TILING_OPTIMAL,
 			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
@@ -353,7 +352,6 @@ namespace fre
 	}
 
 	uint32_t VulkanRenderer::createTextureInfo(
-		const VkFormat format,
 		const VkSamplerAddressMode addressMode,
 		const VkImageTiling tiling,
 		const VkImageUsageFlags usageFlags,
@@ -363,7 +361,6 @@ namespace fre
 		Image& image)
 	{
 		return mTextureManager.createTextureInfo(
-			format,
 			addressMode,
 			tiling,
 			usageFlags,
@@ -1407,39 +1404,20 @@ namespace fre
 	{
 		LOG_INFO("Allocate input descriptor sets");
 
+		mColorAttacmentDescriptors.resize(MAX_FRAME_DRAWS);
+		mDepthAttacmentDescriptors.resize(MAX_FRAME_DRAWS);
 		//Resize descriptor set array for each swap chain image
 		mInputDescriptorSets.resize(MAX_FRAME_DRAWS);
 		mDepthDescriptorSets.resize(MAX_FRAME_DRAWS);
 		for(uint32_t i = 0; i < mInputDescriptorSets.size(); i++)
 		{
-			mInputDescriptorSets[i].allocate(mainDevice.logicalDevice,
-				mInputDescriptorPool->mDescriptorPool,
-				mInputDescriptorSetLayout.mDescriptorSetLayout);
-			mInputDescriptorSets[i].update(
-				mainDevice.logicalDevice,
-				{
-					std::make_shared<DescriptorImage>(
-						VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-						VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-						mFrameBuffers[i].mColorAttachments[0].mImageView,
-						//We don't need a sampler, because we will read it in other way in shader
-						VK_NULL_HANDLE)
-				}
-			);
-
-			mDepthDescriptorSets[i].allocate(mainDevice.logicalDevice,
-				mDepthDescriptorPool.mDescriptorPool,
-				mDepthDescriptorSetLayout.mDescriptorSetLayout);
+			mColorAttacmentDescriptors[i] = std::make_shared<DescriptorImage>(
+				VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				mFrameBuffers[i].mColorAttachments[0].mImageView, VK_NULL_HANDLE);
 			auto samplerId = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE });
-			mDepthDescriptorSets[i].update(
-				mainDevice.logicalDevice,
-				{
-					std::make_shared<DescriptorImage>(
-						VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-						VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-						mFrameBuffers[i].mDepthAttachment.mImageView,
-						getSampler(samplerId))
-				});
+			mDepthAttacmentDescriptors[i] = std::make_shared<DescriptorImage>(
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+				mFrameBuffers[i].mColorAttachments[0].mImageView, getSampler(samplerId));
 		}
 
 		LOG_INFO("Input descriptor sets allocated");
@@ -1473,7 +1451,7 @@ namespace fre
 		init_info.QueueFamily = mGraphicsQueueFamilyId;
 		init_info.Queue = mGraphicsQueue;
 		//init_info.PipelineCache = g_PipelineCache;
-		init_info.DescriptorPool = mUIDescriptorPool.mDescriptorPool;
+		init_info.DescriptorPool = mUIDescriptorPool->mDescriptorPool;
 		init_info.RenderPass = mRenderPass.mRenderPass;
 		init_info.Subpass = 1;
 		init_info.MinImageCount = MAX_FRAME_DRAWS;
@@ -1997,7 +1975,6 @@ namespace fre
 			mPresentationQueueFamilyId, mSurface);
 		createSwapChainFrameBuffers();
 		createInputDescriptorPool();
-		createInputDescriptorSetLayout();
 		allocateInputDescriptorSets();
 
 		createSwapchainImagesSemaphores();
@@ -2463,28 +2440,8 @@ namespace fre
 					pushConstants(mModelMatrixPCR, &modelMatrix[0], pipelineLayout, VK_PIPELINE_BIND_POINT_GRAPHICS);
 
 					fillLightingPushConstant(mesh, modelMatrix, camera, light, mLighting);
-					//std::cout << "mat3 size: " << sizeof(mat3) << std::endl;
-					//std::cout << "Lighting.normalMatrix: " << offsetof(Lighting, normalMatrix) << std::endl;
-					//std::cout << "Lighting.cameraEye: " << offsetof(Lighting, cameraEye) << std::endl;
-					//std::cout << "Lighting.lightPos: " << offsetof(Lighting, lightPos) << std::endl;
 					pushConstants(mLightingPCR, &mLighting, pipelineLayout, VK_PIPELINE_BIND_POINT_GRAPHICS);
 				}
-			};
-
-		auto commonBindDescriptorSetsCallback =
-			[this](const Mesh::Ptr& mesh, const Material& material, VkPipelineLayout pipelineLayout, uint32_t instanceId)
-			{
-				//Bind all textures of material
-				std::vector<VkDescriptorSet> descriptorSets;
-				descriptorSets.push_back(mUniformDescriptorSets[mImageIndex].mDescriptorSet);
-			
-				for(const auto textureId : material.mTextureIds)
-				{
-					mTextureManager.getTextureInfo
-					descriptorSets.push_back(getSamplerDS(textureId.second, VK_PIPELINE_BIND_POINT_GRAPHICS));
-				}
-
-				bindDescriptorSets(mesh->getDescriptorSets(), pipelineLayout, descriptorSets, VK_PIPELINE_BIND_POINT_GRAPHICS);
 			};
 
 		if(shaderFileName == "pbr")
@@ -2497,32 +2454,8 @@ namespace fre
 				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
 				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tex)}
 			};
-			md.mDescriptorSetLayouts =
-			{
-				//All inputs used in render pass
-				//Uniforms (model matrix) in subpass 0
-				mUniformDescriptorSetLayout.mDescriptorSetLayout,
-				//Color texture for subpass 0
-				mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout,
-				//Normals texture for subpass 0
-				mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout,
-				//Matallic texture for subpass 0
-				mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout,
-			};
 			md.mPushConstantRanges = {mModelMatrixPCR, mLightingPCR};
 			md.mPushConstantsCallback = commonPushConstantsCallback;
-			md.mBindDescriptorSetsCallback =
-			[this, md](const Mesh::Ptr& mesh, const Material& material, VkPipelineLayout pipelineLayout, uint32_t instanceId)
-			{
-				std::vector<VkDescriptorSet> descriptorSets;
-				throw::std::runtime_error("Not all descriptorsets passet to rt shader");
-				for(const auto textureId : material.mTextureIds)
-				{
-					descriptorSets.push_back(getSamplerDS(textureId.second, VK_PIPELINE_BIND_POINT_GRAPHICS));
-				}
-
-				bindDescriptorSets(pipelineLayout, descriptorSets, VK_PIPELINE_BIND_POINT_GRAPHICS);
-			};
 			md.mDepthTestEnabled = true;
 			md.mVertexSize = sizeof(Vertex);
 			md.mSubPassIndex = 0;
@@ -2540,19 +2473,8 @@ namespace fre
 				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
 				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tex)}
 			};
-			md.mDescriptorSetLayouts =
-			{
-				//All inputs used in render pass
-				//Uniforms (model matrix) in subpass 0
-				mUniformDescriptorSetLayout.mDescriptorSetLayout,
-				//Color texture for subpass 0
-				mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout,
-				//Normals texture for subpass 0
-				mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout
-			};
 			md.mPushConstantRanges = {mModelMatrixPCR, mLightingPCR};
 			md.mPushConstantsCallback = commonPushConstantsCallback;
-			md.mBindDescriptorSetsCallback = commonBindDescriptorSetsCallback;
 			md.mDepthTestEnabled = true;
 			md.mVertexSize = sizeof(Vertex);
 			md.mSubPassIndex = 0;
@@ -2570,17 +2492,8 @@ namespace fre
 				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
 				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tex)}
 			};
-			md.mDescriptorSetLayouts =
-			{
-				//All inputs used in render pass
-				//Uniforms (model matrix) in subpass 0
-				mUniformDescriptorSetLayout.mDescriptorSetLayout,
-				//Color texture for subpass 0
-				mTextureManager.mSamplerDescriptorSetLayout.mDescriptorSetLayout
-			};
 			md.mPushConstantRanges = {mModelMatrixPCR, mLightingPCR};
 			md.mPushConstantsCallback = commonPushConstantsCallback;
-			md.mBindDescriptorSetsCallback = commonBindDescriptorSetsCallback;
 			md.mDepthTestEnabled = true;
 			md.mVertexSize = sizeof(Vertex);
 			md.mSubPassIndex = 0;
@@ -2598,15 +2511,8 @@ namespace fre
 				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)},
 				{VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tex)}
 			};
-			md.mDescriptorSetLayouts =
-			{
-				//All inputs used in render pass
-				//Uniforms (model matrix) in subpass 0
-				mUniformDescriptorSetLayout.mDescriptorSetLayout
-			};
 			md.mPushConstantRanges = {mModelMatrixPCR, mLightingPCR};
 			md.mPushConstantsCallback = commonPushConstantsCallback;
-			md.mBindDescriptorSetsCallback = commonBindDescriptorSetsCallback;
 			md.mDepthTestEnabled = true;
 			md.mVertexSize = sizeof(Vertex);
 			md.mSubPassIndex = 0;
@@ -2617,7 +2523,6 @@ namespace fre
 		{
 			ShaderMetaData md;
 
-			md.mDescriptorSetLayouts = {mInputDescriptorSetLayout.mDescriptorSetLayout, mDepthDescriptorSetLayout.mDescriptorSetLayout};
 			md.mPushConstantRanges = {mNearFarPCR};
 			md.mPushConstantsCallback =
 				[this](const Mesh::Ptr& mesh, const mat4& modelMatrix, const Camera& camera,
@@ -2726,8 +2631,14 @@ namespace fre
 					aiString path;
 					if (externalMaterial->GetTexture(textureType, 0, &path) == AI_SUCCESS)
 					{
-						const auto foundTexId = addTexture(path.C_Str(), false);
-						material.mTextureIds[textureType] = foundTexId;
+						Image image;
+						image.mFileName = path.C_Str();
+						auto textureInfoId = createTextureInfo(
+							VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_IMAGE_TILING_OPTIMAL,
+							VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+							VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, false, image);
+
+						material.mTextureIds[textureType] = textureInfoId;
 					}
 				}
 			}

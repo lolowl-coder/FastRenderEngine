@@ -39,7 +39,8 @@ namespace fre
         bool mIsOwner = false;
         bool mIsTIFF = false;
         bool mIsPNG = false;
+        int mNumChannels = 0;
 
-        static glm::ivec2 getDimensions(const std::string& fileName);
+        static void getInfo(const std::string& fileName, glm::ivec2& size, VkFormat& format, int& numChannels);
     };
 }

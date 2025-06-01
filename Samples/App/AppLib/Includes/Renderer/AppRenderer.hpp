@@ -38,7 +38,7 @@ namespace app
 		void createScene();
 
 	private:
-        fre::VulkanImage mStorageImage;
+        fre::VulkanTexturePtr mStorageImage;
 		fre::VulkanDescriptorPoolPtr mStorageImageDP;
 		fre::VulkanDescriptorSetLayoutPtr mStorageImageDSL;
 		fre::VulkanDescriptorSetPtr mStorageImageDS;
@@ -58,8 +58,8 @@ namespace app
 		fre::VulkanBuffer mTransformMatrixBuffer;
 		fre::AccelerationStructure mBLAS;
 		fre::AccelerationStructure mTLAS;
-		VulkanDescriptorPtr mTLASDescriptor;
-		VulkanDescriptorPtr mStorageImageDescriptor;
+		fre::VulkanDescriptorPtr mTLASDescriptor;
+		fre::VulkanDescriptorPtr mStorageImageDescriptor;
 
 		VkPushConstantRange mCameraMatricesPCR;
 	};

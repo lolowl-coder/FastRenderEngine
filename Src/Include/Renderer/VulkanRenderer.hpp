@@ -75,7 +75,6 @@ namespace fre
 		VkSampler getSampler(const uint32_t index);
 
 		uint32_t createTextureInfo(
-			const VkFormat format,
 			const VkSamplerAddressMode addressMode,
 			const VkImageTiling tiling,
 			const VkImageUsageFlags usageFlags,
@@ -223,6 +222,8 @@ namespace fre
         VulkanResourceCache<VulkanDescriptorSetLayoutInfo, VulkanDescriptorSetLayoutPtr> mDescriptorSetLayoutCache;
 		VulkanResourceCache<VulkanDescriptorSetKey, VulkanDescriptorSetPtr> mDescriptorSetCache;
 
+		std::vector<VulkanDescriptorPtr> mColorAttacmentDescriptors;
+		std::vector<VulkanDescriptorPtr> mDepthAttacmentDescriptors;
 		std::vector<VulkanDescriptorSet> mInputDescriptorSets;
 		std::vector<VulkanDescriptorSet> mDepthDescriptorSets;
 
@@ -297,7 +298,7 @@ namespace fre
 		void createInstance();
 
 		void createLogicalDevice();
-		void createSwapChain();
+		virtual void createSwapChain();
 		void createSwapChainFrameBuffers();
 		void createSurface();
 		void createInputDescriptorPool();

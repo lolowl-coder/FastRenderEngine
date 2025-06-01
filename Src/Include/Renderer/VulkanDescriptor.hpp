@@ -46,16 +46,6 @@ namespace fre
         virtual VkWriteDescriptorSet getWriter(VkDescriptorSet ds, uint32_t binding) const override;
     };
 
-    struct DescriptorInputAttachment : public VulkanDescriptor
-    {
-        DescriptorInputAttachment(VkImageView imageView)
-            : VulkanDescriptor(VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT)
-        {
-        }
-        VkImageView mImageView = VK_NULL_HANDLE;
-        virtual VkWriteDescriptorSet getWriter(VkDescriptorSet ds, uint32_t binding) const override;
-    };
-
     struct DescriptorAccelerationStructure : public VulkanDescriptor
     {
         DescriptorAccelerationStructure(VkAccelerationStructureKHR handle)

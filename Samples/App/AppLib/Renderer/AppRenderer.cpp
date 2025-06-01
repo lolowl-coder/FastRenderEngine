@@ -1,11 +1,14 @@
 #include "Renderer/AppRenderer.hpp"
 #include "Renderer/FeatureMacro.hpp"
 #include "Renderer/FeatureStorage.hpp"
+#include "Renderer/VulkanDescriptor.hpp"
 #include "Renderer/VulkanDescriptorPool.hpp"
 #include "Renderer/VulkanDescriptorSet.hpp"
 #include "Renderer/VulkanDescriptorSetLayout.hpp"
 #include "Camera.hpp"
 #include "Utilities.hpp"
+
+#include<memory>
 
 using namespace fre;
 using namespace glm;
@@ -78,7 +81,6 @@ namespace app
 			if(shaderFileName == "rt")
 			{
 				ShaderMetaData md;
-				md.mDescriptorSetLayouts = {mASDescriptorSetLayout->mDescriptorSetLayout, mStorageImageDSL->mDescriptorSetLayout};
 				md.mPushConstantRanges = { mCameraMatricesPCR };
 				md.mPushConstantsCallback = [this](const Mesh::Ptr& mesh, const mat4& modelMatrix, const Camera& camera, const Light& light, VkPipelineLayout pipelineLayout, uint32_t instanceId)
 					{
@@ -87,15 +89,6 @@ namespace app
 							CameraMatrices cameraMatrices = { camera.mView, camera.mProjection };
 							pushConstants(mCameraMatricesPCR, &modelMatrix[0], pipelineLayout, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
 						}
-					};
-				md.mBindDescriptorSetsCallback = [this](const Mesh::Ptr& mesh, const Material& material, VkPipelineLayout pipelineLayout, uint32_t instanceId)
-					{
-						//Bind all textures of material
-						std::vector<VkDescriptorSet> descriptorSets;
-						descriptorSets.push_back(mASDescriptorSet->mDescriptorSet);
-						descriptorSets.push_back(mStorageImageDS->mDescriptorSet);
-
-						bindDescriptorSets(pipelineLayout, descriptorSets, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
 					};
 				md.mDepthTestEnabled = true;
 				md.mSubPassIndex = 0;
@@ -110,8 +103,7 @@ namespace app
     void AppRenderer::createSorageImage()
     {
 		auto maxViewSize = getViewport().getSize();
-		auto textureInfo = mTextureManager.createTextureInfo(
-			VK_FORMAT_R8G8B8A8_UNORM,
+		auto textureInfoId = mTextureManager.createTextureInfo(
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 			VK_IMAGE_TILING_OPTIMAL,
 			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
@@ -119,13 +111,15 @@ namespace app
 			VK_IMAGE_LAYOUT_GENERAL,
 			false,
 			Image());
-		mStorageImage = mTextureManager.createTexture(
+		auto textureInfo = getTextureInfo(textureInfoId);
+		auto textureId = mTextureManager.createTexture(
 			mainDevice,
 			mTransferQueueFamilyId,
             mGraphicsQueueFamilyId,
 			mGraphicsQueue,
 			mGraphicsCommandPool,
             textureInfo);
+		mStorageImage = getTexture(textureId);
     }
 
 	void AppRenderer::loadMeshModel()

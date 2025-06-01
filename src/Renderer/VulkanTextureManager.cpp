@@ -61,7 +61,6 @@ namespace fre
 	}
 	
 	uint32_t VulkanTextureManager::createTextureInfo(
-		const VkFormat format,
 		const VkSamplerAddressMode addressMode,
         const VkImageTiling tiling,
         const VkImageUsageFlags usageFlags,
@@ -70,17 +69,38 @@ namespace fre
 		const bool isExternal,
 		Image& image)
 	{
-		uint32_t id = mTextureInfos.size();
-		VulkanTextureInfoPtr result = mTextureInfos[id];
-		result->mId = id;
-		result->mAddressMode = addressMode;
-		result->mTiling = tiling;
-		result->mUsageFlags = usageFlags;
-		result->mMemoryFlags = memoryFlags;
-		result->mLayout = layout;
-		result->mImage = image;
+		uint32_t result = MAX(uint32_t);
+		for(auto& ti : mTextureInfos)
+		{
+			if(
+				ti.second->mAddressMode == addressMode &&
+				ti.second->mTiling == tiling &&
+				ti.second->mUsageFlags == usageFlags &&
+				ti.second->mMemoryFlags == memoryFlags &&
+				ti.second->mLayout == layout &&
+				ti.second->mImage.mFileName == image.mFileName &&
+				ti.second->mImage.mFormat == image.mFormat &&
+				ti.second->mImage.mIsExternal == image.mIsExternal)
+			{
+				result = ti.second->mId;
+				break;
+			}
+		}
 
-		return id;
+		if(result == MAX(uint32_t))
+		{
+			result = mTextureInfos.size();
+			VulkanTextureInfoPtr ti = mTextureInfos[result];
+			ti->mId = result;
+			ti->mAddressMode = addressMode;
+			ti->mTiling = tiling;
+			ti->mUsageFlags = usageFlags;
+			ti->mMemoryFlags = memoryFlags;
+			ti->mLayout = layout;
+			ti->mImage = image;
+		}
+
+		return result;
 	}
 
 	VulkanTextureInfoPtr VulkanTextureManager::getTextureInfo(const uint32_t id)
