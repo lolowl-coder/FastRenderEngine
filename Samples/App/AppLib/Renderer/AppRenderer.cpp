@@ -2,9 +2,11 @@
 #include "Renderer/FeatureMacro.hpp"
 #include "Renderer/FeatureStorage.hpp"
 #include "Renderer/VulkanDescriptor.hpp"
+#include "Renderer/VulkanSampler.hpp"
 #include "Renderer/VulkanDescriptorPool.hpp"
 #include "Renderer/VulkanDescriptorSet.hpp"
 #include "Renderer/VulkanDescriptorSetLayout.hpp"
+#include "Renderer/VulkanTexture.hpp"
 #include "Camera.hpp"
 #include "Utilities.hpp"
 
@@ -134,7 +136,10 @@ namespace app
         mMesh = mMeshModel->getMesh(0);
 		mMesh->setMaterialId(material.mId);
 		mTLASDescriptor = std::make_shared<DescriptorAccelerationStructure>(mTLAS.mHandle);
-		mStorageImageDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+		auto samplerId = createSampler({});
+		auto sampler = getSampler(samplerId);
+		mStorageImageDescriptor = std::make_shared<DescriptorImage>(
+			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL, mStorageImage->mImageView, sampler);
 		mMesh->setDescriptors({{mTLASDescriptor}, {mStorageImageDescriptor}});
 	}
 

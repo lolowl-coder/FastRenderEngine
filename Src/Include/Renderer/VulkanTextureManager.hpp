@@ -7,6 +7,7 @@
 #include "Renderer/VulkanDescriptorPool.hpp"
 #include "Renderer/VulkanDescriptorSet.hpp"
 #include "Renderer/VulkanDescriptorSetLayout.hpp"
+#include "Image.hpp"
 
 #include <map>
 #include <vector>

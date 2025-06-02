@@ -303,11 +303,4 @@ namespace fre
 		vkDestroyImage(logicalDevice, mTextures[id]->mImage, nullptr);
 		vkFreeMemory(logicalDevice, mTextures[id]->mImageMemory, nullptr);
 	}
-
-	void VulkanTextureManager::destroyTexture(VkDevice logicalDevice, uint32_t id)
-	{
-		vkDestroyImageView(logicalDevice, mTextures[id]->mImageView, nullptr);
-		vkDestroyImage(logicalDevice, mTextures[id]->mImage, nullptr);
-		vkFreeMemory(logicalDevice, mTextures[id]->mImageMemory, nullptr);
-	}
 }

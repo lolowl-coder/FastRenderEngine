@@ -12,6 +12,126 @@ using namespace glm;
 
 namespace fre
 {
+
+	void getInfoFromTiff(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
+	{
+		size = ivec2(0);
+		format = VK_FORMAT_UNDEFINED;
+		TIFF* tiff = TIFFOpen(fileName.c_str(), "r");
+		if(tiff)
+		{
+			if(TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &size.x) != 1 ||
+				TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &size.y) != 1)
+			{
+				LOG_ERROR("Could not retrieve the dimensions of the TIFF file: {}", fileName);
+			}
+
+			uint16_t samplesPerPixel = 1;
+			uint16_t bitsPerSample = 1;
+			uint16_t sampleFormat = SAMPLEFORMAT_UINT;
+
+			if(
+				TIFFGetFieldDefaulted(tiff, TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel) != 1 ||
+				TIFFGetFieldDefaulted(tiff, TIFFTAG_BITSPERSAMPLE, &bitsPerSample) != 1 ||
+				TIFFGetFieldDefaulted(tiff, TIFFTAG_SAMPLEFORMAT, &sampleFormat) != 1)
+			{
+				LOG_ERROR("Could not retrieve the dimensions of the TIFF file: {}", fileName);
+			}
+			else
+			{
+				bool isFloat = (sampleFormat == SAMPLEFORMAT_IEEEFP);
+				bool isSigned = (sampleFormat == SAMPLEFORMAT_INT);
+				bool isUnsigned = (sampleFormat == SAMPLEFORMAT_UINT);
+
+				// Map based on channels
+				if(samplesPerPixel == 1) {
+					if(bitsPerSample == 8)
+						format = isSigned ? VK_FORMAT_R8_SNORM :
+						VK_FORMAT_R8_UNORM;
+					if(bitsPerSample == 16)
+						format = isFloat ? VK_FORMAT_R16_SFLOAT :
+						isSigned ? VK_FORMAT_R16_SINT :
+						VK_FORMAT_R16_UINT;
+					if(bitsPerSample == 32)
+						format = isFloat ? VK_FORMAT_R32_SFLOAT :
+						isSigned ? VK_FORMAT_R32_SINT :
+						VK_FORMAT_R32_UINT;
+				}
+				if(samplesPerPixel == 2) {
+					if(bitsPerSample == 8)
+						format = isSigned ? VK_FORMAT_R8G8_SNORM :
+						VK_FORMAT_R8G8_UNORM;
+					if(bitsPerSample == 16)
+						format = isFloat ? VK_FORMAT_R16G16_SFLOAT :
+						isSigned ? VK_FORMAT_R16G16_SINT :
+						VK_FORMAT_R16G16_UINT;
+					if(bitsPerSample == 32)
+						format = isFloat ? VK_FORMAT_R32G32_SFLOAT :
+						isSigned ? VK_FORMAT_R32G32_SINT :
+						VK_FORMAT_R32G32_UINT;
+				}
+				if(samplesPerPixel == 3) {
+					if(bitsPerSample == 8)
+						format = isSigned ? VK_FORMAT_R8G8B8_SNORM :
+						VK_FORMAT_R8G8B8_UNORM;
+					if(bitsPerSample == 16)
+						format = isFloat ? VK_FORMAT_R16G16B16_SFLOAT :
+						isSigned ? VK_FORMAT_R16G16B16_SINT :
+						VK_FORMAT_R16G16B16_UINT;
+					if(bitsPerSample == 32)
+						format = isFloat ? VK_FORMAT_R32G32B32_SFLOAT :
+						isSigned ? VK_FORMAT_R32G32B32_SINT :
+						VK_FORMAT_R32G32B32_UINT;
+				}
+				if(samplesPerPixel == 4) {
+					if(bitsPerSample == 8)
+						format = isSigned ? VK_FORMAT_R8G8B8A8_SNORM :
+						VK_FORMAT_R8G8B8A8_UNORM;
+					if(bitsPerSample == 16)
+						format = isFloat ? VK_FORMAT_R16G16B16A16_SFLOAT :
+						isSigned ? VK_FORMAT_R16G16B16A16_SINT :
+						VK_FORMAT_R16G16B16A16_UINT;
+					if(bitsPerSample == 32)
+						format = isFloat ? VK_FORMAT_R32G32B32A32_SFLOAT :
+						isSigned ? VK_FORMAT_R32G32B32A32_SINT :
+						VK_FORMAT_R32G32B32A32_UINT;
+				}
+
+				numChannels = samplesPerPixel;
+
+				if(format == VK_FORMAT_UNDEFINED)
+				{
+					LOG_ERROR("Unsupported TIFF format: channels or bit depth not mapped");
+				}
+			}
+			TIFFClose(tiff);
+		}
+
+		LOG_ERROR("Can't open TIFF file to retrieve the dimensions: {}", fileName);
+	}
+	
+    void getInfoFromPng(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
+    {
+		stbi_info(fileName.c_str(), &size.x, &size.y, &numChannels);
+
+		switch(numChannels)
+		{
+			case 1:
+				format = VK_FORMAT_R8_UNORM;
+				break;
+			case 2:
+				format = VK_FORMAT_R8G8_UNORM;
+				break;
+			case 3:
+				format = VK_FORMAT_R8G8B8_UNORM;
+				break;
+			case 4:
+				format = VK_FORMAT_R8G8B8A8_UNORM;
+				break;
+			default: LOG_ERROR("Unsupported channel count for file: {}", fileName);
+		}
+	}
+
 	void Image::create(const ivec2& dimension, const VkFormat format)
 	{
 		mDimension = dimension;
@@ -176,125 +296,6 @@ namespace fre
 	bool Image::isFileNameValid() const
 	{
 		return !mFileName.empty() && mFileName.find('#') == std::string::npos;
-	}
-
-	void getInfoFromTiff(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
-	{
-		size = ivec2(0);
-		format = VK_FORMAT_UNDEFINED;
-		TIFF* tiff = TIFFOpen(fileName.c_str(), "r");
-		if(tiff)
-		{
-			if(TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &size.x) != 1 ||
-				TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &size.y) != 1)
-			{
-				LOG_ERROR("Could not retrieve the dimensions of the TIFF file: {}", fileName);
-			}
-
-			uint16_t samplesPerPixel = 1;
-			uint16_t bitsPerSample = 1;
-			uint16_t sampleFormat = SAMPLEFORMAT_UINT;
-
-			if(
-				TIFFGetFieldDefaulted(tiff, TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel) != 1 ||
-				TIFFGetFieldDefaulted(tiff, TIFFTAG_BITSPERSAMPLE, &bitsPerSample) != 1 ||
-				TIFFGetFieldDefaulted(tiff, TIFFTAG_SAMPLEFORMAT, &sampleFormat) != 1)
-			{
-				LOG_ERROR("Could not retrieve the dimensions of the TIFF file: {}", fileName);
-			}
-			else
-			{
-				bool isFloat = (sampleFormat == SAMPLEFORMAT_IEEEFP);
-				bool isSigned = (sampleFormat == SAMPLEFORMAT_INT);
-				bool isUnsigned = (sampleFormat == SAMPLEFORMAT_UINT);
-
-				// Map based on channels
-				if(samplesPerPixel == 1) {
-					if(bitsPerSample == 8)
-						format = isSigned ? VK_FORMAT_R8_SNORM :
-						VK_FORMAT_R8_UNORM;
-					if(bitsPerSample == 16)
-						format = isFloat ? VK_FORMAT_R16_SFLOAT :
-						isSigned ? VK_FORMAT_R16_SINT :
-						VK_FORMAT_R16_UINT;
-					if(bitsPerSample == 32)
-						format = isFloat ? VK_FORMAT_R32_SFLOAT :
-						isSigned ? VK_FORMAT_R32_SINT :
-						VK_FORMAT_R32_UINT;
-				}
-				if(samplesPerPixel == 2) {
-					if(bitsPerSample == 8)
-						format = isSigned ? VK_FORMAT_R8G8_SNORM :
-						VK_FORMAT_R8G8_UNORM;
-					if(bitsPerSample == 16)
-						format = isFloat ? VK_FORMAT_R16G16_SFLOAT :
-						isSigned ? VK_FORMAT_R16G16_SINT :
-						VK_FORMAT_R16G16_UINT;
-					if(bitsPerSample == 32)
-						format = isFloat ? VK_FORMAT_R32G32_SFLOAT :
-						isSigned ? VK_FORMAT_R32G32_SINT :
-						VK_FORMAT_R32G32_UINT;
-				}
-				if(samplesPerPixel == 3) {
-					if(bitsPerSample == 8)
-						format = isSigned ? VK_FORMAT_R8G8B8_SNORM :
-						VK_FORMAT_R8G8B8_UNORM;
-					if(bitsPerSample == 16)
-						format = isFloat ? VK_FORMAT_R16G16B16_SFLOAT :
-						isSigned ? VK_FORMAT_R16G16B16_SINT :
-						VK_FORMAT_R16G16B16_UINT;
-					if(bitsPerSample == 32)
-						format = isFloat ? VK_FORMAT_R32G32B32_SFLOAT :
-						isSigned ? VK_FORMAT_R32G32B32_SINT :
-						VK_FORMAT_R32G32B32_UINT;
-				}
-				if(samplesPerPixel == 4) {
-					if(bitsPerSample == 8)
-						format = isSigned ? VK_FORMAT_R8G8B8A8_SNORM :
-						VK_FORMAT_R8G8B8A8_UNORM;
-					if(bitsPerSample == 16)
-						format = isFloat ? VK_FORMAT_R16G16B16A16_SFLOAT :
-						isSigned ? VK_FORMAT_R16G16B16A16_SINT :
-						VK_FORMAT_R16G16B16A16_UINT;
-					if(bitsPerSample == 32)
-						format = isFloat ? VK_FORMAT_R32G32B32A32_SFLOAT :
-						isSigned ? VK_FORMAT_R32G32B32A32_SINT :
-						VK_FORMAT_R32G32B32A32_UINT;
-				}
-
-				numChannels = samplesPerPixel;
-
-				if(format == VK_FORMAT_UNDEFINED)
-				{
-					LOG_ERROR("Unsupported TIFF format: channels or bit depth not mapped");
-				}
-			}
-			TIFFClose(tiff);
-		}
-
-		LOG_ERROR("Can't open TIFF file to retrieve the dimensions: {}", fileName);
-	}
-	
-    void getInfoFromPng(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
-    {
-		stbi_info(fileName.c_str(), &size.x, &size.y, &numChannels);
-
-		switch(numChannels)
-		{
-			case 1:
-				format = VK_FORMAT_R8_UNORM;
-				break;
-			case 2:
-				format = VK_FORMAT_R8G8_UNORM;
-				break;
-			case 3:
-				format = VK_FORMAT_R8G8B8_UNORM;
-				break;
-			case 4:
-				format = VK_FORMAT_R8G8B8A8_UNORM;
-				break;
-			default: LOG_ERROR("Unsupported channel count for file: {}", fileName);
-		}
 	}
 
 	void Image::getInfo(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
