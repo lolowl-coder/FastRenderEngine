@@ -36,38 +36,30 @@ namespace fre
 
         VkDescriptorPool mDescriptorPool = VK_NULL_HANDLE;
     };
-}
 
-inline void hash_combine(std::size_t& seed, std::size_t value)
-{
-    seed ^= value + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-}
-
-struct VkDescriptorPoolSizeHasher
-{
-    std::size_t operator()(const VkDescriptorPoolSize& obj) const
+    inline void DPKeyHashCombine(std::size_t& seed, std::size_t value)
     {
-        std::size_t h1 = std::hash<uint32_t>{}(static_cast<uint32_t>(obj.type));
-        std::size_t h2 = std::hash<uint32_t>{}(obj.descriptorCount);
-        std::size_t combined = h1;
-        hash_combine(combined, h2);
-        return combined;
+        seed ^= value + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     }
-};
+
+    struct VkDescriptorPoolSizeHasher
+    {
+        std::size_t operator()(const VkDescriptorPoolSize& obj) const
+        {
+            std::size_t h1 = std::hash<uint32_t>{}(static_cast<uint32_t>(obj.type));
+            std::size_t h2 = std::hash<uint32_t>{}(obj.descriptorCount);
+            std::size_t combined = h1;
+            DPKeyHashCombine(combined, h2);
+            return combined;
+        }
+    };
+}
 
 namespace std
 {
     template <>
     struct hash<fre::VulkanDescriptorPoolKey>
     {
-        std::size_t operator()(const fre::VulkanDescriptorPoolKey& key) const
-        {
-            std::size_t seed = 0;
-            VkDescriptorPoolSizeHasher poolHasher;
-            for(const auto& item : key.mPoolSizes) {
-                hash_combine(seed, poolHasher(item));
-            }
-            return seed;
-        }
+        std::size_t operator()(const fre::VulkanDescriptorPoolKey& key) const;
     };
-};
+}

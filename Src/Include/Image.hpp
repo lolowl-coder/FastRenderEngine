@@ -42,5 +42,21 @@ namespace fre
         int mNumChannels = 0;
 
         static void getInfo(const std::string& fileName, glm::ivec2& size, VkFormat& format, int& numChannels);
+
+        bool operator == (const Image& other) const
+        {
+            return
+                mDimension == other.mDimension &&
+                mDataSize == other.mDataSize &&
+                mFormat == other.mFormat &&
+                mIsExternal == other.mIsExternal &&
+                mStride == other.mStride &&
+                mIsOwner == other.mIsOwner &&
+                mIsTIFF == other.mIsTIFF &&
+                mIsPNG == other.mIsPNG &&
+                mNumChannels == other.mNumChannels &&
+                mFileName == other.mFileName &&
+                mData == other.mData;
+        }
     };
 }

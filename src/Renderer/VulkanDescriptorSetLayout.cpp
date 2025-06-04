@@ -46,3 +46,17 @@ namespace fre
         vkDestroyDescriptorSetLayout(logicalDevice, mDescriptorSetLayout, nullptr);
     }
 }
+
+std::size_t std::hash<fre::VulkanDescriptorSetLayoutInfo>::operator()(const fre::VulkanDescriptorSetLayoutInfo& key) const
+{
+    std::size_t seed = 0;
+    std::hash<uint32_t> hasher;
+    for(int i = 0; i < key.mDescriptorTypes.size(); i++)
+    {
+        seed ^= hasher(key.mDescriptorTypes[i]) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        seed ^= hasher(key.mBindings[i]) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        seed ^= hasher(key.mDescriptorCount[i]) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        seed ^= hasher(key.mStageFlags[i]) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    }
+    return seed;
+}

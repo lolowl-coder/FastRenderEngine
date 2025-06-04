@@ -99,8 +99,6 @@ namespace fre
 		int result = 0;
 		try
 		{
-			createInputDescriptorPool();
-			allocateInputDescriptorSets();
 			createCommandPools();
 			createCommandBuffers();
 		}
@@ -120,12 +118,44 @@ namespace fre
 		return result;
 	}
 
+	void VulkanRenderer::createFullscreenTriangle()
+	{
+		Material material;
+		material.mShaderFileName = "rt";
+		addMaterial(material);
+		mFullscreenTriangleMesh = std::make_shared<Mesh>(material.mId);
+		mFullscreenTriangleMesh->setGeneratedVerticesCount(3);
+		std::vector<VulkanDescriptorPtr> colorAttacmentDescriptors;
+		std::vector<VulkanDescriptorPtr> depthAttacmentDescriptors;
+		mColorAttacmentDescriptors.resize(MAX_FRAME_DRAWS);
+		mDepthAttacmentDescriptors.resize(MAX_FRAME_DRAWS);
+		for(uint32_t i = 0; i < mColorAttacmentDescriptors.size(); i++)
+		{
+			mColorAttacmentDescriptors[i] = std::make_shared<DescriptorImage>(
+				VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				mFrameBuffers[i].mColorAttachments[0].mImageView, VK_NULL_HANDLE);
+			auto samplerId = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE });
+			mDepthAttacmentDescriptors[i] = std::make_shared<DescriptorImage>(
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+				mFrameBuffers[i].mColorAttachments[0].mImageView, getSampler(samplerId));
+		}
+        mFullscreenTriangleMesh->setBeforeRecordCallback([this](VulkanRenderer* renderer, uint32_t subPass, VkPipelineBindPoint pipelineBindPoint)
+            {
+                mFullscreenTriangleMesh->setDescriptors(
+					{ { mColorAttacmentDescriptors[mImageIndex], mDepthAttacmentDescriptors[mImageIndex] } }
+				);
+            });
+
+		addMeshModel({ mFullscreenTriangleMesh });
+	}
+
 	int VulkanRenderer::createMeshGPUResources()
 	{
 		LOG_INFO("VulkanRenderer. Create mesh GPU resources");
 		int result = 0;
 		try
 		{
+			createFullscreenTriangle();
 			loadMeshes();
 		}
 		catch (std::runtime_error& e)
@@ -209,10 +239,7 @@ namespace fre
 				vkDestroySampler(mainDevice.logicalDevice, s, nullptr);
 			}
 
-			cleanupInputDescriptorPool();
 			cleanupUIDescriptorPool();
-
-			cleanupInputDescriptorSetLayout();
 
 			mTextureManager.destroy(mainDevice.logicalDevice);
 
@@ -674,12 +701,6 @@ namespace fre
 		{
 			fbo.destroy(mainDevice.logicalDevice);
 		}
-	}
-
-	void VulkanRenderer::cleanupInputDescriptorPool()
-	{
-		mInputDescriptorPool->destroy(mainDevice.logicalDevice);
-		mDepthDescriptorPool->destroy(mainDevice.logicalDevice);
 	}
 
 	void VulkanRenderer::cleanupUIDescriptorPool()
@@ -1250,20 +1271,6 @@ namespace fre
 		LOG_INFO("Window surface created");
 	}
 
-	void VulkanRenderer::createInputDescriptorPool()
-	{
-		LOG_INFO("Create input descriptor pool");
-
-		auto inputDPId = createDescriptorPool( { { { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, MAX_FRAME_DRAWS } } } );
-		//pool for color and depth attachments
-		mInputDescriptorPool = getDescriptorPool(inputDPId);
-
-		auto depthDPId = createDescriptorPool( { { { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_FRAME_DRAWS } } } );
-		mDepthDescriptorPool = getDescriptorPool(depthDPId);
-
-		LOG_INFO("Input descriptor pool created");
-	}
-
 	void VulkanRenderer::createUIDescriptorPool()
 	{
 		//pool for color and depth attachments
@@ -1280,6 +1287,11 @@ namespace fre
 			ShaderMetaDatum& shaderMetaDatum = mShaderMetaDatum[shader.mId];
 			for(const auto& shaderMetaData : shaderMetaDatum)
 			{
+				std::vector<VkDescriptorSetLayout> dsls(shader.mDSLs.size());
+				for(int i = 0; i < shader.mDSLs.size(); i++)
+				{
+					dsls[i] = getDescriptorSetLayout(shader.mDSLs[i])->mDescriptorSetLayout;
+				}
 				if(shader.mComputeShader.mShaderModule != VK_NULL_HANDLE)
 				{
 					shader.mComputePipelineIds.push_back(static_cast<uint32_t>(mPipelines.size()));
@@ -1327,7 +1339,7 @@ namespace fre
 					pipeline.createRTPipeline(
 						mainDevice.logicalDevice,
 						{&shader.mRayGenShader, &shader.mRayMissShader,&shader.mRayClosestHitShader},
-						shaderMetaData.mDescriptorSetLayouts,
+						dsls,
 						shaderMetaData.mPushConstantRanges);
 					pipeline.createShaderBindingTables(mainDevice, mTransferQueue, mTransferCommandPool,
 						mRayTracingPipelineProperties, mBufferManager);
@@ -1398,29 +1410,6 @@ namespace fre
 		}
 
 		LOG_INFO("Command buffers created");
-	}
-
-	void VulkanRenderer::allocateInputDescriptorSets()
-	{
-		LOG_INFO("Allocate input descriptor sets");
-
-		mColorAttacmentDescriptors.resize(MAX_FRAME_DRAWS);
-		mDepthAttacmentDescriptors.resize(MAX_FRAME_DRAWS);
-		//Resize descriptor set array for each swap chain image
-		mInputDescriptorSets.resize(MAX_FRAME_DRAWS);
-		mDepthDescriptorSets.resize(MAX_FRAME_DRAWS);
-		for(uint32_t i = 0; i < mInputDescriptorSets.size(); i++)
-		{
-			mColorAttacmentDescriptors[i] = std::make_shared<DescriptorImage>(
-				VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-				mFrameBuffers[i].mColorAttachments[0].mImageView, VK_NULL_HANDLE);
-			auto samplerId = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE });
-			mDepthAttacmentDescriptors[i] = std::make_shared<DescriptorImage>(
-				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-				mFrameBuffers[i].mColorAttachments[0].mImageView, getSampler(samplerId));
-		}
-
-		LOG_INFO("Input descriptor sets allocated");
 	}
 
 	static PFN_vkVoidFunction VKAPI_PTR imguiVulkanFunctionLoader(const char* name, void* user_data)
@@ -1707,43 +1696,7 @@ namespace fre
 		auto maxViewSize = getViewport();
 		setViewport(maxViewSize);
         setScissor(maxViewSize);
-        switch(subPassIndex)
-        {
-			case 0:
-				{
-					recordSceneCommands(camera, light, VK_PIPELINE_BIND_POINT_GRAPHICS, subPassIndex);
-				}
-				break;
-			case 1:
-			{
-				const auto& fogShader = mShaders[mFogShaderId];
-				const auto& shaderMetaDatum = mShaderMetaDatum[mFogShaderId];
-				for(uint32_t i = 0; i < fogShader.mGraphicsPipelineIds.size(); i++)
-				{
-					const auto& pipelineId = fogShader.mGraphicsPipelineIds[i];
-					const auto& fogPipeline = mPipelines[pipelineId];
-					const auto& shaderMetaData = shaderMetaDatum[i];
-					bindPipeline(fogPipeline);
-					if (shaderMetaData.mPushConstantsCallback != nullptr)
-					{
-						shaderMetaData.mPushConstantsCallback(nullptr, mat4(1.0f), camera, light, fogPipeline.mPipelineLayout, 0);
-					}
-
-					bindDescriptorSets(
-						{
-							mInputDescriptorSets[mImageIndex].mDescriptorSet,
-							mDepthDescriptorSets[mImageIndex].mDescriptorSet
-						},
-						fogPipeline.mPipelineLayout,
-						VK_PIPELINE_BIND_POINT_GRAPHICS);
-					renderFullscreenTriangle(fogPipeline.mPipelineLayout);
-				}
-			
-				recordSceneCommands(camera, light, VK_PIPELINE_BIND_POINT_GRAPHICS, subPassIndex);
-				drawUI();
-            }
-            break;
-        }
+        recordSceneCommands(camera, light, VK_PIPELINE_BIND_POINT_GRAPHICS, subPassIndex);
 	}
 
 	void VulkanRenderer::loadShaderStage(
@@ -1759,6 +1712,9 @@ namespace fre
 			case VK_SHADER_STAGE_VERTEX_BIT: stageStr = "vert"; break;
 			case VK_SHADER_STAGE_FRAGMENT_BIT: stageStr = "frag"; break;
 			case VK_SHADER_STAGE_COMPUTE_BIT: stageStr = "comp"; break;
+			case VK_SHADER_STAGE_RAYGEN_BIT_KHR: stageStr = "rgen"; break;
+			case VK_SHADER_STAGE_MISS_BIT_KHR: stageStr = "rmiss"; break;
+			case VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR: stageStr = "rchit"; break;
 			default: stageStr = "unknown"; break;
 		}
 		parser.parseShaderInput(shader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + "." + stageStr + ".spv", stage), layouts);
@@ -1890,6 +1846,8 @@ namespace fre
 			}
 		}
 
+		drawUI();
+
 		mRenderPass.end(commandBuffer);
 
 		recordSceneCommands(camera, light, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, 0);
@@ -1964,8 +1922,6 @@ namespace fre
 	{
 		mSwapChain.destroy(mainDevice.logicalDevice);
 		cleanupSwapChainFrameBuffers();
-		cleanupInputDescriptorPool();
-		cleanupInputDescriptorSetLayout();
 		cleanupSwapchainImagesSemaphores();
 	}
 
@@ -1974,9 +1930,6 @@ namespace fre
 		mSwapChain.create(mWindow, mainDevice, mGraphicsQueueFamilyId,
 			mPresentationQueueFamilyId, mSurface);
 		createSwapChainFrameBuffers();
-		createInputDescriptorPool();
-		allocateInputDescriptorSets();
-
 		createSwapchainImagesSemaphores();
 	}
 

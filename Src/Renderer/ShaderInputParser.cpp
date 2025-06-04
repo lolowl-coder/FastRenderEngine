@@ -27,7 +27,7 @@ namespace fre
 		for(const auto s : sets)
 		{
 			const SpvReflectDescriptorSet& reflSet = *s;
-            if(refkSet.set >= layoutInfos.size())
+            if(reflSet.set >= layoutInfos.size())
             {
 				layoutInfos.resize(reflSet.set + 1);
             }
@@ -36,7 +36,7 @@ namespace fre
 			{
 				const SpvReflectDescriptorBinding& reflBinding = *(reflSet.bindings[j]);
 
-				if(reflBinding.binding > = layoutInfos[reflSet.set].mDescriptorTypes.size())
+				if(reflBinding.binding >= layoutInfos[reflSet.set].mDescriptorTypes.size())
 				{
 					layoutInfos[reflSet.set].mDescriptorTypes.resize(reflBinding.binding + 1);
 					layoutInfos[reflSet.set].mBindings.resize(reflBinding.binding + 1);
@@ -58,8 +58,7 @@ namespace fre
 
 	void ShaderInputParser::parseShaderInput(
 		const std::vector<char>& source,
-		std::vector<VulkanDescriptorSetLayoutInfo>& layouts,
-		std::vector<VulkanDescriptorSetPtr>& sets)
+		std::vector<VulkanDescriptorSetLayoutInfo>& layouts)
 	{
 		if(!source.empty())
 		{
@@ -69,7 +68,6 @@ namespace fre
 			uint32_t count = 0;
 
 			getLayouts(module, layouts);
-			getSets(modeule, sets);
 
 			CHECK(spvReflectEnumeratePushConstantBlocks(&module, &count, NULL));
 			std::vector<SpvReflectBlockVariable*> push_constant(count);

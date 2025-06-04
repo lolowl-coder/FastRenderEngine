@@ -17,6 +17,7 @@
 #include "Renderer/VulkanFrameBuffer.hpp"
 #include "Renderer/VulkanPipeline.hpp"
 #include "Renderer/VulkanRenderPass.hpp"
+#include "Renderer/VulkanSamplerKeyHasher.hpp"
 #include "Renderer/VulkanSwapchain.hpp"
 #include "Renderer/VulkanTextureManager.hpp"
 #include "Pointers.hpp"
@@ -41,7 +42,6 @@ namespace fre
 	class ThreadPool;
 	struct VulkanDescriptor;
 	struct VulkanPipeline;
-	struct VulkanSamplerKey;
 
 	class VulkanRenderer
 	{
@@ -141,10 +141,6 @@ namespace fre
 		void setDefaultShininess(const float shininess);
 
 		VulkanFrameBuffer& getFramBuffer(){ return mFrameBuffers[mImageIndex]; }
-
-		VkDescriptorSet getInputDS() const { return mInputDescriptorSets[mImageIndex].mDescriptorSet; }
-		
-		VkDescriptorSet getDepthDS(uint32_t index) const { return mDepthDescriptorSets[index].mDescriptorSet; }
 		void transitionDepthLayout(VkImageLayout from, VkImageLayout to, VkPipelineBindPoint pipelineBindPoint);
 
 		VulkanTextureManager& getTextureManager() { return mTextureManager; }
@@ -185,67 +181,10 @@ namespace fre
 		BoundingBox2D getViewport() const;
 		virtual void createPipelines();
 		virtual void cleanupPipelines(VkDevice logicalDevice);
+		virtual void createFullscreenTriangle();
 		//Returns shader metadata associated with shader by its file name
 		virtual ShaderMetaDatum getShaderMetaData(const std::string& shaderFileName);
 
-	protected:
-		MainDevice mainDevice;
-
-		void** mLastDeviceFeatures = nullptr;
-		std::vector<std::unique_ptr<FeatureStorageBase>> mFeatureChain;
-		std::vector<VkBool32*> mDeviceFeaturesEnabled;
-
-		int32_t mSubPassesCount = 0;
-
-		VulkanRenderPass mRenderPass;
-
-		std::vector<VulkanCommandBuffer> mGraphicsCommandBuffers;
-		std::vector<VulkanCommandBuffer> mTransferCommandBuffers;
-		std::vector<VulkanCommandBuffer> mComputeCommandBuffers;
-		
-		// - Push constants
-		VkPushConstantRange mModelMatrixPCR;
-		VkPushConstantRange mLightingPCR;
-		VkPushConstantRange mNearFarPCR;
-
-		Lighting mLighting;
-
-		// - Descriptors
-		VulkanDescriptorPoolPtr mInputDescriptorPool;
-		VulkanDescriptorPoolPtr mDepthDescriptorPool;
-		VulkanDescriptorPoolPtr mUIDescriptorPool;
-
-        uint32_t mSharedDescriptorPoolId = MAX(uint32_t);
-
-        VulkanResourceCache<VulkanSamplerKey, VkSampler> mSamplerCache;
-        VulkanResourceCache<VulkanDescriptorPoolKey, VulkanDescriptorPoolPtr> mDescriptorPoolCache;
-        VulkanResourceCache<VulkanDescriptorSetLayoutInfo, VulkanDescriptorSetLayoutPtr> mDescriptorSetLayoutCache;
-		VulkanResourceCache<VulkanDescriptorSetKey, VulkanDescriptorSetPtr> mDescriptorSetCache;
-
-		std::vector<VulkanDescriptorPtr> mColorAttacmentDescriptors;
-		std::vector<VulkanDescriptorPtr> mDepthAttacmentDescriptors;
-		std::vector<VulkanDescriptorSet> mInputDescriptorSets;
-		std::vector<VulkanDescriptorSet> mDepthDescriptorSets;
-
-		VulkanBufferManager mBufferManager;
-		VulkanTextureManager mTextureManager;
-
-		//Whole scene bounding box
-		BoundingBox3D mSceneBoundingBox;
-
-		// - Assets
-		std::vector<MeshModel::Ptr> mMeshModels;
-		std::vector<Material> mMaterials;
-		//Default shininess if it can't be extracted during scene loading
-		float mDefaultShininess = 16.0f;
-		//Texture file name to Texture Id map
-		std::map<std::string, uint32_t> mTextureFileNameToIdMap;
-		//Mesh Id to vertex buffer map
-		std::map<uint32_t, uint32_t> mMeshToVertexBufferMap;
-		//Mesh Id to index buffer map
-		std::map<uint32_t, uint32_t> mMeshToIndexBufferMap;
-
-	protected:
 		inline void setApiVersion(uint32_t requestedApiVersion)
 		{
 			mApiVersion = requestedApiVersion;
@@ -280,7 +219,6 @@ namespace fre
 
 		virtual bool isRayTracingSupported() { return false; }
 
-	protected:
 		void loadShaderStage(
 			ShaderInputParser& parser,
 			VulkanShader& shader,
@@ -301,11 +239,9 @@ namespace fre
 		virtual void createSwapChain();
 		void createSwapChainFrameBuffers();
 		void createSurface();
-		void createInputDescriptorPool();
 		void createUIDescriptorPool();
 		void createCommandPools();
 		void createCommandBuffers();
-		void allocateInputDescriptorSets();
 		void createUI();
 
 		void updateUniformBuffers(const Camera& camera);
@@ -323,11 +259,7 @@ namespace fre
 		// - Cleanup methods
 		void cleanupSwapChainFrameBuffers();
 
-		virtual void cleanupUniformDescriptorPool();
-		virtual void cleanupInputDescriptorPool();
 		virtual void cleanupUIDescriptorPool();
-		virtual void cleanupInputDescriptorSetLayout();
-		virtual void cleanupUniformDescriptorSetLayout();
 		virtual void cleanupSwapchainImagesSemaphores();
 		virtual void cleanupRenderFinishedSemaphores();
 		virtual void cleanupComputeFinishedSemaphores();
@@ -361,6 +293,58 @@ namespace fre
 		void initRayTracing();
 
 	protected:
+		MainDevice mainDevice;
+
+		void** mLastDeviceFeatures = nullptr;
+		std::vector<std::unique_ptr<FeatureStorageBase>> mFeatureChain;
+		std::vector<VkBool32*> mDeviceFeaturesEnabled;
+
+		int32_t mSubPassesCount = 0;
+
+		VulkanRenderPass mRenderPass;
+
+		std::vector<VulkanCommandBuffer> mGraphicsCommandBuffers;
+		std::vector<VulkanCommandBuffer> mTransferCommandBuffers;
+		std::vector<VulkanCommandBuffer> mComputeCommandBuffers;
+
+		// - Push constants
+		VkPushConstantRange mModelMatrixPCR;
+		VkPushConstantRange mLightingPCR;
+		VkPushConstantRange mNearFarPCR;
+
+		Lighting mLighting;
+
+		// - Descriptors
+		VulkanDescriptorPoolPtr mUIDescriptorPool;
+
+		uint32_t mSharedDescriptorPoolId = MAX(uint32_t);
+
+		VulkanResourceCache<VulkanSamplerKey, VkSampler> mSamplerCache;
+		VulkanResourceCache<VulkanDescriptorPoolKey, VulkanDescriptorPoolPtr> mDescriptorPoolCache;
+		VulkanResourceCache<VulkanDescriptorSetLayoutInfo, VulkanDescriptorSetLayoutPtr> mDescriptorSetLayoutCache;
+		VulkanResourceCache<VulkanDescriptorSetKey, VulkanDescriptorSetPtr> mDescriptorSetCache;
+
+		std::vector<VulkanDescriptorPtr> mColorAttacmentDescriptors;
+		std::vector<VulkanDescriptorPtr> mDepthAttacmentDescriptors;
+
+		VulkanBufferManager mBufferManager;
+		VulkanTextureManager mTextureManager;
+
+		//Whole scene bounding box
+		BoundingBox3D mSceneBoundingBox;
+
+		// - Assets
+		std::vector<MeshModel::Ptr> mMeshModels;
+		std::vector<Material> mMaterials;
+		//Default shininess if it can't be extracted during scene loading
+		float mDefaultShininess = 16.0f;
+		//Texture file name to Texture Id map
+		std::map<std::string, uint32_t> mTextureFileNameToIdMap;
+		//Mesh Id to vertex buffer map
+		std::map<uint32_t, uint32_t> mMeshToVertexBufferMap;
+		//Mesh Id to index buffer map
+		std::map<uint32_t, uint32_t> mMeshToIndexBufferMap;
+
 		uint32_t mImageIndex = std::numeric_limits<uint32_t>::max();
 		VkQueue mGraphicsQueue = VK_NULL_HANDLE;
 		VkCommandPool mGraphicsCommandPool = VK_NULL_HANDLE;
@@ -462,5 +446,7 @@ namespace fre
 		uint8_t mDeviceUUID[VK_UUID_SIZE];
 		
 		bool mUIFrameStarted = false;
+
+        MeshPtr mFullscreenTriangleMesh;
 	};
 }

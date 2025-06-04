@@ -90,7 +90,7 @@ namespace fre
 		if(result == MAX(uint32_t))
 		{
 			result = mTextureInfos.size();
-			VulkanTextureInfoPtr ti = mTextureInfos[result];
+			VulkanTextureInfoPtr ti = std::make_shared<VulkanTextureInfo>();
 			ti->mId = result;
 			ti->mAddressMode = addressMode;
 			ti->mTiling = tiling;
@@ -98,6 +98,8 @@ namespace fre
 			ti->mMemoryFlags = memoryFlags;
 			ti->mLayout = layout;
 			ti->mImage = image;
+
+            mTextureInfos[result] = ti;
 		}
 
 		return result;
@@ -124,7 +126,7 @@ namespace fre
 		const VulkanTextureInfoPtr& info)
 	{
 		uint32_t id = mTextures.size();
-		VulkanTexturePtr result = mTextures[id];
+		VulkanTexturePtr result = std::make_shared<VulkanTexture>();
 		result->mId = id;
 
 		if(info->mImage.mDimension.x > 0 && info->mImage.mDimension.y > 0)
@@ -158,6 +160,8 @@ namespace fre
 					queue, commandPool, result, info);
 			}
 		}
+
+		mTextures[id] = result;
 
 		return id;
 	}

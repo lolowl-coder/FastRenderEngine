@@ -73,7 +73,7 @@ namespace fre
 			return mMax - mMin;
 		}
 
-		bool operator == (const BoundingBox<T>& other)
+		bool operator == (const BoundingBox<T>& other) const
 		{
 			return isEqual(mMin);
 		}
