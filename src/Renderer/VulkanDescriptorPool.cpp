@@ -39,3 +39,13 @@ namespace fre
         vkDestroyDescriptorPool(logicalDevice, mDescriptorPool, nullptr);
     }
 }
+
+std::size_t std::hash<fre::VulkanDescriptorPoolKey>::operator()(const fre::VulkanDescriptorPoolKey& key) const
+{
+	std::size_t seed = 0;
+	fre::VkDescriptorPoolSizeHasher poolHasher;
+	for(const auto& item : key.mPoolSizes) {
+		fre::DPKeyHashCombine(seed, poolHasher(item));
+	}
+	return seed;
+}

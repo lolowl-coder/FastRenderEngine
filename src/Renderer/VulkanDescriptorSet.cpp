@@ -47,3 +47,13 @@ namespace fre
             writeDescriptorSets.data(), 0, nullptr);
     }
 }
+
+std::size_t std::hash<fre::VulkanDescriptorSetKey>::operator()(const fre::VulkanDescriptorSetKey& key) const {
+    std::size_t seed = 0;
+    std::hash<uint32_t> hasher;
+    seed ^= hasher(key.mShaderId) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    seed ^= hasher(key.mDPId) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    seed ^= hasher(key.mDSLId) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    seed ^= hasher(key.mMeshId) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    return seed;
+}

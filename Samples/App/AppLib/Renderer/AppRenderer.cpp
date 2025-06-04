@@ -71,8 +71,6 @@ namespace app
 	void AppRenderer::createSwapChain()
 	{
         VulkanRenderer::createSwapChain();
-
-		createSorageImage();
 	}
 	
 	ShaderMetaDatum AppRenderer::getShaderMetaData(const std::string& shaderFileName)
@@ -143,11 +141,24 @@ namespace app
 		mMesh->setDescriptors({{mTLASDescriptor}, {mStorageImageDescriptor}});
 	}
 
+    int AppRenderer::createCoreGPUResources(GLFWwindow* newWindow)
+    {
+        auto result = VulkanRenderer::createCoreGPUResources(newWindow);
+        if(result == 0)
+        {
+			createSorageImage();
+        }
+        return result;
+    }
+
 	int AppRenderer::createDynamicGPUResources()
 	{
         int result = VulkanRenderer::createDynamicGPUResources();
 
-		createScene();
+		if(result == 0)
+		{
+			createScene();
+		}
 
 		return result;
 	}
@@ -202,6 +213,8 @@ namespace app
 
 	void AppRenderer::createScene()
 	{
+		createSorageImage();
+
 		mCameraMatricesPCR.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 		mCameraMatricesPCR.offset = 0;
 		mCameraMatricesPCR.size = sizeof(CameraMatrices);

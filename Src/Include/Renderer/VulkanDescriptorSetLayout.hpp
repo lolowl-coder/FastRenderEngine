@@ -35,3 +35,12 @@ namespace fre
         VkDescriptorSetLayout mDescriptorSetLayout = VK_NULL_HANDLE;
     };
 }
+
+namespace std
+{
+    template <>
+    struct hash<fre::VulkanDescriptorSetLayoutInfo>
+    {
+        std::size_t operator()(const fre::VulkanDescriptorSetLayoutInfo& key) const;
+    };
+}

@@ -14,8 +14,21 @@ namespace fre
         VkImageUsageFlags mUsageFlags;
         VkMemoryPropertyFlags mMemoryFlags;
 		VkImageLayout mLayout;
-		const std::vector<uint32_t>& mStageFlags;
+		VkFlags mStageFlags;
 		Image mImage;
+
+        bool operator ==(const VulkanTextureInfo& other) const
+        {
+            return
+				mId == other.mId &&
+                mAddressMode == other.mAddressMode &&
+                mTiling == other.mTiling &&
+                mUsageFlags == other.mUsageFlags &&
+                mMemoryFlags == other.mMemoryFlags &&
+                mLayout == other.mLayout &&
+                mStageFlags == other.mStageFlags &&
+                mImage == other.mImage;
+        }
 	};
 
 	struct VulkanTexture

@@ -17,6 +17,7 @@ namespace app
 		{
 		}
 
+		virtual int createCoreGPUResources(GLFWwindow* newWindow);
 		virtual int createDynamicGPUResources() override;
 
 	protected:
@@ -30,9 +31,6 @@ namespace app
 
 	private:
 		void createSorageImage();
-		void createStorageImageDP();
-		void createStorageImageDSL();
-		void allocateStorageImageDS();
 		void loadMeshModel();
 		void createAS();
 		void createScene();
