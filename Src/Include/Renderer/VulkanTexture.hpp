@@ -11,10 +11,10 @@ namespace fre
 		uint32_t mId = std::numeric_limits<uint32_t>::max();
 		VkSamplerAddressMode mAddressMode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         VkImageTiling mTiling = VK_IMAGE_TILING_OPTIMAL;
-        VkImageUsageFlags mUsageFlags;
-        VkMemoryPropertyFlags mMemoryFlags;
-		VkImageLayout mLayout;
-		VkFlags mStageFlags;
+        VkImageUsageFlags mUsageFlags = VK_IMAGE_USAGE_FLAG_BITS_MAX_ENUM;
+        VkMemoryPropertyFlags mMemoryFlags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+		VkImageLayout mLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		VkFlags mStageFlags = VK_SHADER_STAGE_FLAG_BITS_MAX_ENUM;
 		Image mImage;
 
         bool operator ==(const VulkanTextureInfo& other) const

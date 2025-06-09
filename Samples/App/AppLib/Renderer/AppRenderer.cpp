@@ -103,6 +103,9 @@ namespace app
     void AppRenderer::createSorageImage()
     {
 		auto maxViewSize = getViewport().getSize();
+		Image image;
+		image.mDimension = maxViewSize;
+		image.mFormat = VK_FORMAT_R8G8B8A8_UNORM;
 		auto textureInfoId = mTextureManager.createTextureInfo(
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 			VK_IMAGE_TILING_OPTIMAL,
@@ -110,7 +113,7 @@ namespace app
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			VK_IMAGE_LAYOUT_GENERAL,
 			false,
-			Image());
+			image);
 		auto textureInfo = getTextureInfo(textureInfoId);
 		auto textureId = mTextureManager.createTexture(
 			mainDevice,
@@ -126,28 +129,17 @@ namespace app
 	{
 		Material material;
 		material.mShininess = 1.0f;
-		mRTShaderId = addShader("rt");
-		material.mShaderId = mRTShaderId;
+		material.mShaderFileName = "rt";
 		addMaterial(material);
 
 		mMeshModel = createMeshModel("Models/unitQuad/unitQuad.obj", {});
         mMesh = mMeshModel->getMesh(0);
 		mMesh->setMaterialId(material.mId);
-		mTLASDescriptor = std::make_shared<DescriptorAccelerationStructure>(mTLAS.mHandle);
-		auto samplerId = createSampler({});
-		auto sampler = getSampler(samplerId);
-		mStorageImageDescriptor = std::make_shared<DescriptorImage>(
-			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL, mStorageImage->mImageView, sampler);
-		mMesh->setDescriptors({{mTLASDescriptor}, {mStorageImageDescriptor}});
 	}
 
     int AppRenderer::createCoreGPUResources(GLFWwindow* newWindow)
     {
         auto result = VulkanRenderer::createCoreGPUResources(newWindow);
-        if(result == 0)
-        {
-			createSorageImage();
-        }
         return result;
     }
 
@@ -157,6 +149,7 @@ namespace app
 
 		if(result == 0)
 		{
+			createSorageImage();
 			createScene();
 		}
 
@@ -221,6 +214,13 @@ namespace app
 
 		loadMeshModel();
 		createAS();
+
+		mTLASDescriptor = std::make_shared<DescriptorAccelerationStructure>(mTLAS.mHandle);
+		auto samplerId = createSampler({});
+		auto sampler = getSampler(samplerId);
+		mStorageImageDescriptor = std::make_shared<DescriptorImage>(
+			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL, mStorageImage->mImageView, sampler);
+		mMesh->setDescriptors({ {mTLASDescriptor}, {mStorageImageDescriptor} });
 	}
 
 

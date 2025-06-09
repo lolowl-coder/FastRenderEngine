@@ -110,7 +110,7 @@ namespace fre
 		LOG_ERROR("Can't open TIFF file to retrieve the dimensions: {}", fileName);
 	}
 	
-    void getInfoFromPng(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
+    void getInfoFromPngOrJpg(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
     {
 		stbi_info(fileName.c_str(), &size.x, &size.y, &numChannels);
 
@@ -169,13 +169,15 @@ namespace fre
 			//Load pixel data of image
 			if(mFileName.find(".tiff") != std::string::npos || mFileName.find(".tif") != std::string::npos)
 			{
-				getInfoFromTiff(mFileName, mDimension, mFormat, mNumChannels);
-				loadTIFF(fs.find(mFileName));
+				auto fullFileName = fs.find(mFileName);
+				getInfoFromTiff(fullFileName, mDimension, mFormat, mNumChannels);
+				loadTIFF(fullFileName);
 			}
 			else if(mFileName.find(".png") != std::string::npos || mFileName.find(".jpg") != std::string::npos)
 			{
-				getInfoFromTiff(mFileName, mDimension, mFormat, mNumChannels);
-				loadPng(fs.find(mFileName));
+				auto fullFileName = fs.find(mFileName);
+				getInfoFromPngOrJpg(fullFileName, mDimension, mFormat, mNumChannels);
+				loadPng(fullFileName);
 			}
 
 			if (mData == nullptr)
@@ -304,9 +306,13 @@ namespace fre
 		{
 			getInfoFromTiff(fileName, size, format, numChannels);
 		}
-		else if(fileName.find(".png") != std::string::npos)
+		else if(fileName.find(".png") != std::string::npos || fileName.find(".jpg") != std::string::npos)
 		{
-			getInfoFromPng(fileName, size, format, numChannels);
+			getInfoFromPngOrJpg(fileName, size, format, numChannels);
+		}
+		else
+		{
+			throw std::runtime_error("Failed to get image info from " + fileName);
 		}
     }
 }

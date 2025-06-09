@@ -39,7 +39,7 @@ namespace fre
         for(int i = 0; i < descriptors.size(); i++)
         {
             const auto& descriptor = descriptors[i];
-            descriptor->getWriter(mDescriptorSet, i);
+            writeDescriptorSets[i] = descriptor->getWriter(mDescriptorSet, i);
         }
         
         //Update descriptor sets with new buffer/binding info

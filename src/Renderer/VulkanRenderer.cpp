@@ -121,7 +121,7 @@ namespace fre
 	void VulkanRenderer::createFullscreenTriangle()
 	{
 		Material material;
-		material.mShaderFileName = "rt";
+		material.mShaderFileName = "textured";
 		addMaterial(material);
 		mFullscreenTriangleMesh = std::make_shared<Mesh>(material.mId);
 		mFullscreenTriangleMesh->setGeneratedVerticesCount(3);
@@ -323,6 +323,7 @@ namespace fre
 
 	void VulkanRenderer::bindDescriptorSets(const std::vector<uint32_t>& setIds, VkPipelineLayout pipelineLayout, VkPipelineBindPoint pipelineBindPoint)
 	{
+        assert(setIds.size() > 0 && "No descriptor sets to bind");
 		std::vector<VkDescriptorSet> sets;
 		for(const auto s : setIds)
 		{
@@ -1545,13 +1546,14 @@ namespace fre
 
                         if(mesh->getDescriptorSets().empty())
                         {
+							std::vector<uint32_t> descriptorSetIds;
 							for(const auto& dslId : shader.mDSLs)
 							{
-								std::vector<uint32_t> descriptorSetIds;
 								const VulkanDescriptorSetKey key = { shader.mId, mSharedDescriptorPoolId, dslId, mesh->getId() };
 								auto setId = createDescriptorSet(key);
                                 descriptorSetIds.push_back(setId);
 							}
+							mesh->setDescriptorSets(descriptorSetIds);
 						}
 
                         auto descriptorSets = mesh->getDescriptorSets();

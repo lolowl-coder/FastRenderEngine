@@ -159,6 +159,11 @@ namespace fre
 				uploadData(mainDevice, transferQueueFamilyId, graphicsQueueFamilyId,
 					queue, commandPool, result, info);
 			}
+			else
+			{
+				transitionImageLayout(mainDevice.logicalDevice, queue, commandPool, result->mImage, VK_IMAGE_ASPECT_COLOR_BIT,
+					VK_IMAGE_LAYOUT_UNDEFINED, info->mLayout);
+			}
 		}
 
 		mTextures[id] = result;
@@ -253,7 +258,7 @@ namespace fre
 
 		//Transition image to be shader readable for shader usage
 		transitionImageLayout(mainDevice.logicalDevice, queue, commandPool, texture->mImage, VK_IMAGE_ASPECT_COLOR_BIT,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, /*VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL*/info->mLayout);
 
 		//Destroy staging buffers
 		vkDestroyBuffer(mainDevice.logicalDevice, imageStagingBuffer.mBuffer, nullptr);

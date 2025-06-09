@@ -5,57 +5,51 @@
 
 namespace fre
 {
-    VkWriteDescriptorSet DescriptorBuffer::getWriter(VkDescriptorSet ds, uint32_t binding) const
+    VkWriteDescriptorSet DescriptorBuffer::getWriter(VkDescriptorSet ds, uint32_t binding)
     {
-        VkDescriptorBufferInfo bufferInfo = {};
-        bufferInfo.buffer = mBuffer->mBuffer;
-        bufferInfo.offset = 0;
-        bufferInfo.range = VK_WHOLE_SIZE;
-        VkWriteDescriptorSet writeDescriptorSet = {};
-        writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeDescriptorSet.dstSet = ds;
-        writeDescriptorSet.dstBinding = binding;
-        writeDescriptorSet.dstArrayElement = 0;
-        writeDescriptorSet.descriptorType = mType;
-        writeDescriptorSet.descriptorCount = 1;
-        writeDescriptorSet.pBufferInfo = &bufferInfo;
+        mBufferInfo.buffer = mBuffer->mBuffer;
+        mBufferInfo.offset = 0;
+        mBufferInfo.range = VK_WHOLE_SIZE;
+        mWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        mWriteDescriptorSet.dstSet = ds;
+        mWriteDescriptorSet.dstBinding = binding;
+        mWriteDescriptorSet.dstArrayElement = 0;
+        mWriteDescriptorSet.descriptorType = mType;
+        mWriteDescriptorSet.descriptorCount = 1;
+        mWriteDescriptorSet.pBufferInfo = &mBufferInfo;
 
-        return writeDescriptorSet;
+        return mWriteDescriptorSet;
     }
 
-    VkWriteDescriptorSet DescriptorImage::getWriter(VkDescriptorSet ds, uint32_t binding) const
+    VkWriteDescriptorSet DescriptorImage::getWriter(VkDescriptorSet ds, uint32_t binding)
     {
-        VkDescriptorImageInfo imageInfo = {};
-        imageInfo.imageLayout = mLayout;
-        imageInfo.imageView = mImageView;
-        imageInfo.sampler = mSampler;
-        VkWriteDescriptorSet writeDescriptorSet = {};
-        writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeDescriptorSet.dstSet = ds;
-        writeDescriptorSet.dstBinding = binding;
-        writeDescriptorSet.dstArrayElement = 0;
-        writeDescriptorSet.descriptorType = mType;
-        writeDescriptorSet.descriptorCount = 1;
-        writeDescriptorSet.pImageInfo = &imageInfo;
+        mImageInfo.imageLayout = mLayout;
+        mImageInfo.imageView = mImageView;
+        mImageInfo.sampler = mSampler;
+        mWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        mWriteDescriptorSet.dstSet = ds;
+        mWriteDescriptorSet.dstBinding = binding;
+        mWriteDescriptorSet.dstArrayElement = 0;
+        mWriteDescriptorSet.descriptorType = mType;
+        mWriteDescriptorSet.descriptorCount = 1;
+        mWriteDescriptorSet.pImageInfo = &mImageInfo;
 
-        return writeDescriptorSet;
+        return mWriteDescriptorSet;
     };
 
-    VkWriteDescriptorSet DescriptorAccelerationStructure::getWriter(VkDescriptorSet ds, uint32_t binding) const
+    VkWriteDescriptorSet DescriptorAccelerationStructure::getWriter(VkDescriptorSet ds, uint32_t binding)
     {
-        VkWriteDescriptorSetAccelerationStructureKHR writeExt{};
-        writeExt.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
-        writeExt.accelerationStructureCount = 1;
-        writeExt.pAccelerationStructures = &mAccelerationStructure;
-        VkWriteDescriptorSet write{};
-        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write.dstSet = ds;
-        write.dstBinding = binding;
-        write.dstArrayElement = 0;
-        write.descriptorCount = 1;
-        write.descriptorType = mType;
-        write.pNext = &writeExt;
+        mWriteExt.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+        mWriteExt.accelerationStructureCount = 1;
+        mWriteExt.pAccelerationStructures = &mAccelerationStructure;
+        mWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        mWrite.dstSet = ds;
+        mWrite.dstBinding = binding;
+        mWrite.dstArrayElement = 0;
+        mWrite.descriptorCount = 1;
+        mWrite.descriptorType = mType;
+        mWrite.pNext = &mWriteExt;
 
-        return write;
+        return mWrite;
     }
 }

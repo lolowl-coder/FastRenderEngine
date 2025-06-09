@@ -30,7 +30,7 @@ namespace fre
         //Data size stored in mData, bytes
         uint32_t mDataSize = 0;
         void* mData = nullptr;
-        VkFormat mFormat = VK_FORMAT_R8G8B8A8_UNORM;
+        VkFormat mFormat = VK_FORMAT_UNDEFINED;
         std::string mFileName;
         bool mIsExternal = false;
         //Pixel size, bytes
