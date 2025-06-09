@@ -100,7 +100,7 @@ namespace app
 		return result;
 	}
 
-    void AppRenderer::createSorageImage()
+    void AppRenderer::createStorageImage()
     {
 		auto maxViewSize = getViewport().getSize();
 		Image image;
@@ -149,7 +149,7 @@ namespace app
 
 		if(result == 0)
 		{
-			createSorageImage();
+			createStorageImage();
 			createScene();
 		}
 
@@ -206,7 +206,7 @@ namespace app
 
 	void AppRenderer::createScene()
 	{
-		createSorageImage();
+		createStorageImage();
 
 		mCameraMatricesPCR.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 		mCameraMatricesPCR.offset = 0;

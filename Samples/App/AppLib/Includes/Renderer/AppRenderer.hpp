@@ -30,7 +30,7 @@ namespace app
 		virtual fre::ShaderMetaDatum getShaderMetaData(const std::string& shaderFileName) override;
 
 	private:
-		void createSorageImage();
+		void createStorageImage();
 		void loadMeshModel();
 		void createAS();
 		void createScene();

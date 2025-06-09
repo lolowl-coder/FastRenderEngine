@@ -282,6 +282,14 @@ namespace fre
 			srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 			dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 		}
+		if(oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_GENERAL)
+		{
+			imageMemoryBarrier.srcAccessMask = 0;	//Memory access stage transition must happen after ...
+			imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;	//Memory access stage transition must happen before ...
+
+			srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+			dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		}
 		//from transfer destination to shader readable
 		else if(oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 		{
@@ -317,6 +325,10 @@ namespace fre
 				0, nullptr,	//Buffer Memory Barrier count + data
 				1, &imageMemoryBarrier	//Buffer Image Memory Barrier count + data
 				);
+		}
+		else
+		{
+			LOG_ERROR("Can't transition image layout from {} to {}", oldLayout, newLayout);
 		}
 
 		endAndSubmitCommitBuffer(device, commandPool, queue, commandBuffer);
