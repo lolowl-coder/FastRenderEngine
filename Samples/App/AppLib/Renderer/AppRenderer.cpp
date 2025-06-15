@@ -75,7 +75,7 @@ namespace app
 	
 	ShaderMetaDatum AppRenderer::getShaderMetaData(const std::string& shaderFileName)
 	{
-		ShaderMetaDatum result;
+		ShaderMetaDatum result = VulkanRenderer::getShaderMetaData(shaderFileName);
 		if(result.empty())
 		{
 			if(shaderFileName == "rt")
@@ -86,7 +86,7 @@ namespace app
 					{
 						if(mesh != nullptr)
 						{
-							CameraMatrices cameraMatrices = { camera.mView, camera.mProjection };
+							CameraMatrices cameraMatrices = { inverse(camera.mView), inverse(camera.mProjection) };
 							pushConstants(mCameraMatricesPCR, &modelMatrix[0], pipelineLayout, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
 						}
 					};
@@ -158,11 +158,6 @@ namespace app
 
 	void AppRenderer::createAS()
 	{
-		// Setup vertices and indices for a single triangle
-		struct Vertex
-		{
-			vec3 pos;
-		};
 		std::vector<Vertex> vertices;
 		std::vector<uint32_t> indices;
 
@@ -200,7 +195,7 @@ namespace app
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			&transform_matrix, sizeof(transform_matrix));
 
-		mBLAS = createBLAS(mVertexBuffer, mIndexBuffer, mTransformMatrixBuffer);
+		mBLAS = createBLAS(mVertexBuffer, vertices.size(), mIndexBuffer, indices.size(), mTransformMatrixBuffer);
 		mTLAS = createTLAS(mBLAS.mDeviceAddress, transform_matrix);
 	}
 
@@ -213,6 +208,7 @@ namespace app
 		mCameraMatricesPCR.size = sizeof(CameraMatrices);
 
 		loadMeshModel();
+
 		createAS();
 
 		mTLASDescriptor = std::make_shared<DescriptorAccelerationStructure>(mTLAS.mHandle);

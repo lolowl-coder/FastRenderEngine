@@ -121,12 +121,12 @@ namespace fre
 	void VulkanRenderer::createFullscreenTriangle()
 	{
 		Material material;
-		material.mShaderFileName = "textured";
+		material.mShaderFileName = "postProcess";
 		addMaterial(material);
 		mFullscreenTriangleMesh = std::make_shared<Mesh>(material.mId);
 		mFullscreenTriangleMesh->setGeneratedVerticesCount(3);
 		std::vector<VulkanDescriptorPtr> colorAttacmentDescriptors;
-		std::vector<VulkanDescriptorPtr> depthAttacmentDescriptors;
+		//std::vector<VulkanDescriptorPtr> depthAttacmentDescriptors;
 		mColorAttacmentDescriptors.resize(MAX_FRAME_DRAWS);
 		mDepthAttacmentDescriptors.resize(MAX_FRAME_DRAWS);
 		for(uint32_t i = 0; i < mColorAttacmentDescriptors.size(); i++)
@@ -142,7 +142,8 @@ namespace fre
         mFullscreenTriangleMesh->setBeforeRecordCallback([this](VulkanRenderer* renderer, uint32_t subPass, VkPipelineBindPoint pipelineBindPoint)
             {
                 mFullscreenTriangleMesh->setDescriptors(
-					{ { mColorAttacmentDescriptors[mImageIndex], mDepthAttacmentDescriptors[mImageIndex] } }
+					//{ { mColorAttacmentDescriptors[mImageIndex], mDepthAttacmentDescriptors[mImageIndex] } }
+					{ { mColorAttacmentDescriptors[mImageIndex] } }
 				);
             });
 
@@ -218,7 +219,7 @@ namespace fre
 
 			mBufferManager.destroy(mainDevice.logicalDevice);
 
-            int count = mDescriptorSetCache.size();
+            int count = mDescriptorPoolCache.size();
 			for(int i = 0; i < count; i++)
 			{
 				auto& dp = mDescriptorPoolCache.getByIndex(i);
@@ -253,16 +254,6 @@ namespace fre
 			cleanupComputeFinishedSemaphores();
 			cleanupTransferSynchronisation();
 			cleanupSemaphores();
-
-			vkDestroyCommandPool(mainDevice.logicalDevice, mGraphicsCommandPool, nullptr);
-			if(mGraphicsCommandPool != mTransferCommandPool)
-			{
-				vkDestroyCommandPool(mainDevice.logicalDevice, mTransferCommandPool, nullptr);
-			}
-			if(mGraphicsCommandPool != mComputeCommandPool || mTransferCommandPool != mComputeCommandPool)
-			{
-				vkDestroyCommandPool(mainDevice.logicalDevice, mComputeCommandPool, nullptr);
-			}
 		
 			cleanupPipelines(mainDevice.logicalDevice);
 
@@ -774,7 +765,7 @@ namespace fre
 		}
 	}
 
-	AccelerationStructure& VulkanRenderer::createBLAS(VulkanBuffer& vbo, VulkanBuffer& ibo, VulkanBuffer& transform)
+	AccelerationStructure& VulkanRenderer::createBLAS(VulkanBuffer& vbo, const uint32_t verticesCount, VulkanBuffer& ibo, const uint32_t indicesCount, VulkanBuffer& transform)
 	{
 		VkDeviceOrHostAddressConstKHR vertex_data_device_address{};
 		VkDeviceOrHostAddressConstKHR index_data_device_address{};
@@ -792,13 +783,13 @@ namespace fre
 		acceleration_structure_geometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
 		acceleration_structure_geometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
 		acceleration_structure_geometry.geometry.triangles.vertexData = vertex_data_device_address;
-		acceleration_structure_geometry.geometry.triangles.maxVertex = 3;
+		acceleration_structure_geometry.geometry.triangles.maxVertex = verticesCount - 1;
 		acceleration_structure_geometry.geometry.triangles.vertexStride = sizeof(Vertex);
 		acceleration_structure_geometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
 		acceleration_structure_geometry.geometry.triangles.indexData = index_data_device_address;
 		acceleration_structure_geometry.geometry.triangles.transformData = transform_matrix_device_address;
 
-		AccelerationStructure& result = buildAccelerationStructure(acceleration_structure_geometry, VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR);
+		AccelerationStructure& result = buildAccelerationStructure(acceleration_structure_geometry, VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, 2);
 
 		return result;
 	}
@@ -829,12 +820,12 @@ namespace fre
 		acceleration_structure_geometry.geometry.instances.arrayOfPointers = VK_FALSE;
 		acceleration_structure_geometry.geometry.instances.data = instance_data_device_address;
 
-		AccelerationStructure& result = buildAccelerationStructure(acceleration_structure_geometry, VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR);
+		AccelerationStructure& result = buildAccelerationStructure(acceleration_structure_geometry, VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR, 1);
 
 		return result;
 	}
 
-	AccelerationStructure& VulkanRenderer::buildAccelerationStructure(VkAccelerationStructureGeometryKHR& acceleration_structure_geometry, const VkAccelerationStructureTypeKHR asType)
+	AccelerationStructure& VulkanRenderer::buildAccelerationStructure(VkAccelerationStructureGeometryKHR& acceleration_structure_geometry, const VkAccelerationStructureTypeKHR asType, const uint32_t primitiveCount)
 	{
 		// Get the size requirements for buffers involved in the acceleration structure build process
 		VkAccelerationStructureBuildGeometryInfoKHR acceleration_structure_build_geometry_info{};
@@ -844,15 +835,13 @@ namespace fre
 		acceleration_structure_build_geometry_info.geometryCount = 1;
 		acceleration_structure_build_geometry_info.pGeometries = &acceleration_structure_geometry;
 
-		const uint32_t primitive_count = 1;
-
 		VkAccelerationStructureBuildSizesInfoKHR acceleration_structure_build_sizes_info{};
 		acceleration_structure_build_sizes_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
 		vkGetAccelerationStructureBuildSizesKHR(
 			mainDevice.logicalDevice,
 			VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
 			&acceleration_structure_build_geometry_info,
-			&primitive_count,
+			&primitiveCount,
 			&acceleration_structure_build_sizes_info);
 
 		// Create a buffer to hold the acceleration structure
@@ -892,7 +881,7 @@ namespace fre
 		acceleration_build_geometry_info.scratchData.deviceAddress = scratch_buffer.mDeviceAddress;
 
 		VkAccelerationStructureBuildRangeInfoKHR acceleration_structure_build_range_info;
-		acceleration_structure_build_range_info.primitiveCount = 1;
+		acceleration_structure_build_range_info.primitiveCount = primitiveCount;
 		acceleration_structure_build_range_info.primitiveOffset = 0;
 		acceleration_structure_build_range_info.firstVertex = 0;
 		acceleration_structure_build_range_info.transformOffset = 0;
@@ -1301,7 +1290,7 @@ namespace fre
 					pipeline.createComputePipeline(
 						mainDevice.logicalDevice,
 						shader.mComputeShader,
-						shaderMetaData.mDescriptorSetLayouts,
+						shaderMetaData.mDescriptorSetLayouts.empty() ? dsls : shaderMetaData.mDescriptorSetLayouts,
 						shaderMetaData.mPushConstantRanges);
 				}
 
@@ -1321,7 +1310,7 @@ namespace fre
 						shaderMetaData.mDepthTestEnabled ? VK_TRUE : VK_FALSE,
 						mRenderPass.mRenderPass,
 						shaderMetaData.mSubPassIndex,
-						shaderMetaData.mDescriptorSetLayouts,
+						shaderMetaData.mDescriptorSetLayouts.empty() ? dsls : shaderMetaData.mDescriptorSetLayouts,
 						shaderMetaData.mPushConstantRanges,
 						shaderMetaData.mAttachmentsCount,
 						shaderMetaData.mLineWidth,
@@ -1510,6 +1499,7 @@ namespace fre
 
 					if(shaderMetaData.mSubPassIndex == subPass && pipeline.mBindPoint == pipelineBindPoint) 
 					{
+						LOG_DEBUG("Render mesh: id {}, shader {}", mesh->getId(), shader.mName);
 						if(mesh->getBeforeRecordCallback() != nullptr)
 						{
 							mesh->getBeforeRecordCallback()(this, subPass, pipelineBindPoint);
@@ -1737,15 +1727,18 @@ namespace fre
 
 		for(const auto& layoutInfo : layoutInfos)
 		{
-			uint32_t dslId = createDescriptorSetLayout(layoutInfo);
-			shader.mDSLs.push_back(dslId);
-			for(const auto dt : layoutInfo.mDescriptorTypes)
+			if(!layoutInfo.mBindings.empty())
 			{
-                if(descriptorTypes.find(dt) == descriptorTypes.end())
-                {
-                    descriptorTypes[dt] = 0;
-                }
-				descriptorTypes[dt]++;
+				uint32_t dslId = createDescriptorSetLayout(layoutInfo);
+				shader.mDSLs.push_back(dslId);
+				for(const auto dt : layoutInfo.mDescriptorTypes)
+				{
+					if(descriptorTypes.find(dt) == descriptorTypes.end())
+					{
+						descriptorTypes[dt] = 0;
+					}
+					descriptorTypes[dt]++;
+				}
 			}
 		}
 
@@ -1770,6 +1763,7 @@ namespace fre
 		
 		//Force to load fog shader
 		mFogShaderId = addShader("fog");
+		mFogShaderId = addShader("postProcess");
         std::unordered_map<VkDescriptorType, uint32_t> descriptorTypes;
 
 		for(const auto& shaderFileName : mShaderFileNames)
@@ -2486,6 +2480,15 @@ namespace fre
 					vec2 nearFar(camera.mNear, camera.mFar);
 					pushConstants(mNearFarPCR, &nearFar, pipelineLayout, VK_PIPELINE_BIND_POINT_GRAPHICS);
 				};
+			md.mDepthTestEnabled = false;
+			md.mVertexSize = 0;
+			md.mSubPassIndex = 1;
+
+			result.push_back(md);
+		}
+		else if(shaderFileName == "postProcess")
+		{
+			ShaderMetaData md;
 			md.mDepthTestEnabled = false;
 			md.mVertexSize = 0;
 			md.mSubPassIndex = 1;
