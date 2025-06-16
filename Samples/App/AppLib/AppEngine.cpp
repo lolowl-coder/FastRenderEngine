@@ -163,8 +163,9 @@ namespace app
     {
         STAT_CPU("Main thread");
 
-        auto bgColor = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
-        mRenderer->setClearColor(vec4(bgColor.x, bgColor.y, bgColor.z, 0.0f));
+        /*auto bgColor = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
+        mRenderer->setClearColor(vec4(bgColor.x, bgColor.y, bgColor.z, 0.0f));*/
+        mRenderer->setClearColor(vec4(0.0f, 0.0f, 0.0f, 0.0f));
         
         OPTIONS;
         mLight.mDiffuseColor = vec3(options.mCommon.mDiffuseIntensity);

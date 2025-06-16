@@ -75,7 +75,7 @@ namespace app
 	
 	ShaderMetaDatum AppRenderer::getShaderMetaData(const std::string& shaderFileName)
 	{
-		ShaderMetaDatum result;
+		ShaderMetaDatum result = VulkanRenderer::getShaderMetaData(shaderFileName);
 		if(result.empty())
 		{
 			if(shaderFileName == "rt")
@@ -86,7 +86,7 @@ namespace app
 					{
 						if(mesh != nullptr)
 						{
-							CameraMatrices cameraMatrices = { camera.mView, camera.mProjection };
+							CameraMatrices cameraMatrices = { inverse(camera.mView), inverse(camera.mProjection) };
 							pushConstants(mCameraMatricesPCR, &modelMatrix[0], pipelineLayout, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
 						}
 					};
@@ -123,6 +123,11 @@ namespace app
 			mGraphicsCommandPool,
             textureInfo);
 		mStorageImage = getTexture(textureId);
+
+		auto samplerId = createSampler({});
+		auto sampler = getSampler(samplerId);
+		mStorageImageDescriptor = std::make_shared<DescriptorImage>(
+			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL, mStorageImage->mImageView, sampler);
     }
 
 	void AppRenderer::loadMeshModel()
@@ -150,19 +155,37 @@ namespace app
 		if(result == 0)
 		{
 			createStorageImage();
-			createScene();
 		}
 
+		return result;
+	}
+	
+	void AppRenderer::createResultMesh()
+	{
+		Material material;
+		material.mShaderFileName = "postProcess";
+		addMaterial(material);
+		mResultMesh = std::make_shared<Mesh>(material.mId);
+		mResultMesh->setGeneratedVerticesCount(3);
+        mResultMesh->setDescriptors({ { mStorageImageDescriptor } });
+		addMeshModel({ mFullscreenTriangleMesh });
+	}
+
+	int AppRenderer::createMeshGPUResources()
+	{
+		int result = VulkanRenderer::createMeshGPUResources();
+		
+		if(result == 0)
+		{
+			createScene();
+			createResultMesh();
+		}
+		
 		return result;
 	}
 
 	void AppRenderer::createAS()
 	{
-		// Setup vertices and indices for a single triangle
-		struct Vertex
-		{
-			vec3 pos;
-		};
 		std::vector<Vertex> vertices;
 		std::vector<uint32_t> indices;
 
@@ -200,26 +223,21 @@ namespace app
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			&transform_matrix, sizeof(transform_matrix));
 
-		mBLAS = createBLAS(mVertexBuffer, mIndexBuffer, mTransformMatrixBuffer);
+		mBLAS = createBLAS(mVertexBuffer, vertices.size(), mIndexBuffer, indices.size(), mTransformMatrixBuffer);
 		mTLAS = createTLAS(mBLAS.mDeviceAddress, transform_matrix);
 	}
 
 	void AppRenderer::createScene()
 	{
-		createStorageImage();
-
 		mCameraMatricesPCR.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 		mCameraMatricesPCR.offset = 0;
 		mCameraMatricesPCR.size = sizeof(CameraMatrices);
 
 		loadMeshModel();
+
 		createAS();
 
 		mTLASDescriptor = std::make_shared<DescriptorAccelerationStructure>(mTLAS.mHandle);
-		auto samplerId = createSampler({});
-		auto sampler = getSampler(samplerId);
-		mStorageImageDescriptor = std::make_shared<DescriptorImage>(
-			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL, mStorageImage->mImageView, sampler);
 		mMesh->setDescriptors({ {mTLASDescriptor}, {mStorageImageDescriptor} });
 	}
 
