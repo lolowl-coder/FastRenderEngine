@@ -123,6 +123,11 @@ namespace app
 			mGraphicsCommandPool,
             textureInfo);
 		mStorageImage = getTexture(textureId);
+
+		auto samplerId = createSampler({});
+		auto sampler = getSampler(samplerId);
+		mStorageImageDescriptor = std::make_shared<DescriptorImage>(
+			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL, mStorageImage->mImageView, sampler);
     }
 
 	void AppRenderer::loadMeshModel()
@@ -150,9 +155,32 @@ namespace app
 		if(result == 0)
 		{
 			createStorageImage();
-			createScene();
 		}
 
+		return result;
+	}
+	
+	void AppRenderer::createResultMesh()
+	{
+		Material material;
+		material.mShaderFileName = "postProcess";
+		addMaterial(material);
+		mResultMesh = std::make_shared<Mesh>(material.mId);
+		mResultMesh->setGeneratedVerticesCount(3);
+        mResultMesh->setDescriptors({ { mStorageImageDescriptor } });
+		addMeshModel({ mFullscreenTriangleMesh });
+	}
+
+	int AppRenderer::createMeshGPUResources()
+	{
+		int result = VulkanRenderer::createMeshGPUResources();
+		
+		if(result == 0)
+		{
+			createScene();
+			createResultMesh();
+		}
+		
 		return result;
 	}
 
@@ -201,8 +229,6 @@ namespace app
 
 	void AppRenderer::createScene()
 	{
-		createStorageImage();
-
 		mCameraMatricesPCR.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 		mCameraMatricesPCR.offset = 0;
 		mCameraMatricesPCR.size = sizeof(CameraMatrices);
@@ -212,10 +238,6 @@ namespace app
 		createAS();
 
 		mTLASDescriptor = std::make_shared<DescriptorAccelerationStructure>(mTLAS.mHandle);
-		auto samplerId = createSampler({});
-		auto sampler = getSampler(samplerId);
-		mStorageImageDescriptor = std::make_shared<DescriptorImage>(
-			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL, mStorageImage->mImageView, sampler);
 		mMesh->setDescriptors({ {mTLASDescriptor}, {mStorageImageDescriptor} });
 	}
 

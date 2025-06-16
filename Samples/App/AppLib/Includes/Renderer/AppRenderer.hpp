@@ -19,6 +19,7 @@ namespace app
 
 		virtual int createCoreGPUResources(GLFWwindow* newWindow);
 		virtual int createDynamicGPUResources() override;
+		virtual int createMeshGPUResources() override;
 
 	protected:
 		virtual void requestExtensions() override;
@@ -32,6 +33,7 @@ namespace app
 	private:
 		void createStorageImage();
 		void loadMeshModel();
+		void createResultMesh();
 		void createAS();
 		void createScene();
 
@@ -46,6 +48,7 @@ namespace app
 		fre::VulkanDescriptorPool mResultDP;
 		fre::VulkanDescriptorSetLayout mResultDSL;
 		fre::VulkanDescriptorSet mResultDS;
+		fre::MeshPtr mResultMesh;
 
         uint32_t mRTShaderId = MAX(uint32_t);
 
