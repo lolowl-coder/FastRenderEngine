@@ -95,6 +95,15 @@ namespace app
 
 				result.push_back(md);
 			}
+			else if(shaderFileName == "renderStorageImage")
+			{
+				ShaderMetaData md;
+				md.mDepthTestEnabled = false;
+				md.mVertexSize = 0;
+				md.mSubPassIndex = 0;
+
+				result.push_back(md);
+			}
 		}
 
 		return result;
@@ -142,12 +151,6 @@ namespace app
 		mMesh->setMaterialId(material.mId);
 	}
 
-    int AppRenderer::createCoreGPUResources(GLFWwindow* newWindow)
-    {
-        auto result = VulkanRenderer::createCoreGPUResources(newWindow);
-        return result;
-    }
-
 	int AppRenderer::createDynamicGPUResources()
 	{
         int result = VulkanRenderer::createDynamicGPUResources();
@@ -163,24 +166,27 @@ namespace app
 	void AppRenderer::createResultMesh()
 	{
 		Material material;
-		material.mShaderFileName = "postProcess";
+		material.mShaderFileName = "renderStorageImage";
 		addMaterial(material);
 		mResultMesh = std::make_shared<Mesh>(material.mId);
 		mResultMesh->setGeneratedVerticesCount(3);
         mResultMesh->setDescriptors({ { mStorageImageDescriptor } });
-		addMeshModel({ mFullscreenTriangleMesh });
+		addMeshModel({ mResultMesh });
+	}
+
+	int AppRenderer::createLoadableGPUResources()
+	{
+		//addShader("renderStorageImage");
+		auto result = VulkanRenderer::createLoadableGPUResources();
+		return result;
 	}
 
 	int AppRenderer::createMeshGPUResources()
 	{
+		createScene();
+		createResultMesh();
+		
 		int result = VulkanRenderer::createMeshGPUResources();
-		
-		if(result == 0)
-		{
-			createScene();
-			createResultMesh();
-		}
-		
 		return result;
 	}
 

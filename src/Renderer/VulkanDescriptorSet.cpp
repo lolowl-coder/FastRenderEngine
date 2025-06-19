@@ -29,6 +29,9 @@ namespace fre
             &setAllocInfo,
             &mDescriptorSet));
 
+        mDescriptorPool = descriptorPool;
+        mDescriptorSetLayout = descriptorSetLayout;
+
         //std::cout << "Allocate DS. Pool: " << descriptorPool << std::endl;
     }
 

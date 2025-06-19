@@ -156,8 +156,8 @@ namespace fre
 		int result = 0;
 		try
 		{
-			createFullscreenTriangle();
 			loadMeshes();
+			createFullscreenTriangle();
 		}
 		catch (std::runtime_error& e)
 		{
@@ -270,7 +270,7 @@ namespace fre
         return mDescriptorPoolCache.findOrCreate(key, [this](const VulkanDescriptorPoolKey& key)
             {
                 VulkanDescriptorPoolPtr dp = std::make_shared<VulkanDescriptorPool>();
-                dp->create(mainDevice.logicalDevice, MAX_FRAME_DRAWS, key.mPoolSizes);
+                dp->create(mainDevice.logicalDevice, /*MAX_FRAME_DRAWS*/32, key.mPoolSizes);
                 return dp;
             });
 	};
@@ -1486,7 +1486,8 @@ namespace fre
 			bool needToProcess =
 				mesh->getGeneratedVerticesCount() > 0 ||
 				vertexBuffer != nullptr ||
-				shader.mComputeShader.mShaderStage != 0;
+				shader.mComputeShader.mShaderStage != 0 ||
+				shader.mRayGenShader.mShaderStage != 0;
 			if(needToProcess)
 			{
 				const auto& pipelineIds = pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? shader.mComputePipelineIds :
@@ -1499,7 +1500,7 @@ namespace fre
 
 					if(shaderMetaData.mSubPassIndex == subPass && pipeline.mBindPoint == pipelineBindPoint) 
 					{
-						LOG_DEBUG("Render mesh: id {}, shader {}", mesh->getId(), shader.mName);
+						LOG_DEBUG("Render mesh: subpass {}, id {}, shader {}", subPass, mesh->getId(), shader.mName);
 						if(mesh->getBeforeRecordCallback() != nullptr)
 						{
 							mesh->getBeforeRecordCallback()(this, subPass, pipelineBindPoint);
@@ -1521,7 +1522,8 @@ namespace fre
                             mesh->mPushConstantsCallback(mesh, modelMatrix, camera, light, pipeline.mPipelineLayout, instanceId);
                         }
 			
-						if(vertexBuffer != nullptr && pipelineBindPoint != VK_PIPELINE_BIND_POINT_COMPUTE)
+						if(vertexBuffer != nullptr && pipelineBindPoint != VK_PIPELINE_BIND_POINT_COMPUTE &&
+							pipelineBindPoint != VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR)
 						{
 							VkBuffer vertexBuffers[] = { vertexBuffer->mBuffer };	//Buffers to bind
 							VkDeviceSize offsets[] = { 0 };		//Offsets into buffers being bound
@@ -1529,7 +1531,8 @@ namespace fre
 						}
 
 						const auto* indexBuffer = getIndexBuffer(mesh->getId());
-						if(indexBuffer != nullptr && pipelineBindPoint != VK_PIPELINE_BIND_POINT_COMPUTE)
+						if(indexBuffer != nullptr && pipelineBindPoint != VK_PIPELINE_BIND_POINT_COMPUTE &&
+							pipelineBindPoint != VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR)
 						{
 							bindIndexBuffer(indexBuffer->mBuffer, pipelineBindPoint);
 						}
@@ -1760,10 +1763,7 @@ namespace fre
         mNearFarPCR.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;	//Shader stage push constant will go to
 		mNearFarPCR.offset = 0;
 		mNearFarPCR.size = sizeof(vec2);
-		
-		//Force to load fog shader
-		mFogShaderId = addShader("fog");
-		mFogShaderId = addShader("postProcess");
+		addShader("postProcess");
         std::unordered_map<VkDescriptorType, uint32_t> descriptorTypes;
 
 		for(const auto& shaderFileName : mShaderFileNames)
@@ -1827,7 +1827,11 @@ namespace fre
 
 	void VulkanRenderer::recordCommands(const Camera& camera, const Light& light)
 	{
+		LOG_DEBUG("recordCommands");
+
 		mGraphicsCommandBuffers[mImageIndex].begin();
+
+		recordSceneCommands(camera, light, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, 0);
 		VkCommandBuffer commandBuffer = mGraphicsCommandBuffers[mImageIndex].mCommandBuffer;
 		mRenderPass.begin(mFrameBuffers[mImageIndex].mFrameBuffer, mSwapChain.mSwapChainExtent,
 			commandBuffer, mClearColor);
@@ -1842,11 +1846,10 @@ namespace fre
 			}
 		}
 
+		LOG_DEBUG("Draw UI");
 		drawUI();
 
 		mRenderPass.end(commandBuffer);
-
-		recordSceneCommands(camera, light, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, 0);
 
 		mGraphicsCommandBuffers[mImageIndex].end();
 	}

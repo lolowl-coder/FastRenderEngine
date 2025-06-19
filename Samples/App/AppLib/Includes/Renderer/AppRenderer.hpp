@@ -17,8 +17,8 @@ namespace app
 		{
 		}
 
-		virtual int createCoreGPUResources(GLFWwindow* newWindow);
 		virtual int createDynamicGPUResources() override;
+		virtual int createLoadableGPUResources() override;
 		virtual int createMeshGPUResources() override;
 
 	protected:

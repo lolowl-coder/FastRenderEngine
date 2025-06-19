@@ -41,6 +41,8 @@ namespace app
 
         mRenderer->setShaderMetaDataProvider(this);
 
+        mCamera.setEye(vec3(0, 0, -100.0f));
+
         initUI();
 
         OPTIONS;

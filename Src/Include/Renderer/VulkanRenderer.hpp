@@ -391,8 +391,6 @@ namespace fre
 
 		std::vector<VulkanPipeline> mPipelines;
 
-		int mFogShaderId = -1;
-
 		//std::vector<VkBuffer> mUniformBuffers;
 		//std::vector<VkDeviceMemory> mVPUniformBufferMemory;
 
