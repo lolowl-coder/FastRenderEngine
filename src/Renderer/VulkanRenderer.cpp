@@ -789,7 +789,7 @@ namespace fre
 		acceleration_structure_geometry.geometry.triangles.indexData = index_data_device_address;
 		acceleration_structure_geometry.geometry.triangles.transformData = transform_matrix_device_address;
 
-		AccelerationStructure& result = buildAccelerationStructure(acceleration_structure_geometry, VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, 2);
+		AccelerationStructure& result = buildAccelerationStructure(acceleration_structure_geometry, VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, verticesCount);
 
 		return result;
 	}

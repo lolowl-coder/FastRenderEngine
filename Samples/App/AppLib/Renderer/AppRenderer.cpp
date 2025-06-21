@@ -87,7 +87,7 @@ namespace app
 						if(mesh != nullptr)
 						{
 							CameraMatrices cameraMatrices = { inverse(camera.mView), inverse(camera.mProjection) };
-							pushConstants(mCameraMatricesPCR, &modelMatrix[0], pipelineLayout, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
+							pushConstants(mCameraMatricesPCR, &cameraMatrices, pipelineLayout, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
 						}
 					};
 				md.mDepthTestEnabled = true;
@@ -146,7 +146,9 @@ namespace app
 		material.mShaderFileName = "rt";
 		addMaterial(material);
 
-		mMeshModel = createMeshModel("Models/unitQuad/unitQuad.obj", {});
+		//mMeshModel = createMeshModel("Models/unitQuad/unitQuad.obj", {});
+		//mMeshModel = createMeshModel("Models/unitCube/unitCube.obj", {});
+		mMeshModel = createMeshModel("Models/fish/scene.gltf", {});
         mMesh = mMeshModel->getMesh(0);
 		mMesh->setMaterialId(material.mId);
 	}

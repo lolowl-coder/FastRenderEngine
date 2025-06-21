@@ -79,7 +79,7 @@ if(USE_CPM)
     # Set Assimp options BEFORE adding the subdirectory
     set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "Disable all importers by default" FORCE)
     set(ASSIMP_BUILD_OBJ_IMPORTER ON CACHE BOOL "Enable OBJ importer" FORCE)
-    #set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "Enable GLTF importer" FORCE)
+    set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "Enable GLTF importer" FORCE)
 
     # Disable unnecessary features to minimize size
     set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "Disable tests" FORCE)
