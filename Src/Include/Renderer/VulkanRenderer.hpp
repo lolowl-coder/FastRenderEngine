@@ -259,7 +259,6 @@ namespace fre
 		// - Cleanup methods
 		void cleanupSwapChainFrameBuffers();
 
-		virtual void cleanupUIDescriptorPool();
 		virtual void cleanupSwapchainImagesSemaphores();
 		virtual void cleanupRenderFinishedSemaphores();
 		virtual void cleanupComputeFinishedSemaphores();

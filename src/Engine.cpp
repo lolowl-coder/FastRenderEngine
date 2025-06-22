@@ -397,6 +397,8 @@ namespace fre
 
     void Engine::destroyGPUResources()
     {
+        LOG_TRACE("Engine::destroyGPUResources()");
+
         if(mRenderer != nullptr)
         {
             mRenderer->destroyGPUResources();
@@ -405,6 +407,8 @@ namespace fre
 
     void Engine::destroy()
     {
+        LOG_TRACE("Engine::destroy()");
+
         glfwDestroyWindow(mWindow);
         if(mRenderer != nullptr)
         {

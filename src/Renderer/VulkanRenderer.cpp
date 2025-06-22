@@ -200,6 +200,7 @@ namespace fre
 
     void VulkanRenderer::destroy()
     {
+		LOG_TRACE("VulkanRenderer::destroy()");
 		//Wait until no actions being run on device before destroying
 		if(mainDevice.logicalDevice != VK_NULL_HANDLE)
 		{
@@ -240,8 +241,6 @@ namespace fre
 				vkDestroySampler(mainDevice.logicalDevice, s, nullptr);
 			}
 
-			cleanupUIDescriptorPool();
-
 			mTextureManager.destroy(mainDevice.logicalDevice);
 
 			mSwapChain.destroy(mainDevice.logicalDevice);
@@ -254,7 +253,17 @@ namespace fre
 			cleanupComputeFinishedSemaphores();
 			cleanupTransferSynchronisation();
 			cleanupSemaphores();
-		
+			
+			vkDestroyCommandPool(mainDevice.logicalDevice, mGraphicsCommandPool, nullptr);
+			if(mGraphicsCommandPool != mTransferCommandPool)
+			{
+				vkDestroyCommandPool(mainDevice.logicalDevice, mTransferCommandPool, nullptr);
+			}
+			if(mGraphicsCommandPool != mComputeCommandPool || mTransferCommandPool != mComputeCommandPool)
+			{
+				vkDestroyCommandPool(mainDevice.logicalDevice, mComputeCommandPool, nullptr);
+			}
+
 			cleanupPipelines(mainDevice.logicalDevice);
 
 			mRenderPass.destroy(mainDevice.logicalDevice);
@@ -270,7 +279,7 @@ namespace fre
         return mDescriptorPoolCache.findOrCreate(key, [this](const VulkanDescriptorPoolKey& key)
             {
                 VulkanDescriptorPoolPtr dp = std::make_shared<VulkanDescriptorPool>();
-                dp->create(mainDevice.logicalDevice, /*MAX_FRAME_DRAWS*/32, key.mPoolSizes);
+                dp->create(mainDevice.logicalDevice, /*MAX_FRAME_DRAWS*/32, key.mPoolSizes, key.mFlags);
                 return dp;
             });
 	};
@@ -693,11 +702,6 @@ namespace fre
 		{
 			fbo.destroy(mainDevice.logicalDevice);
 		}
-	}
-
-	void VulkanRenderer::cleanupUIDescriptorPool()
-	{
-		mUIDescriptorPool->destroy(mainDevice.logicalDevice);
 	}
 
     void VulkanRenderer::cleanupSwapchainImagesSemaphores()
@@ -1264,7 +1268,7 @@ namespace fre
 	void VulkanRenderer::createUIDescriptorPool()
 	{
 		//pool for color and depth attachments
-		auto uiDPId = createDescriptorPool( { { { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_FRAME_DRAWS } } } );
+		auto uiDPId = createDescriptorPool( { { { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_FRAME_DRAWS } }, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT } );
 		mUIDescriptorPool = getDescriptorPool(uiDPId);
 	}
 
