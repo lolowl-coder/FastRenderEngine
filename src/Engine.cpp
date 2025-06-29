@@ -503,10 +503,13 @@ namespace fre
 
     void Engine::updateCameraRotation(const vec2& delta)
     {
-        mCamera.rotateBy(vec3(
-            getCameraRotationSpeed() * delta.y,
-            0.0f,
-            getCameraRotationSpeed() * delta.x));
+        mCamera.rotateBy(
+            vec3(
+                getCameraRotationSpeed() * delta.y,
+                getCameraRotationSpeed() * delta.x, 
+                0.0f
+            )
+        );
     }
 
     void Engine::onTouchEvent(const vec2& position, const vec2& delta)

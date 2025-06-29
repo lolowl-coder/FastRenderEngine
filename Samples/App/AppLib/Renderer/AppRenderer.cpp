@@ -61,6 +61,8 @@ namespace app
 			VkPhysicalDeviceAccelerationStructureFeaturesKHR,
 			VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
 			accelerationStructure);
+
+		mDeviceFeatures.features.shaderInt64 = VK_TRUE;
 	}
 
 	void AppRenderer::cleanupSwapChain()
