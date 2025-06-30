@@ -62,6 +62,11 @@ namespace app
 			VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
 			accelerationStructure);
 
+		REQUEST_FEATURE(
+			VkPhysicalDeviceAccelerationStructureFeaturesKHR,
+			VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES,
+			accelerationStructure);
+
 		mDeviceFeatures.features.shaderInt64 = VK_TRUE;
 	}
 
