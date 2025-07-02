@@ -94,10 +94,12 @@ namespace fre
 			VkExternalMemoryHandleTypeFlagsKHR extMemHandleType, VkDeviceSize size);
 		void copyBuffer(VkBuffer src, VkBuffer dst, size_t dataSize, VkPipelineBindPoint pipelineBindPoint) const;
 
-		AccelerationStructure& createBLAS(VulkanBuffer& vbo, const uint32_t verticesCount, VulkanBuffer& ibo, const uint32_t indicesCount, VulkanBuffer& transform);
-		AccelerationStructure& createTLAS(const uint64_t refBlasAddress, const VkTransformMatrixKHR& transform);
-		AccelerationStructure& buildAccelerationStructure(VkAccelerationStructureGeometryKHR& acceleration_structure_geometry, const VkAccelerationStructureTypeKHR asType, const uint32_t primitiveCount);
+		uint32_t createBLAS(VulkanBuffer& vbo, const uint32_t verticesCount, VulkanBuffer& ibo, const uint32_t indicesCount, VulkanBuffer& transform);
+		VkAccelerationStructureInstanceKHR createBlasInstance(uint32_t blasId, const VkTransformMatrixKHR& mat);
+		uint32_t createTLAS(const uint64_t refBlasAddress, const VkTransformMatrixKHR& mat);
+		uint32_t buildAccelerationStructure(VkAccelerationStructureGeometryKHR& asGeometry, const VkAccelerationStructureTypeKHR asType, const uint32_t primitiveCount);
 		void destroyAccelerationStructure(AccelerationStructure& accelerationStructure);
+		AccelerationStructure& getAS(const uint32_t id);
 
 		void addMaterial(Material& material);
 

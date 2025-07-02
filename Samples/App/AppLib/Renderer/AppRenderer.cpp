@@ -148,16 +148,15 @@ namespace app
 
 	void AppRenderer::loadMeshModel()
 	{
-		Material material;
-		material.mShininess = 1.0f;
-		material.mShaderFileName = "rt";
-		addMaterial(material);
-
 		//mMeshModel = createMeshModel("Models/unitQuad/unitQuad.obj", {});
 		//mMeshModel = createMeshModel("Models/unitCube/unitCube.obj", {});
-		mMeshModel = createMeshModel("Models/fish/scene.gltf", {});
+		mMeshModel = createMeshModel("Models/fish/scene.gltf", { aiTextureType_NORMALS, aiTextureType_BASE_COLOR });
         mMesh = mMeshModel->getMesh(0);
-		mMesh->setMaterialId(material.mId);
+		Material& material = getMaterial(mMesh->getMaterialId());
+        auto shaderId = addShader("rt");
+		material.mShaderFileName = "rt";
+        material.mShaderId = shaderId;
+		//material.mShininess = 1.0f;
 	}
 
 	int AppRenderer::createDynamicGPUResources()
@@ -238,8 +237,10 @@ namespace app
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			&transform_matrix, sizeof(transform_matrix));
 
-		mBLAS = createBLAS(mVertexBuffer, vertices.size(), mIndexBuffer, indices.size(), mTransformMatrixBuffer);
-		mTLAS = createTLAS(mBLAS.mDeviceAddress, transform_matrix);
+		auto blasIndex = createBLAS(mVertexBuffer, vertices.size(), mIndexBuffer, indices.size(), mTransformMatrixBuffer);
+		mBLAS = getAS(blasIndex);
+		auto tlasIndex = createTLAS(blasIndex, transform_matrix);
+		mTLAS = getAS(tlasIndex);
 	}
 
 	void AppRenderer::createScene()

@@ -173,7 +173,7 @@ namespace fre
 				getInfoFromTiff(fullFileName, mDimension, mFormat, mNumChannels);
 				loadTIFF(fullFileName);
 			}
-			else if(mFileName.find(".png") != std::string::npos || mFileName.find(".jpg") != std::string::npos)
+			else if(mFileName.find(".png") != std::string::npos || mFileName.find(".jpg") != std::string::npos || mFileName.find(".jpeg") != std::string::npos)
 			{
 				auto fullFileName = fs.find(mFileName);
 				getInfoFromPngOrJpg(fullFileName, mDimension, mFormat, mNumChannels);
