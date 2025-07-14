@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "Light.hpp"
+#include "Data/CommonData.hpp"
 #include "MeshModel.hpp"
 #include "Shader.hpp"
 #include "Statistics.hpp"
@@ -94,9 +94,9 @@ namespace fre
 			VkExternalMemoryHandleTypeFlagsKHR extMemHandleType, VkDeviceSize size);
 		void copyBuffer(VkBuffer src, VkBuffer dst, size_t dataSize, VkPipelineBindPoint pipelineBindPoint) const;
 
-		uint32_t createBLAS(VulkanBuffer& vbo, const uint32_t verticesCount, VulkanBuffer& ibo, const uint32_t indicesCount, VulkanBuffer& transform);
-		VkAccelerationStructureInstanceKHR createBlasInstance(uint32_t blasId, const VkTransformMatrixKHR& mat);
-		uint32_t createTLAS(const uint64_t refBlasAddress, const VkTransformMatrixKHR& mat);
+		uint32_t createBLAS(MeshPtr& mesh);
+		VkAccelerationStructureInstanceKHR createBlasInstance(uint32_t blasId, const glm::mat4& matrix);
+		uint32_t createTLAS(std::vector<VkAccelerationStructureInstanceKHR> blasInstances);
 		uint32_t buildAccelerationStructure(VkAccelerationStructureGeometryKHR& asGeometry, const VkAccelerationStructureTypeKHR asType, const uint32_t primitiveCount);
 		void destroyAccelerationStructure(AccelerationStructure& accelerationStructure);
 		AccelerationStructure& getAS(const uint32_t id);
@@ -232,7 +232,7 @@ namespace fre
 		//Load images in different thread
 		void loadImages();
 		//Creates GPU resources of loaded meshes
-		virtual void loadMeshes();
+		virtual void createMeshBuffers();
 		//Vulkan functions
 		// -create functions
 		void createInstance();
@@ -335,8 +335,9 @@ namespace fre
 		BoundingBox3D mSceneBoundingBox;
 
 		// - Assets
-		std::vector<MeshModel::Ptr> mMeshModels;
+		std::vector<MeshModelPtr> mMeshModels;
 		std::vector<Material> mMaterials;
+
 		//Default shininess if it can't be extracted during scene loading
 		float mDefaultShininess = 16.0f;
 		//Texture file name to Texture Id map

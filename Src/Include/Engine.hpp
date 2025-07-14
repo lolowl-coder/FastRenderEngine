@@ -8,7 +8,7 @@
 #include <windows.h>
 
 #include "Camera.hpp"
-#include "Light.hpp"
+#include "Data/CommonData.hpp"
 #include "ThreadPool.hpp"
 #include "Utilities.hpp"
 

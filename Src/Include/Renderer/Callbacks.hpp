@@ -3,7 +3,7 @@
 #include <volk.h>
 #include <GLFW/glfw3.h>
 
-#include "Light.hpp"
+#include "Data/CommonData.hpp"
 #include "Pointers.hpp"
 
 #include <glm/glm.hpp>

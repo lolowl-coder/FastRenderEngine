@@ -27,6 +27,7 @@ namespace app
 		virtual bool isRayTracingSupported() { return true; }
         virtual void cleanupSwapChain() override;
         virtual void createSwapChain() override;
+		virtual void update(const fre::Camera& camera, const fre::Light& light) override;
 
 		virtual fre::ShaderMetaDatum getShaderMetaData(const std::string& shaderFileName) override;
 
@@ -35,6 +36,8 @@ namespace app
 		void loadMeshModel();
 		void createResultMesh();
 		void createAS();
+		uint32_t createRTTexture(uint32_t textureId);
+		void createSceneGPU();
 		void createScene();
 
 	private:
@@ -59,9 +62,22 @@ namespace app
 		fre::VulkanBuffer mTransformMatrixBuffer;
 		fre::AccelerationStructure mBLAS;
 		fre::AccelerationStructure mTLAS;
+		fre::VulkanBuffer mSceneGPU;
 		fre::VulkanDescriptorPtr mTLASDescriptor;
 		fre::VulkanDescriptorPtr mStorageImageDescriptor;
+		fre::VulkanDescriptorPtr mRTMeshesGPUDescriptor;
+		fre::VulkanDescriptorPtr mRTMaterialsGPUDescriptor;
+		fre::VulkanDescriptorPtr mRTCameraDescriptor;
+		fre::VulkanDescriptorPtr mRTTexturesDescriptor;
 
 		VkPushConstantRange mCameraMatricesPCR;
+		std::vector<fre::MeshPtr> mRTMeshes;
+		fre::VulkanBuffer mRTMeshesGPUBuffer;
+		fre::VulkanBuffer mRTMaterialsGPUBuffer;
+		fre::VulkanBuffer mRTCameraBuffer;
+        std::vector<VkImageView> mTextureViews;
+        std::vector<VkSampler> mTextureSamplers;
+
+        fre::RTCamera mRTCamera;
 	};
 }

@@ -40,15 +40,6 @@ namespace fre
 		VkDevice logicalDevice = VK_NULL_HANDLE;
 	};
 
-	//Default vertex
-	struct Vertex
-	{
-		glm::vec3 pos = glm::vec3(0.0f);
-		glm::vec3 normal = glm::vec3(0.0f);
-		glm::vec3 tangent = glm::vec3(0.0f);
-		glm::vec2 tex = glm::vec2(0.0f);
-	};
-
 	template<class T>
 	struct BoundingBox
 	{

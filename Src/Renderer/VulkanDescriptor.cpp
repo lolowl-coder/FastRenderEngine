@@ -7,7 +7,7 @@ namespace fre
 {
     VkWriteDescriptorSet DescriptorBuffer::getWriter(VkDescriptorSet ds, uint32_t binding)
     {
-        mBufferInfo.buffer = mBuffer->mBuffer;
+        mBufferInfo.buffer = mBuffer;
         mBufferInfo.offset = 0;
         mBufferInfo.range = VK_WHOLE_SIZE;
         mWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -23,16 +23,22 @@ namespace fre
 
     VkWriteDescriptorSet DescriptorImage::getWriter(VkDescriptorSet ds, uint32_t binding)
     {
-        mImageInfo.imageLayout = mLayout;
-        mImageInfo.imageView = mImageView;
-        mImageInfo.sampler = mSampler;
+        assert(mImageViews.size() == mSamplers.size() && "Image views and samplers must have the same size");
+        std::vector<VkDescriptorImageInfo> imageInfos(mImageViews.size());
+
+        for(int i = 0; i < mImageViews.size(); i++)
+        {
+            imageInfos[i].imageLayout = mLayout;
+            imageInfos[i].imageView = mImageViews[i];
+            imageInfos[i].sampler = mSamplers[i];
+        }
         mWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         mWriteDescriptorSet.dstSet = ds;
         mWriteDescriptorSet.dstBinding = binding;
         mWriteDescriptorSet.dstArrayElement = 0;
         mWriteDescriptorSet.descriptorType = mType;
-        mWriteDescriptorSet.descriptorCount = 1;
-        mWriteDescriptorSet.pImageInfo = &mImageInfo;
+        mWriteDescriptorSet.descriptorCount = imageInfos.size();
+        mWriteDescriptorSet.pImageInfo = imageInfos.data();
 
         return mWriteDescriptorSet;
     };

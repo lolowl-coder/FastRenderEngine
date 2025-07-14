@@ -31,6 +31,9 @@
 #include <stdexcept>
 #include <mutex>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #ifdef NDEBUG
 bool enableValidationLayers = false;
 #else
@@ -131,13 +134,16 @@ namespace fre
 		mDepthAttacmentDescriptors.resize(MAX_FRAME_DRAWS);
 		for(uint32_t i = 0; i < mColorAttacmentDescriptors.size(); i++)
 		{
+			std::vector<VkImageView> colorImageViews = { mFrameBuffers[i].mColorAttachments[0].mImageView };
+			auto samplerId = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE });
+			std::vector<VkSampler> samplers = { getSampler(samplerId) };
 			mColorAttacmentDescriptors[i] = std::make_shared<DescriptorImage>(
 				VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-				mFrameBuffers[i].mColorAttachments[0].mImageView, VK_NULL_HANDLE);
-			auto samplerId = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE });
+				colorImageViews, samplers);
+			std::vector<VkImageView> depthImageViews = { mFrameBuffers[i].mDepthAttachment.mImageView };
 			mDepthAttacmentDescriptors[i] = std::make_shared<DescriptorImage>(
 				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-				mFrameBuffers[i].mColorAttachments[0].mImageView, getSampler(samplerId));
+				depthImageViews, samplers);
 		}
         mFullscreenTriangleMesh->setBeforeRecordCallback([this](VulkanRenderer* renderer, uint32_t subPass, VkPipelineBindPoint pipelineBindPoint)
             {
@@ -156,7 +162,7 @@ namespace fre
 		int result = 0;
 		try
 		{
-			loadMeshes();
+			createMeshBuffers();
 			createFullscreenTriangle();
 		}
 		catch (std::runtime_error& e)
@@ -769,15 +775,43 @@ namespace fre
 		}
 	}
 
-	uint32_t VulkanRenderer::createBLAS(VulkanBuffer& vbo, const uint32_t verticesCount, VulkanBuffer& ibo, const uint32_t indicesCount, VulkanBuffer& transform)
+	uint32_t VulkanRenderer::createBLAS(MeshPtr& mesh)
 	{
+		auto vertex_buffer_size = mesh->getVertexCount() * mesh->getVertexSize();
+		auto index_buffer_size = mesh->getIndexCount() * sizeof(uint32_t);
+
+		VkTransformMatrixKHR transform_matrix = {
+			1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f };
+
+		// Create buffers for the bottom level geometry
+		// For the sake of simplicity we won't stage the vertex data to the GPU memory
+
+		// Note that the buffer usage flags for buffers consumed by the bottom level acceleration structure require special flags
+		const VkBufferUsageFlags buffer_usage_flags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+
+		// Setup a single transformation matrix that can be used to transform the whole geometry for a single bottom level acceleration structure
+		VulkanBuffer transformMatrixBuffer = createBuffer(
+			buffer_usage_flags,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			&transform_matrix, sizeof(transform_matrix));
+
+		const VulkanBuffer* vbo = getVertexBuffer(mesh->getId());
+		const VulkanBuffer* ibo = getIndexBuffer(mesh->getId());
+
+        if(vbo == nullptr || ibo == nullptr)
+        {
+            throw std::runtime_error("VulkanRenderer::createBLAS: Vertex or index buffer not found for mesh");
+        }
+
 		VkDeviceOrHostAddressConstKHR vertexDataDeviceAddress{};
 		VkDeviceOrHostAddressConstKHR indexDataDeviceAddress{};
 		VkDeviceOrHostAddressConstKHR transformMatrixDeviceAddress{};
 
-		vertexDataDeviceAddress.deviceAddress = vbo.mDeviceAddress;
-		indexDataDeviceAddress.deviceAddress = ibo.mDeviceAddress;
-		transformMatrixDeviceAddress.deviceAddress = transform.mDeviceAddress;
+		vertexDataDeviceAddress.deviceAddress = vbo->mDeviceAddress;
+		indexDataDeviceAddress.deviceAddress = ibo->mDeviceAddress;
+		transformMatrixDeviceAddress.deviceAddress = transformMatrixBuffer.mDeviceAddress;
 
 		// The bottom level acceleration structure contains one set of triangles as the input geometry
 		VkAccelerationStructureGeometryKHR asGeometry{};
@@ -787,19 +821,23 @@ namespace fre
 		asGeometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
 		asGeometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
 		asGeometry.geometry.triangles.vertexData = vertexDataDeviceAddress;
-		asGeometry.geometry.triangles.maxVertex = verticesCount - 1;
+		asGeometry.geometry.triangles.maxVertex = mesh->getVertexCount() - 1;
 		asGeometry.geometry.triangles.vertexStride = sizeof(Vertex);
 		asGeometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
 		asGeometry.geometry.triangles.indexData = indexDataDeviceAddress;
 		asGeometry.geometry.triangles.transformData = transformMatrixDeviceAddress;
 
-		auto asIndex = buildAccelerationStructure(asGeometry, VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, indicesCount / 3);
+		auto asIndex = buildAccelerationStructure(asGeometry, VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, mesh->getIndexCount() / 3);
 
 		return asIndex;
 	}
 
-	VkAccelerationStructureInstanceKHR VulkanRenderer::createBlasInstance(uint32_t blasId, const VkTransformMatrixKHR& mat)
+	VkAccelerationStructureInstanceKHR VulkanRenderer::createBlasInstance(uint32_t blasId, const mat4& matrix)
 	{
+		VkTransformMatrixKHR transformMatrix;
+		glm::mat3x4          rtxT = glm::transpose(matrix);
+		memcpy(&transformMatrix, glm::value_ptr(rtxT), sizeof(VkTransformMatrixKHR));
+
 		AccelerationStructure& blas = getAS(blasId);
 
 		// Get the bottom acceleration structure's handle, which will be used during the top level acceleration build
@@ -808,7 +846,7 @@ namespace fre
 		auto deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(mainDevice.logicalDevice, &asDeviceAddressInfo);
 
 		VkAccelerationStructureInstanceKHR blasInstance{};
-		blasInstance.transform = mat;
+		blasInstance.transform = transformMatrix;
 		blasInstance.instanceCustomIndex = blasId;
 		blasInstance.mask = 0xFF;
 		blasInstance.instanceShaderBindingTableRecordOffset = 0;
@@ -818,10 +856,8 @@ namespace fre
 		return blasInstance;
 	}
 
-	uint32_t VulkanRenderer::createTLAS(const uint64_t refBlasIndex, const VkTransformMatrixKHR& mat)
+	uint32_t VulkanRenderer::createTLAS(std::vector<VkAccelerationStructureInstanceKHR> blasInstances)
 	{
-		auto blasInstance = createBlasInstance(refBlasIndex, mat);
-
 		const VkBufferUsageFlags bufferUsageFlags =
 			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
 			VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
@@ -829,7 +865,7 @@ namespace fre
 		const VkMemoryPropertyFlags memoryFlags = 
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 		VulkanBuffer instancesBuffer = createBuffer(bufferUsageFlags, memoryFlags,
-			&blasInstance, sizeof(VkAccelerationStructureInstanceKHR));
+			&blasInstances, blasInstances.size() * sizeof(VkAccelerationStructureInstanceKHR));
 		
 		VkDeviceOrHostAddressConstKHR instanceDataDeviceAddress{};
 		instanceDataDeviceAddress.deviceAddress = instancesBuffer.mDeviceAddress;
@@ -843,7 +879,7 @@ namespace fre
 		asGeometry.geometry.instances.arrayOfPointers = VK_FALSE;
 		asGeometry.geometry.instances.data = instanceDataDeviceAddress;
 
-		uint32_t result = buildAccelerationStructure(asGeometry, VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR, 1);
+		uint32_t result = buildAccelerationStructure(asGeometry, VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR, blasInstances.size());
 
 		return result;
 	}
@@ -1585,14 +1621,14 @@ namespace fre
 						}
 
                         auto descriptorSets = mesh->getDescriptorSets();
-						auto shaderInputs = mesh->getDescriptors();
-						if(descriptorSets.size() == shaderInputs.size())
+						auto descriptors = mesh->getDescriptors();
+						if(descriptorSets.size() == descriptors.size())
 						{
 							for(int i = 0; i < descriptorSets.size(); i++)
 							{
 								const auto& dsId = descriptorSets[i];
 								auto& descriptorSet = getDescriptorSet(dsId);
-								descriptorSet->update(mainDevice.logicalDevice, shaderInputs[i]);
+								descriptorSet->update(mainDevice.logicalDevice, descriptors[i]);
 							}
 						}
 
@@ -2350,7 +2386,7 @@ namespace fre
 		);
 	}
 
-	void VulkanRenderer::loadMeshes()
+	void VulkanRenderer::createMeshBuffers()
 	{
 		for(auto& meshModel : mMeshModels)
 		{
@@ -2360,10 +2396,12 @@ namespace fre
 				uint32_t meshId = mesh->getId();
 				const Material& material = mMaterials[mesh->getMaterialId()];
 				bool useCompute = mesh->getComputeShaderId() != std::numeric_limits<uint32_t>::max();
-				uint32_t usage = 0;
+				uint32_t usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+					| VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+					| VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
 				if(useCompute)
 				{
-					usage = usage | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+					usage = usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT;						
 				}
 
 				if(mesh->getVertexCount() > 0)
@@ -2374,7 +2412,7 @@ namespace fre
 					mBufferManager.createBuffer(
 						mainDevice, mTransferQueue, mTransferCommandPool,
 						static_cast<VkBufferUsageFlagBits>(usage | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
-						VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexData, vertexBufferSize);
+						VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexData, vertexBufferSize);
 				}
 
 				if(mesh->getIndexCount() > 0)
@@ -2385,7 +2423,7 @@ namespace fre
 					mBufferManager.createBuffer(
 						mainDevice, mTransferQueue, mTransferCommandPool,
 						static_cast<VkBufferUsageFlagBits>(usage | VK_BUFFER_USAGE_INDEX_BUFFER_BIT),
-						VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexData, indexBufferSize);
+						VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexData, indexBufferSize);
 				}
 			}
 		}

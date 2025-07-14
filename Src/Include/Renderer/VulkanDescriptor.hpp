@@ -23,11 +23,12 @@ namespace fre
 
     struct DescriptorBuffer : public VulkanDescriptor
     {
-        DescriptorBuffer()
-            : VulkanDescriptor(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+        DescriptorBuffer(VkDescriptorType type, const VkBuffer& buffer)
+            : VulkanDescriptor(type)
+            , mBuffer(buffer)
         {
         }
-        VulkanBufferPtr mBuffer;
+        VkBuffer mBuffer;
         virtual VkWriteDescriptorSet getWriter(VkDescriptorSet ds, uint32_t binding) override;
     private:
         VkDescriptorBufferInfo mBufferInfo = {};
@@ -36,16 +37,17 @@ namespace fre
 
     struct DescriptorImage : public VulkanDescriptor
     {
-        DescriptorImage(VkDescriptorType type, VkImageLayout imageLayout, VkImageView imageView, VkSampler sampler)
+        DescriptorImage(VkDescriptorType type, VkImageLayout imageLayout,
+            std::vector<VkImageView> imageViews, std::vector<VkSampler> samplers)
             : VulkanDescriptor(type)
             , mLayout(imageLayout)
-            , mImageView(imageView)
-            , mSampler(sampler)
+            , mImageViews(imageViews)
+            , mSamplers(samplers)
         {
         }
         VkImageLayout mLayout = VK_IMAGE_LAYOUT_MAX_ENUM;
-        VkImageView mImageView = VK_NULL_HANDLE;
-        VkSampler mSampler = VK_NULL_HANDLE;
+        std::vector<VkImageView> mImageViews;
+        std::vector<VkSampler> mSamplers;
         virtual VkWriteDescriptorSet getWriter(VkDescriptorSet ds, uint32_t binding) override;
 
     private:

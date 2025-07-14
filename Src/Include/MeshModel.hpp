@@ -1,7 +1,7 @@
 #pragma once
 
+#include "Data/CommonData.hpp"
 #include "Mesh.hpp"
-#include "Material.hpp"
 
 #include <glm/glm.hpp>
 #include <assimp/scene.h>

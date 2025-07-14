@@ -17,12 +17,6 @@ using namespace glm;
 
 namespace app
 {
-	struct CameraMatrices
-	{
-		mat4 mViewInverse;
-		mat4 mProjInverse;
-	};
-
 	void AppRenderer::requestExtensions()
 	{
 		VulkanRenderer::requestExtensions();
@@ -79,6 +73,19 @@ namespace app
 	{
         VulkanRenderer::createSwapChain();
 	}
+
+	void AppRenderer::update(const Camera& camera, const Light& light)
+	{
+		if(mRTMeshes.empty() && mTextureManager.is)
+		{
+			createScene();
+        }
+
+		mRTCamera.mViewInverse = glm::inverse(camera.mView);
+		mRTCamera.mProjInverse = glm::inverse(camera.mProjection);
+
+        VulkanRenderer::update(camera, light);
+	}
 	
 	ShaderMetaDatum AppRenderer::getShaderMetaData(const std::string& shaderFileName)
 	{
@@ -88,15 +95,6 @@ namespace app
 			if(shaderFileName == "rt")
 			{
 				ShaderMetaData md;
-				md.mPushConstantRanges = { mCameraMatricesPCR };
-				md.mPushConstantsCallback = [this](const Mesh::Ptr& mesh, const mat4& modelMatrix, const Camera& camera, const Light& light, VkPipelineLayout pipelineLayout, uint32_t instanceId)
-					{
-						if(mesh != nullptr)
-						{
-							CameraMatrices cameraMatrices = { inverse(camera.mView), inverse(camera.mProjection) };
-							pushConstants(mCameraMatricesPCR, &cameraMatrices, pipelineLayout, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
-						}
-					};
 				md.mDepthTestEnabled = true;
 				md.mSubPassIndex = 0;
 
@@ -142,8 +140,13 @@ namespace app
 
 		auto samplerId = createSampler({});
 		auto sampler = getSampler(samplerId);
+
+        std::vector<VkImageView> imageViews = { mStorageImage->mImageView };
+        std::vector<VkSampler> samplers = { sampler };
+
 		mStorageImageDescriptor = std::make_shared<DescriptorImage>(
-			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL, mStorageImage->mImageView, sampler);
+			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL,
+			imageViews, samplers);
     }
 
 	void AppRenderer::loadMeshModel()
@@ -191,71 +194,110 @@ namespace app
 
 	int AppRenderer::createMeshGPUResources()
 	{
+		loadMeshModel();
+
+		int result = VulkanRenderer::createMeshGPUResources();
+
 		createScene();
 		createResultMesh();
 		
-		int result = VulkanRenderer::createMeshGPUResources();
 		return result;
 	}
 
 	void AppRenderer::createAS()
 	{
-		std::vector<Vertex> vertices;
-		std::vector<uint32_t> indices;
+        //Create instances of the same mesh with different textures
+		auto mesh0 = std::make_shared<Mesh>();
+		*mesh0 = *mMesh;
+        auto& material0 = getMaterial(mMesh->getMaterialId());
+		auto mesh1 = std::make_shared<Mesh>();
+        auto material1 = material0;
+		auto& texInfo0 = getTextureInfo(material0.mId);
+		auto texInfo1 = texInfo0;
+        texInfo1->mImage.mFileName = "Textures/test.jpg";
+		auto textureId1 = createTexture(texInfo1);
+		material1.mTextureIds[aiTextureType_BASE_COLOR] = textureId1;
+		*mesh1 = *mMesh;
+		mesh1->setMaterialId(material1.mId);
 
-        const fre::Vertex* meshVertices = static_cast<const fre::Vertex*>(mMesh->getVertexData());
-        for(uint32_t i = 0; i < mMesh->getVertexCount(); i++)
-        {
-			vertices.push_back({meshVertices[i].pos});
-        }
+		mRTMeshes.push_back(mesh0);
+		mRTMeshes.push_back(mesh1);
 
-		const uint32_t* meshIndices = static_cast<const uint32_t*>(mMesh->getIndexData());
-		for(uint32_t i = 0; i < mMesh->getIndexCount(); i++)
+        //Create BLAS for each mesh
+		auto blasIndex0 = createBLAS(mesh0);
+		auto blasIndex1 = createBLAS(mesh1);
+
+        mat4 matrix0 = mat4(1.0f);
+        mat4 matrix1 = translate(mat4(1.0f), vec3(0.5f, 0.0f, 0.0f));
+
+		createSceneGPU();
+
+		std::vector<VkAccelerationStructureInstanceKHR> blasInstances =
 		{
-			indices.push_back(meshIndices[i]);
-		}
+			createBlasInstance(blasIndex0, matrix0),
+			createBlasInstance(blasIndex1, matrix1)
+		};
 
-		auto vertex_buffer_size = vertices.size() * sizeof(Vertex);
-		auto index_buffer_size = indices.size() * sizeof(uint32_t);
-		VkTransformMatrixKHR transform_matrix = {
-			1.0f, 0.0f, 0.0f, 0.0f,
-			0.0f, 1.0f, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f, 0.0f };
-
-		// Create buffers for the bottom level geometry
-		// For the sake of simplicity we won't stage the vertex data to the GPU memory
-
-		// Note that the buffer usage flags for buffers consumed by the bottom level acceleration structure require special flags
-		const VkBufferUsageFlags buffer_usage_flags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-
-		mVertexBuffer = createBuffer(buffer_usage_flags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertices.data(), vertex_buffer_size);
-		mIndexBuffer = createBuffer(buffer_usage_flags, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indices.data(), index_buffer_size);
-
-		// Setup a single transformation matrix that can be used to transform the whole geometry for a single bottom level acceleration structure
-		mTransformMatrixBuffer = createBuffer(
-			buffer_usage_flags,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			&transform_matrix, sizeof(transform_matrix));
-
-		auto blasIndex = createBLAS(mVertexBuffer, vertices.size(), mIndexBuffer, indices.size(), mTransformMatrixBuffer);
-		mBLAS = getAS(blasIndex);
-		auto tlasIndex = createTLAS(blasIndex, transform_matrix);
+		auto tlasIndex = createTLAS(blasInstances);
 		mTLAS = getAS(tlasIndex);
+	}
+
+	uint32_t AppRenderer::createRTTexture(uint32_t textureId)
+	{
+        uint32_t result = mTextureViews.size();
+		auto& texture = getTexture(textureId);
+		mTextureViews.push_back(texture->mImageView);
+		auto& textureInfo = getTextureInfo(textureId);
+		auto samplerIndex = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE });
+		auto sampler = getSampler(samplerIndex);
+		mTextureSamplers.push_back(sampler);
+
+		return result;
+	}
+
+	void AppRenderer::createSceneGPU()
+	{
+		// For each model that was created, we retrieved the address of buffers
+		// used by them. So in the shader, we have direct access to the data
+		std::vector<RTMeshGPU> rtMeshesGPU;
+		std::vector<RTMaterialGPU> rtMaterialsGPU;
+
+		for(auto& rtMeshCPU : mRTMeshes)
+		{
+			RTMeshGPU rtMeshGPU;
+			rtMeshGPU.mVertices = getVertexBuffer(rtMeshCPU->getId())->mDeviceAddress;
+			rtMeshGPU.mIndices = getIndexBuffer(rtMeshCPU->getId())->mDeviceAddress;
+            auto& material = getMaterial(rtMeshCPU->getMaterialId());
+			rtMeshGPU.mMaterialIndex = rtMaterialsGPU.size();
+			rtMeshesGPU.emplace_back(rtMeshGPU);
+
+            RTMaterialGPU rtMaterialGPU;
+            rtMaterialGPU.mDiffuseMap = createRTTexture(material.mTextureIds[aiTextureType_BASE_COLOR]);
+            rtMaterialGPU.mNormalMap = createRTTexture(material.mTextureIds[aiTextureType_NORMALS]);
+			//TODO fix specular
+            rtMaterialGPU.mSpecular = mLighting.lightSpecularColor;
+            rtMaterialGPU.mShininess = material.mShininess;
+			rtMaterialsGPU.emplace_back(rtMaterialGPU);
+		}
+		VkBufferUsageFlags bufferUsageFlags = 
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		const VkMemoryPropertyFlags memoryFlags =
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+		mRTMeshesGPUBuffer = createBuffer(bufferUsageFlags, memoryFlags, rtMeshesGPU.data(), rtMeshesGPU.size() * sizeof(RTMeshGPU));
+		mRTMaterialsGPUBuffer = createBuffer(bufferUsageFlags, memoryFlags, rtMaterialsGPU.data(), rtMaterialsGPU.size() * sizeof(RTMaterialGPU));
+		mRTCameraBuffer = createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memoryFlags, &mRTCamera, sizeof(RTCamera));
 	}
 
 	void AppRenderer::createScene()
 	{
-		mCameraMatricesPCR.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-		mCameraMatricesPCR.offset = 0;
-		mCameraMatricesPCR.size = sizeof(CameraMatrices);
-
-		loadMeshModel();
-
 		createAS();
 
 		mTLASDescriptor = std::make_shared<DescriptorAccelerationStructure>(mTLAS.mHandle);
-		mMesh->setDescriptors({ {mTLASDescriptor}, {mStorageImageDescriptor} });
+		mRTMeshesGPUDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mRTMeshesGPUBuffer.mBuffer);
+		mRTMaterialsGPUDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mRTMaterialsGPUBuffer.mBuffer);
+		mRTCameraDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, mRTCameraBuffer.mBuffer);
+		mRTTexturesDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mTextureViews, mTextureSamplers);
+
+		mMesh->setDescriptors({ {mTLASDescriptor, mStorageImageDescriptor, mStorageImageDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor} });
 	}
-
-
 }

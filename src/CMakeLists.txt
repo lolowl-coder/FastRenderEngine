@@ -2,16 +2,7 @@ set(LIB "fre")
 
 # Sources and Headers
 set(SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/Camera.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Engine.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Image.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Log.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Material.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/MathUtilities.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Mesh.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/MeshModel.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Statistics.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Utilities.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Data/CommonData.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanAttachment.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanBufferManager.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanCommandBuffer.cpp"
@@ -39,6 +30,15 @@ set(SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/../External/imgui/misc/cpp/imgui_stdlib.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../External/implot/implot.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../External/implot/implot_items.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Camera.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Engine.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Image.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Log.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/MathUtilities.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Mesh.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/MeshModel.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Statistics.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Utilities.cpp"
     "${spirv-reflect_SOURCE_DIR}/spirv_reflect.c"
 
 )
@@ -54,6 +54,7 @@ elseif(UNIX)
 endif()
 
 set(HEADERS
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Data/CommonData.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/FileSystem/FileSystem.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/FeatureMacro.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/FeatureStorage.hpp"
@@ -73,7 +74,6 @@ set(HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanRenderPass.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanResourceCache.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanSampler.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanShader.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanSwapChain.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanTexture.hpp"
@@ -83,9 +83,7 @@ set(HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Camera.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Engine.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Image.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Light.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Log.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Material.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/MathUtilities.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Mesh.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/MeshModel.hpp"
