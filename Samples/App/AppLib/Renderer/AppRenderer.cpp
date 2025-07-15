@@ -76,9 +76,23 @@ namespace app
 
 	void AppRenderer::update(const Camera& camera, const Light& light)
 	{
-		if(mRTMeshes.empty() && mTextureManager.is)
+		if(mRTMeshes.empty())
 		{
-			createScene();
+			const auto imagesCount = mTextureManager.getImagesCount();
+			bool allImagesAreLoaded = true;
+			for(int i = 0; i < imagesCount; i++)
+			{
+				const auto& textureInfo = mTextureManager.getTextureInfo(i);
+				if (textureInfo->mImage.isFileNameValid() && textureInfo->mImage.mData == nullptr)
+				{
+					allImagesAreLoaded = false;
+					break;
+				}
+			}
+			if(allImagesAreLoaded)
+			{
+				createScene();
+			}
         }
 
 		mRTCamera.mViewInverse = glm::inverse(camera.mView);
@@ -293,11 +307,11 @@ namespace app
 		createAS();
 
 		mTLASDescriptor = std::make_shared<DescriptorAccelerationStructure>(mTLAS.mHandle);
+		mRTCameraDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, mRTCameraBuffer.mBuffer);
 		mRTMeshesGPUDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mRTMeshesGPUBuffer.mBuffer);
 		mRTMaterialsGPUDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mRTMaterialsGPUBuffer.mBuffer);
-		mRTCameraDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, mRTCameraBuffer.mBuffer);
 		mRTTexturesDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mTextureViews, mTextureSamplers);
 
-		mMesh->setDescriptors({ {mTLASDescriptor, mStorageImageDescriptor, mStorageImageDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor} });
+		mMesh->setDescriptors({ {mTLASDescriptor, mStorageImageDescriptor, mRTCameraDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor, mRTTexturesDescriptor} });
 	}
 }

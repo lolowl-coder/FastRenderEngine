@@ -2394,7 +2394,6 @@ namespace fre
 			{
 				const auto& mesh = meshModel->getMesh(i);
 				uint32_t meshId = mesh->getId();
-				const Material& material = mMaterials[mesh->getMaterialId()];
 				bool useCompute = mesh->getComputeShaderId() != std::numeric_limits<uint32_t>::max();
 				uint32_t usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
 					| VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
