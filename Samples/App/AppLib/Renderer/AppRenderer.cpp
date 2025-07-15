@@ -212,7 +212,6 @@ namespace app
 
 		int result = VulkanRenderer::createMeshGPUResources();
 
-		createScene();
 		createResultMesh();
 		
 		return result;
