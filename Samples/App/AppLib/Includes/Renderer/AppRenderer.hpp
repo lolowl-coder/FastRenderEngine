@@ -18,7 +18,6 @@ namespace app
 		}
 
 		virtual int createDynamicGPUResources() override;
-		virtual int createLoadableGPUResources() override;
 		virtual int createMeshGPUResources() override;
 
 	protected:

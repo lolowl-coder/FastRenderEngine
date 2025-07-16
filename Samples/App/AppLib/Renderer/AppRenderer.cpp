@@ -31,7 +31,7 @@ namespace app
 		addDeviceExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
 
 		// Required for VK_KHR_ray_tracing_pipeline
-		addDeviceExtension(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
+		//addDeviceExtension(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
 
 		// Required by VK_KHR_spirv_1_4
 		addDeviceExtension(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
@@ -41,10 +41,19 @@ namespace app
 	{
 		VulkanRenderer::requestDeviceFeatures();
 
-		REQUEST_FEATURE(
-			VkPhysicalDeviceBufferDeviceAddressFeatures,
-			VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
-			bufferDeviceAddress);
+		mDeviceFeatures.features.shaderInt64 = VK_TRUE;
+
+		mDeviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+		mDeviceFeatures12.runtimeDescriptorArray = VK_TRUE;
+		mDeviceFeatures12.descriptorBindingPartiallyBound = VK_TRUE;
+		mDeviceFeatures12.descriptorBindingVariableDescriptorCount = VK_TRUE;
+		mDeviceFeatures12.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+		mDeviceFeatures12.bufferDeviceAddress = VK_TRUE;
+		mDeviceFeatures12.scalarBlockLayout = VK_TRUE;
+
+		mDeviceFeatures.pNext = &mDeviceFeatures12;
+
+		mLastDeviceFeatures = &mDeviceFeatures12.pNext;
 
 		REQUEST_FEATURE(
 			VkPhysicalDeviceRayTracingPipelineFeaturesKHR,
@@ -55,13 +64,6 @@ namespace app
 			VkPhysicalDeviceAccelerationStructureFeaturesKHR,
 			VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
 			accelerationStructure);
-
-		REQUEST_FEATURE(
-			VkPhysicalDeviceAccelerationStructureFeaturesKHR,
-			VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES,
-			accelerationStructure);
-
-		mDeviceFeatures.features.shaderInt64 = VK_TRUE;
 	}
 
 	void AppRenderer::cleanupSwapChain()
@@ -83,7 +85,9 @@ namespace app
 			for(int i = 0; i < imagesCount; i++)
 			{
 				const auto& textureInfo = mTextureManager.getTextureInfo(i);
-				if (textureInfo->mImage.isFileNameValid() && textureInfo->mImage.mData == nullptr)
+				if (textureInfo->mImage.isFileNameValid() 
+					&& textureInfo->mImage.mData == nullptr
+					&& textureInfo->mImage.mIsTIFF || textureInfo->mImage.mIsPNG)
 				{
 					allImagesAreLoaded = false;
 					break;
@@ -163,6 +167,18 @@ namespace app
 			imageViews, samplers);
     }
 
+	int AppRenderer::createDynamicGPUResources()
+	{
+        int result = VulkanRenderer::createDynamicGPUResources();
+
+		if(result == 0)
+		{
+			createStorageImage();
+		}
+
+		return result;
+	}
+
 	void AppRenderer::loadMeshModel()
 	{
 		//mMeshModel = createMeshModel("Models/unitQuad/unitQuad.obj", {});
@@ -174,18 +190,6 @@ namespace app
 		material.mShaderFileName = "rt";
         material.mShaderId = shaderId;
 		//material.mShininess = 1.0f;
-	}
-
-	int AppRenderer::createDynamicGPUResources()
-	{
-        int result = VulkanRenderer::createDynamicGPUResources();
-
-		if(result == 0)
-		{
-			createStorageImage();
-		}
-
-		return result;
 	}
 	
 	void AppRenderer::createResultMesh()
@@ -199,13 +203,6 @@ namespace app
 		addMeshModel({ mResultMesh });
 	}
 
-	int AppRenderer::createLoadableGPUResources()
-	{
-		//addShader("renderStorageImage");
-		auto result = VulkanRenderer::createLoadableGPUResources();
-		return result;
-	}
-
 	int AppRenderer::createMeshGPUResources()
 	{
 		loadMeshModel();
@@ -215,44 +212,6 @@ namespace app
 		createResultMesh();
 		
 		return result;
-	}
-
-	void AppRenderer::createAS()
-	{
-        //Create instances of the same mesh with different textures
-		auto mesh0 = std::make_shared<Mesh>();
-		*mesh0 = *mMesh;
-        auto& material0 = getMaterial(mMesh->getMaterialId());
-		auto mesh1 = std::make_shared<Mesh>();
-        auto material1 = material0;
-		auto& texInfo0 = getTextureInfo(material0.mId);
-		auto texInfo1 = texInfo0;
-        texInfo1->mImage.mFileName = "Textures/test.jpg";
-		auto textureId1 = createTexture(texInfo1);
-		material1.mTextureIds[aiTextureType_BASE_COLOR] = textureId1;
-		*mesh1 = *mMesh;
-		mesh1->setMaterialId(material1.mId);
-
-		mRTMeshes.push_back(mesh0);
-		mRTMeshes.push_back(mesh1);
-
-        //Create BLAS for each mesh
-		auto blasIndex0 = createBLAS(mesh0);
-		auto blasIndex1 = createBLAS(mesh1);
-
-        mat4 matrix0 = mat4(1.0f);
-        mat4 matrix1 = translate(mat4(1.0f), vec3(0.5f, 0.0f, 0.0f));
-
-		createSceneGPU();
-
-		std::vector<VkAccelerationStructureInstanceKHR> blasInstances =
-		{
-			createBlasInstance(blasIndex0, matrix0),
-			createBlasInstance(blasIndex1, matrix1)
-		};
-
-		auto tlasIndex = createTLAS(blasInstances);
-		mTLAS = getAS(tlasIndex);
 	}
 
 	uint32_t AppRenderer::createRTTexture(uint32_t textureId)
@@ -299,6 +258,44 @@ namespace app
 		mRTMeshesGPUBuffer = createBuffer(bufferUsageFlags, memoryFlags, rtMeshesGPU.data(), rtMeshesGPU.size() * sizeof(RTMeshGPU));
 		mRTMaterialsGPUBuffer = createBuffer(bufferUsageFlags, memoryFlags, rtMaterialsGPU.data(), rtMaterialsGPU.size() * sizeof(RTMaterialGPU));
 		mRTCameraBuffer = createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memoryFlags, &mRTCamera, sizeof(RTCamera));
+	}
+
+	void AppRenderer::createAS()
+	{
+		//Create instances of the same mesh with different textures
+		auto mesh0 = std::make_shared<Mesh>();
+		*mesh0 = *mMesh;
+		auto& material0 = getMaterial(mMesh->getMaterialId());
+		auto mesh1 = std::make_shared<Mesh>();
+		auto material1 = material0;
+		auto& texInfo0 = getTextureInfo(material0.mId);
+		auto texInfo1 = texInfo0;
+		texInfo1->mImage.mFileName = "Textures/test.jpg";
+		auto textureId1 = createTexture(texInfo1);
+		material1.mTextureIds[aiTextureType_BASE_COLOR] = textureId1;
+		*mesh1 = *mMesh;
+		mesh1->setMaterialId(material1.mId);
+
+		mRTMeshes.push_back(mesh0);
+		mRTMeshes.push_back(mesh1);
+
+		//Create BLAS for each mesh
+		auto blasIndex0 = createBLAS(mesh0);
+		auto blasIndex1 = createBLAS(mesh1);
+
+		mat4 matrix0 = mat4(1.0f);
+		mat4 matrix1 = translate(mat4(1.0f), vec3(0.5f, 0.0f, 0.0f));
+
+		createSceneGPU();
+
+		std::vector<VkAccelerationStructureInstanceKHR> blasInstances =
+		{
+			createBlasInstance(blasIndex0, matrix0),
+			createBlasInstance(blasIndex1, matrix1)
+		};
+
+		auto tlasIndex = createTLAS(blasInstances);
+		mTLAS = getAS(tlasIndex);
 	}
 
 	void AppRenderer::createScene()

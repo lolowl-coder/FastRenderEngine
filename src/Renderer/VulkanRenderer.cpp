@@ -1122,7 +1122,7 @@ namespace fre
 		appInfo.pEngineName = project_name.data();
 		appInfo.engineVersion = VK_MAKE_VERSION(project_version_major, project_version_minor, project_version_patch);	//Custom engine version
 		//Vulkan version
-		appInfo.apiVersion = VK_API_VERSION_1_1;
+		appInfo.apiVersion = VK_API_VERSION_1_2;
 
 		//Creation information for VkInstance
 		VkInstanceCreateInfo createInfo = {};

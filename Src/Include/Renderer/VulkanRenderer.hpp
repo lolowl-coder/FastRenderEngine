@@ -372,6 +372,7 @@ namespace fre
 		std::vector<const char*> mRequestedDeviceExtensions;
 		std::vector<const char*> mRequestedInstanceExtensions;
 		VkPhysicalDeviceFeatures2 mDeviceFeatures = {};
+		VkPhysicalDeviceVulkan12Features mDeviceFeatures12 = {};
 
 		std::vector<VulkanQueueFamily> mQueueFamilies;
 		int8_t mGraphicsQueueFamilyId = -1;
