@@ -47,7 +47,7 @@ namespace fre
 				layoutInfos[reflSet.set].mBindings[reflBinding.binding] = reflBinding.binding;
 				layoutInfos[reflSet.set].mDescriptorTypes[reflBinding.binding] = static_cast<VkDescriptorType>(reflBinding.descriptor_type);
 				layoutInfos[reflSet.set].mDescriptorCount[reflBinding.binding] = 1;
-				layoutInfos[reflSet.set].mStageFlags[reflBinding.binding] = module.shader_stage;
+				layoutInfos[reflSet.set].mStageFlags[reflBinding.binding] |= module.shader_stage;
 				for(uint32_t k = 0; k < reflBinding.array.dims_count; ++k)
 				{
 					layoutInfos[reflSet.set].mDescriptorCount[reflBinding.binding] *= reflBinding.array.dims[k];

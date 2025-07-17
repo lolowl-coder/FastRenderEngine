@@ -184,6 +184,7 @@ namespace app
 		//mMeshModel = createMeshModel("Models/unitQuad/unitQuad.obj", {});
 		//mMeshModel = createMeshModel("Models/unitCube/unitCube.obj", {});
 		mMeshModel = createMeshModel("Models/fish/scene.gltf", { aiTextureType_NORMALS, aiTextureType_BASE_COLOR });
+		mMeshModel->setVisible(false);
         mMesh = mMeshModel->getMesh(0);
 		Material& material = getMaterial(mMesh->getMaterialId());
         auto shaderId = addShader("rt");
@@ -309,5 +310,6 @@ namespace app
 		mRTTexturesDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mTextureViews, mTextureSamplers);
 
 		mMesh->setDescriptors({ {mTLASDescriptor, mStorageImageDescriptor, mRTCameraDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor, mRTTexturesDescriptor} });
+		mMeshModel->setVisible(true);
 	}
 }
