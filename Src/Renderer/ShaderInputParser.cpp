@@ -4,6 +4,8 @@
 
 #include "spirv_reflect.h"
 
+#define MAX_TEXTURES_COUNT 4
+
 namespace fre
 {
 #define CHECK(c)\
@@ -50,7 +52,14 @@ namespace fre
 				layoutInfos[reflSet.set].mStageFlags[reflBinding.binding] = module.shader_stage;
 				for(uint32_t k = 0; k < reflBinding.array.dims_count; ++k)
 				{
-					layoutInfos[reflSet.set].mDescriptorCount[reflBinding.binding] *= reflBinding.array.dims[k];
+					if(reflBinding.array.dims[k] == 0)
+					{
+						layoutInfos[reflSet.set].mDescriptorCount[reflBinding.binding] = MAX_TEXTURES_COUNT;
+					}
+					else
+					{
+						layoutInfos[reflSet.set].mDescriptorCount[reflBinding.binding] *= reflBinding.array.dims[k];
+					}
 				}
 			}
 		}
