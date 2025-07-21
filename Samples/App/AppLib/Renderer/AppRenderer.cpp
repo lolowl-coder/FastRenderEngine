@@ -78,25 +78,32 @@ namespace app
 
 	void AppRenderer::update(const Camera& camera, const Light& light)
 	{
-		if(mRTMeshes.empty())
+		if(mTLAS.mHandle == VK_NULL_HANDLE)
 		{
-			const auto imagesCount = mTextureManager.getImagesCount();
-			bool allImagesAreLoaded = true;
-			for(int i = 0; i < imagesCount; i++)
+			bool allTexturesCreated = true;
+			for(const auto& mesh : mRTMeshes)
 			{
-				const auto& textureInfo = mTextureManager.getTextureInfo(i);
-				if (textureInfo->mImage.isFileNameValid() 
-					&& textureInfo->mImage.mData == nullptr
-					&& textureInfo->mImage.mIsTIFF || textureInfo->mImage.mIsPNG)
+				const auto& material = getMaterial(mesh->getMaterialId());
+				for(auto textureIndexPair : material.mTextureIds)
 				{
-					allImagesAreLoaded = false;
-					break;
+					auto& textureInfo = getTextureInfo(textureIndexPair.second);
+					if(textureInfo->mImage.mData != nullptr)
+					{
+						if(getTexture(textureInfo->mId) == nullptr)
+						{
+							createTexture(textureInfo);
+						}
+					}
+					else
+					{
+						allTexturesCreated = false;
+					}
 				}
 			}
-			if(allImagesAreLoaded)
-			{
-				createScene();
-			}
+            if(allTexturesCreated)
+            {
+                createScene();
+            }
         }
 
 		mRTCamera.mViewInverse = glm::inverse(camera.mView);
@@ -191,6 +198,33 @@ namespace app
 		material.mShaderFileName = "rt";
         material.mShaderId = shaderId;
 		//material.mShininess = 1.0f;
+
+		//Create instances of the same mesh with different BASE_COLOR texture
+		auto mesh0 = std::make_shared<Mesh>();
+		*mesh0 = *mMesh;
+		auto& material0 = getMaterial(mMesh->getMaterialId());
+		auto mesh1 = std::make_shared<Mesh>();
+        //Create a new material with the same shader and different texture
+		Material material1;
+		material1.mShaderFileName = material0.mShaderFileName;
+		material1.mShaderId = material0.mShaderId;
+		material1.mShininess = material0.mShininess;
+		material1.mTextureIds = material0.mTextureIds;
+		//Create texture for second material instance
+		auto& texInfo0 = getTextureInfo(material0.mId);
+		Image image1;
+		image1.mFileName = "Textures/test.png";
+		auto textureInfoIndex1 = createTextureInfo(texInfo0->mAddressMode, texInfo0->mTiling, texInfo0->mUsageFlags, texInfo0->mMemoryFlags, texInfo0->mLayout, false, image1);
+        //Update texture id in the material
+		material1.mTextureIds[aiTextureType_BASE_COLOR] = textureInfoIndex1;
+		*mesh1 = *mMesh;
+		mesh1->setMaterialId(material1.mId);
+        //Add materials to the renderer
+        addMaterial(material1);
+
+		//Collect RT meshes
+		mRTMeshes.push_back(mesh0);
+		mRTMeshes.push_back(mesh1);
 	}
 	
 	void AppRenderer::createResultMesh()
@@ -201,6 +235,7 @@ namespace app
 		mResultMesh = std::make_shared<Mesh>(material.mId);
 		mResultMesh->setGeneratedVerticesCount(3);
         mResultMesh->setDescriptors({ { mStorageImageDescriptor } });
+		mResultMesh->setVisible(false);
 		addMeshModel({ mResultMesh });
 	}
 
@@ -263,26 +298,9 @@ namespace app
 
 	void AppRenderer::createAS()
 	{
-		//Create instances of the same mesh with different textures
-		auto mesh0 = std::make_shared<Mesh>();
-		*mesh0 = *mMesh;
-		auto& material0 = getMaterial(mMesh->getMaterialId());
-		auto mesh1 = std::make_shared<Mesh>();
-		auto material1 = material0;
-		auto& texInfo0 = getTextureInfo(material0.mId);
-		auto texInfo1 = texInfo0;
-		texInfo1->mImage.mFileName = "Textures/test.jpg";
-		auto textureId1 = createTexture(texInfo1);
-		material1.mTextureIds[aiTextureType_BASE_COLOR] = textureId1;
-		*mesh1 = *mMesh;
-		mesh1->setMaterialId(material1.mId);
-
-		mRTMeshes.push_back(mesh0);
-		mRTMeshes.push_back(mesh1);
-
 		//Create BLAS for each mesh
-		auto blasIndex0 = createBLAS(mesh0);
-		auto blasIndex1 = createBLAS(mesh1);
+		auto blasIndex0 = createBLAS(mRTMeshes[0]);
+		auto blasIndex1 = createBLAS(mRTMeshes[1]);
 
 		mat4 matrix0 = mat4(1.0f);
 		mat4 matrix1 = translate(mat4(1.0f), vec3(0.5f, 0.0f, 0.0f));
@@ -311,5 +329,7 @@ namespace app
 
 		mMesh->setDescriptors({ {mTLASDescriptor, mStorageImageDescriptor, mRTCameraDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor, mRTTexturesDescriptor} });
 		mMeshModel->setVisible(true);
+
+		mResultMesh->setVisible(true);
 	}
 }

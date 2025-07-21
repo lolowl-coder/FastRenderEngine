@@ -125,7 +125,7 @@ namespace fre
 		const VkCommandPool commandPool,
 		const VulkanTextureInfoPtr& info)
 	{
-		uint32_t id = mTextures.size();
+		uint32_t id = info->mId;
 		VulkanTexturePtr result = std::make_shared<VulkanTexture>();
 		result->mId = id;
 

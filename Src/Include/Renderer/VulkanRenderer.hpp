@@ -96,7 +96,7 @@ namespace fre
 
 		uint32_t createBLAS(MeshPtr& mesh);
 		VkAccelerationStructureInstanceKHR createBlasInstance(uint32_t blasId, const glm::mat4& matrix);
-		uint32_t createTLAS(std::vector<VkAccelerationStructureInstanceKHR> blasInstances);
+		uint32_t createTLAS(std::vector<VkAccelerationStructureInstanceKHR>& blasInstances);
 		uint32_t buildAccelerationStructure(VkAccelerationStructureGeometryKHR& asGeometry, const VkAccelerationStructureTypeKHR asType, const uint32_t primitiveCount);
 		void destroyAccelerationStructure(AccelerationStructure& accelerationStructure);
 		AccelerationStructure& getAS(const uint32_t id);

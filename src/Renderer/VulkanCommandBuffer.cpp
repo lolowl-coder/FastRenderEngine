@@ -4,6 +4,9 @@
 #include <stdexcept>
 #include <array>
 
+// Default fence timeout in nanoseconds
+#define DEFAULT_FENCE_TIMEOUT 100000000000
+
 namespace fre
 {
 	void VulkanCommandBuffer::allocate(
@@ -55,9 +58,9 @@ namespace fre
 		}
 
 		// Submit to the queue
-		VkResult result = vkQueueSubmit(queue, 1, &submit_info, fence);
+		VK_CHECK(vkQueueSubmit(queue, 1, &submit_info, fence));
 		// Wait for the fence to signal that command buffer has finished executing
-		VK_CHECK(vkWaitForFences(device, 1, &fence, VK_TRUE, MAX(uint64_t)));
+		VK_CHECK(vkWaitForFences(device, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT));
 	}
 
 	void VulkanCommandBuffer::free(VkDevice device, VkCommandPool commandPool, const bool cleanup)

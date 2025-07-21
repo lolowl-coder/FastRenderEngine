@@ -123,7 +123,9 @@ namespace fre
 				format = VK_FORMAT_R8G8_UNORM;
 				break;
 			case 3:
-				format = VK_FORMAT_R8G8B8_UNORM;
+				//Force 3 channels to 4
+				format = VK_FORMAT_R8G8B8A8_UNORM;
+				numChannels = 4;
 				break;
 			case 4:
 				format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -153,6 +155,9 @@ namespace fre
 			break;
 		case VK_FORMAT_R16_UNORM:
 			mStride = 2;
+			break;
+		case VK_FORMAT_R8G8B8_UNORM:
+			mStride = 3;
 			break;
 		case VK_FORMAT_R8G8B8A8_UNORM:
 			mStride = 4;

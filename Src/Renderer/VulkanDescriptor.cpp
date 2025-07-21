@@ -24,21 +24,21 @@ namespace fre
     VkWriteDescriptorSet DescriptorImage::getWriter(VkDescriptorSet ds, uint32_t binding)
     {
         assert(mImageViews.size() == mSamplers.size() && "Image views and samplers must have the same size");
-        std::vector<VkDescriptorImageInfo> imageInfos(mImageViews.size());
+        mImageInfos.resize(mImageViews.size());
 
         for(int i = 0; i < mImageViews.size(); i++)
         {
-            imageInfos[i].imageLayout = mLayout;
-            imageInfos[i].imageView = mImageViews[i];
-            imageInfos[i].sampler = mSamplers[i];
+            mImageInfos[i].imageLayout = mLayout;
+            mImageInfos[i].imageView = mImageViews[i];
+            mImageInfos[i].sampler = mSamplers[i];
         }
         mWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         mWriteDescriptorSet.dstSet = ds;
         mWriteDescriptorSet.dstBinding = binding;
         mWriteDescriptorSet.dstArrayElement = 0;
         mWriteDescriptorSet.descriptorType = mType;
-        mWriteDescriptorSet.descriptorCount = imageInfos.size();
-        mWriteDescriptorSet.pImageInfo = imageInfos.data();
+        mWriteDescriptorSet.descriptorCount = mImageInfos.size();
+        mWriteDescriptorSet.pImageInfo = mImageInfos.data();
 
         return mWriteDescriptorSet;
     };

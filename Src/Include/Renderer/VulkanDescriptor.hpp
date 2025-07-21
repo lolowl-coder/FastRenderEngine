@@ -48,6 +48,7 @@ namespace fre
         VkImageLayout mLayout = VK_IMAGE_LAYOUT_MAX_ENUM;
         std::vector<VkImageView> mImageViews;
         std::vector<VkSampler> mSamplers;
+        std::vector<VkDescriptorImageInfo> mImageInfos;
         virtual VkWriteDescriptorSet getWriter(VkDescriptorSet ds, uint32_t binding) override;
 
     private:

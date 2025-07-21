@@ -57,7 +57,7 @@ namespace fre
         createTextureInfo(
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			false, image);
@@ -813,19 +813,22 @@ namespace fre
 		indexDataDeviceAddress.deviceAddress = ibo->mDeviceAddress;
 		transformMatrixDeviceAddress.deviceAddress = transformMatrixBuffer.mDeviceAddress;
 
+		VkAccelerationStructureGeometryTrianglesDataKHR triangles{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR };
+		triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+		triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+		triangles.vertexData = vertexDataDeviceAddress;
+		triangles.maxVertex = mesh->getVertexCount() - 1;
+		triangles.vertexStride = sizeof(Vertex);
+		triangles.indexType = VK_INDEX_TYPE_UINT32;
+		triangles.indexData = indexDataDeviceAddress;
+		triangles.transformData = transformMatrixDeviceAddress;
+
 		// The bottom level acceleration structure contains one set of triangles as the input geometry
 		VkAccelerationStructureGeometryKHR asGeometry{};
 		asGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
 		asGeometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
 		asGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
-		asGeometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-		asGeometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-		asGeometry.geometry.triangles.vertexData = vertexDataDeviceAddress;
-		asGeometry.geometry.triangles.maxVertex = mesh->getVertexCount() - 1;
-		asGeometry.geometry.triangles.vertexStride = sizeof(Vertex);
-		asGeometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
-		asGeometry.geometry.triangles.indexData = indexDataDeviceAddress;
-		asGeometry.geometry.triangles.transformData = transformMatrixDeviceAddress;
+		asGeometry.geometry.triangles = triangles;
 
 		auto asIndex = buildAccelerationStructure(asGeometry, VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, mesh->getIndexCount() / 3);
 
@@ -856,7 +859,7 @@ namespace fre
 		return blasInstance;
 	}
 
-	uint32_t VulkanRenderer::createTLAS(std::vector<VkAccelerationStructureInstanceKHR> blasInstances)
+	uint32_t VulkanRenderer::createTLAS(std::vector<VkAccelerationStructureInstanceKHR>& blasInstances)
 	{
 		const VkBufferUsageFlags bufferUsageFlags =
 			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
@@ -865,7 +868,7 @@ namespace fre
 		const VkMemoryPropertyFlags memoryFlags = 
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 		VulkanBuffer instancesBuffer = createBuffer(bufferUsageFlags, memoryFlags,
-			&blasInstances, blasInstances.size() * sizeof(VkAccelerationStructureInstanceKHR));
+			blasInstances.data(), blasInstances.size() * sizeof(VkAccelerationStructureInstanceKHR));
 		
 		VkDeviceOrHostAddressConstKHR instanceDataDeviceAddress{};
 		instanceDataDeviceAddress.deviceAddress = instancesBuffer.mDeviceAddress;
@@ -876,6 +879,7 @@ namespace fre
 		asGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
 		asGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
 		asGeometry.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+		asGeometry.geometry.instances.pNext = nullptr;
 		asGeometry.geometry.instances.arrayOfPointers = VK_FALSE;
 		asGeometry.geometry.instances.data = instanceDataDeviceAddress;
 
@@ -914,7 +918,7 @@ namespace fre
 		as.mBuffer = createBuffer(
 			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-			&as.mDeviceAddress,
+			nullptr,
 			asBuildSizesInfo.accelerationStructureSize);
 
 		// Create the acceleration structure
@@ -972,6 +976,8 @@ namespace fre
 		commandBuffer.flush(mainDevice.logicalDevice, mGraphicsQueue, fence, semaphores);
 
 		vkDestroyFence(mainDevice.logicalDevice, fence, nullptr);
+
+		commandBuffer.free(mainDevice.logicalDevice,mGraphicsCommandPool, true);
 
 		mBufferManager.destroyBuffer(mainDevice.logicalDevice, scratchBuffer);
 

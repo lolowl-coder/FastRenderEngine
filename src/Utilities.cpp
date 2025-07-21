@@ -336,7 +336,7 @@ namespace fre
 
 	void onVulkanError(VkResult vulkanResult)
 	{
-		throw std::runtime_error(formatString("Vulkan error %i", vulkanResult));
+		//throw std::runtime_error(formatString("Vulkan error %i", vulkanResult));
 	}
 
 	VkExternalSemaphoreHandleTypeFlagBits getDefaultSemaphoreHandleType()
