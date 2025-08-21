@@ -1,3 +1,4 @@
+#include "Defines.hpp"
 #include "VulkanDescriptor.hpp"
 #include "VulkanBufferManager.hpp"
 #include "VulkanTexture.hpp"
@@ -24,6 +25,8 @@ namespace fre
     VkWriteDescriptorSet DescriptorImage::getWriter(VkDescriptorSet ds, uint32_t binding)
     {
         assert(mImageViews.size() == mSamplers.size() && "Image views and samplers must have the same size");
+        assert(mImageViews.size() < MAX_TEXTURES_ARRAY_SIZE && mSamplers.size() < MAX_TEXTURES_ARRAY_SIZE
+            && "Image views or samplers size exceeds maximum allowed textures array size");
         mImageInfos.resize(mImageViews.size());
 
         for(int i = 0; i < mImageViews.size(); i++)

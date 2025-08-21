@@ -53,8 +53,8 @@ namespace fre
 
 	struct RTCamera
 	{
-		glm::mat4 mViewInverse;
-		glm::mat4 mProjInverse;
+		glm::mat4 mViewInverse = glm::mat4(1.0f);
+		glm::mat4 mProjInverse = glm::mat4(1.0f);
 	};
 
 	struct RTMeshCPU

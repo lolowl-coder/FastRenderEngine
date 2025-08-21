@@ -1,8 +1,9 @@
 #include "FileSystem/FileSystem.hpp"
+#include "Macros/Member.hpp"
 #include "Renderer/AppRenderer.hpp"
 #include "Renderer/VulkanRenderer.hpp"
 #include "Renderer/VulkanBufferManager.hpp"
-#include "Macros/Member.hpp"
+#include "UI/UIUtilities.hpp"
 #include "AppData.hpp"
 #include "AppEngine.hpp"
 #include "Options.hpp"
@@ -28,6 +29,9 @@ namespace app
     AppEngine::AppEngine()
         : Engine()
     {
+        mCameraPanSpeed = 0.1f;
+        mCameraZoomSpeed = 0.1f;
+
         FS;
         //Add search path
         fs.addPath("Fonts");
@@ -41,7 +45,7 @@ namespace app
 
         mRenderer->setShaderMetaDataProvider(this);
 
-        mCamera.setEye(vec3(0, 0, -100.0f));
+        mCamera.setEye(vec3(0, 0, -10.0f));
 
         initUI();
 
@@ -83,6 +87,7 @@ namespace app
                 ImGui::PopStyleVar(1);
             }
         );
+        mRenderer->initUI();
     }
 
 	bool AppEngine::createCoreGPUResources()

@@ -25,9 +25,9 @@ namespace fre
 
 	void VulkanTextureManager::destroy(VkDevice logicalDevice)
 	{
-		for (size_t i = 0; i < mTextures.size(); i++)
+		for(auto& idToTex : mTextures)
 		{
-			destroyTexture(logicalDevice, i);
+			destroyTexture(logicalDevice, idToTex.first);
 		}
 	}
 
@@ -205,6 +205,8 @@ namespace fre
 
 						auto& image = mTextureInfos[i]->mImage;
 						image.load();
+
+                        LOG_TRACE("Image loaded. id: {}, file name: {}", i, image.mFileName);
 
 						if(callback != nullptr)
 						{

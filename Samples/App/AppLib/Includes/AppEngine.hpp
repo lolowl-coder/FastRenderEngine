@@ -68,7 +68,7 @@ namespace app
 
     private:
         //Render camera
-        bool mIsCameraOrthogonal = true;
+        bool mIsCameraOrthogonal = false;
         bool mLastIsCameraOrthogonal = true;
         fre::Camera mLastCamera;
 		uint64_t mFrameNumber = 0;

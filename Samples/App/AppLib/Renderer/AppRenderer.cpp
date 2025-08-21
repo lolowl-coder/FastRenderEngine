@@ -7,6 +7,7 @@
 #include "Renderer/VulkanDescriptorSet.hpp"
 #include "Renderer/VulkanDescriptorSetLayout.hpp"
 #include "Renderer/VulkanTexture.hpp"
+#include "UI/UIUtilities.hpp"
 #include "Camera.hpp"
 #include "Utilities.hpp"
 
@@ -17,6 +18,38 @@ using namespace glm;
 
 namespace app
 {
+	AppRenderer::AppRenderer(ThreadPool& threadPool)
+		: VulkanRenderer(threadPool)
+	{
+	}
+
+	void AppRenderer::initUI()
+	{
+		addUIRenderCallback
+		(
+			[this]()
+			{
+				if(!mRTMeshes.empty() && mRTMeshes[0] != nullptr)
+				{
+					ImGui::Begin("Settings");
+                    ImGui::PushItemWidth(150.0f);
+					Material& mat0 = getMaterial(mRTMeshes[0]->getMaterialId());
+					Material& mat1 = getMaterial(mRTMeshes[1]->getMaterialId());
+					bool changed = false;
+					changed |= sliderFloat(0.0f, 1.0f, "Fish 0 shininess", mat0.mShininess, "%.2f");
+					changed |= sliderFloat(0.0f, 1.0f, "Fish 1 shininess", mat1.mShininess, "%.2f");
+
+					if(changed)
+					{
+						updateMaterials();
+					}
+					ImGui::PopItemWidth();
+					ImGui::End();
+				}
+			}
+		);
+	}
+
 	void AppRenderer::requestExtensions()
 	{
 		VulkanRenderer::requestExtensions();
@@ -78,6 +111,10 @@ namespace app
 
 	void AppRenderer::update(const Camera& camera, const Light& light)
 	{
+		if(getTexture(0) == nullptr)
+		{
+			createTexture(getTextureInfo(0));
+		}
 		if(mTLAS.mHandle == VK_NULL_HANDLE)
 		{
 			bool allTexturesCreated = true;
@@ -109,7 +146,32 @@ namespace app
 		mRTCamera.mViewInverse = glm::inverse(camera.mView);
 		mRTCamera.mProjInverse = glm::inverse(camera.mProjection);
 
+        mBufferManager.udpateBuffer(mainDevice.logicalDevice, mRTCameraBufferIndex, &mRTCamera, sizeof(mRTCamera));
+
         VulkanRenderer::update(camera, light);
+	}
+
+	std::vector<const VulkanShader*> AppRenderer::getRTShaders(const uint32_t shaderId)
+	{
+		std::vector<const VulkanShader*> result;
+		const Shader* shader = getShader(shaderId);
+		auto shadowMissShader = getShader(mShadowMissShaderId);
+		if(shader != nullptr && shadowMissShader != nullptr)
+		{
+			result =
+			{
+				&shader->mRayGenShader,
+				&shader->mRayMissShader,
+                & shadowMissShader->mRayMissShader,
+				&shader->mRayClosestHitShader
+			};
+		}
+		else
+		{
+            LOG_ERROR("Either shadow miss or main shader not found");
+		}
+
+		return result;
 	}
 	
 	ShaderMetaDatum AppRenderer::getShaderMetaData(const std::string& shaderFileName)
@@ -148,7 +210,7 @@ namespace app
 		auto textureInfoId = mTextureManager.createTextureInfo(
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			VK_IMAGE_LAYOUT_GENERAL,
 			false,
@@ -197,7 +259,8 @@ namespace app
         auto shaderId = addShader("rt");
 		material.mShaderFileName = "rt";
         material.mShaderId = shaderId;
-		//material.mShininess = 1.0f;
+		material.mShininess = 0.0f;
+        mShadowMissShaderId = addShader("shadow");
 
 		//Create instances of the same mesh with different BASE_COLOR texture
 		auto mesh0 = std::make_shared<Mesh>();
@@ -208,12 +271,12 @@ namespace app
 		Material material1;
 		material1.mShaderFileName = material0.mShaderFileName;
 		material1.mShaderId = material0.mShaderId;
-		material1.mShininess = material0.mShininess;
+		material1.mShininess = 0.2f;
 		material1.mTextureIds = material0.mTextureIds;
 		//Create texture for second material instance
 		auto& texInfo0 = getTextureInfo(material0.mId);
 		Image image1;
-		image1.mFileName = "Textures/test.png";
+		image1.mFileName = "test.jpg";
 		auto textureInfoIndex1 = createTextureInfo(texInfo0->mAddressMode, texInfo0->mTiling, texInfo0->mUsageFlags, texInfo0->mMemoryFlags, texInfo0->mLayout, false, image1);
         //Update texture id in the material
 		material1.mTextureIds[aiTextureType_BASE_COLOR] = textureInfoIndex1;
@@ -252,48 +315,96 @@ namespace app
 
 	uint32_t AppRenderer::createRTTexture(uint32_t textureId)
 	{
-        uint32_t result = mTextureViews.size();
+		auto& defaultTexture = getTexture(0);
 		auto& texture = getTexture(textureId);
-		mTextureViews.push_back(texture->mImageView);
+		if(textureId >= mTextureViews.size())
+		{
+			mTextureViews.resize(textureId + 1, defaultTexture->mImageView);
+		}
+		mTextureViews[textureId] = texture->mImageView;
 		auto& textureInfo = getTextureInfo(textureId);
 		auto samplerIndex = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE });
 		auto sampler = getSampler(samplerIndex);
-		mTextureSamplers.push_back(sampler);
+		if(textureId >= mTextureSamplers.size())
+		{
+			mTextureSamplers.resize(textureId + 1, getSampler(0));
+		}
+		mTextureSamplers[textureId] = sampler;
 
-		return result;
+		return textureId;
 	}
+
+    void AppRenderer::updateMaterials()
+    {
+		std::vector<RTMaterialGPU> rtMaterialsGPU;
+		for(auto& material : mMaterials)
+		{
+			RTMaterialGPU rtMaterialGPU;
+			if(material.mTextureIds.find(aiTextureType_BASE_COLOR) != material.mTextureIds.end())
+			{
+				rtMaterialGPU.mDiffuseMap = material.mTextureIds[aiTextureType_BASE_COLOR];
+			}
+			else
+			{
+				rtMaterialGPU.mDiffuseMap = 0;
+			}
+			if(material.mTextureIds.find(aiTextureType_NORMALS) != material.mTextureIds.end())
+			{
+				rtMaterialGPU.mNormalMap = material.mTextureIds[aiTextureType_NORMALS];
+			}
+			else
+			{
+				rtMaterialGPU.mNormalMap = 0;
+			}
+			//TODO fix specular
+			rtMaterialGPU.mSpecular = mLighting.lightSpecularColor;
+			rtMaterialGPU.mShininess = material.mShininess;
+			rtMaterialsGPU.emplace_back(rtMaterialGPU);
+		}
+		if(mRTMaterialsGPUBuffer.mBuffer == VK_NULL_HANDLE)
+		{
+			VkBufferUsageFlags bufferUsageFlags =
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+			const VkMemoryPropertyFlags memoryFlags =
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+			mRTMaterialsGPUBufferIndex = createBuffer(bufferUsageFlags, memoryFlags, rtMaterialsGPU.data(), rtMaterialsGPU.size() * sizeof(RTMaterialGPU));
+			mRTMaterialsGPUBuffer = *mBufferManager.getBuffer(mRTMaterialsGPUBufferIndex);
+		}
+		else
+		{
+            mBufferManager.udpateBuffer(mainDevice.logicalDevice, mRTMaterialsGPUBufferIndex,
+				rtMaterialsGPU.data(), rtMaterialsGPU.size() * sizeof(RTMaterialGPU));
+		}
+    }	
 
 	void AppRenderer::createSceneGPU()
 	{
 		// For each model that was created, we retrieved the address of buffers
 		// used by them. So in the shader, we have direct access to the data
 		std::vector<RTMeshGPU> rtMeshesGPU;
-		std::vector<RTMaterialGPU> rtMaterialsGPU;
+
+        mTextureManager.forEachTexture([&](const VulkanTexturePtr& texture)
+            {
+                createRTTexture(texture->mId);
+            });
 
 		for(auto& rtMeshCPU : mRTMeshes)
 		{
 			RTMeshGPU rtMeshGPU;
 			rtMeshGPU.mVertices = getVertexBuffer(rtMeshCPU->getId())->mDeviceAddress;
 			rtMeshGPU.mIndices = getIndexBuffer(rtMeshCPU->getId())->mDeviceAddress;
-            auto& material = getMaterial(rtMeshCPU->getMaterialId());
-			rtMeshGPU.mMaterialIndex = rtMaterialsGPU.size();
+			rtMeshGPU.mMaterialIndex = rtMeshCPU->getMaterialId();
 			rtMeshesGPU.emplace_back(rtMeshGPU);
-
-            RTMaterialGPU rtMaterialGPU;
-            rtMaterialGPU.mDiffuseMap = createRTTexture(material.mTextureIds[aiTextureType_BASE_COLOR]);
-            rtMaterialGPU.mNormalMap = createRTTexture(material.mTextureIds[aiTextureType_NORMALS]);
-			//TODO fix specular
-            rtMaterialGPU.mSpecular = mLighting.lightSpecularColor;
-            rtMaterialGPU.mShininess = material.mShininess;
-			rtMaterialsGPU.emplace_back(rtMaterialGPU);
 		}
 		VkBufferUsageFlags bufferUsageFlags = 
 			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 		const VkMemoryPropertyFlags memoryFlags =
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-		mRTMeshesGPUBuffer = createBuffer(bufferUsageFlags, memoryFlags, rtMeshesGPU.data(), rtMeshesGPU.size() * sizeof(RTMeshGPU));
-		mRTMaterialsGPUBuffer = createBuffer(bufferUsageFlags, memoryFlags, rtMaterialsGPU.data(), rtMaterialsGPU.size() * sizeof(RTMaterialGPU));
-		mRTCameraBuffer = createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memoryFlags, &mRTCamera, sizeof(RTCamera));
+        uint32_t bufferIndex = createBuffer(bufferUsageFlags, memoryFlags, rtMeshesGPU.data(), rtMeshesGPU.size() * sizeof(RTMeshGPU));
+        mRTMeshesGPUBuffer = *mBufferManager.getBuffer(bufferIndex);
+		updateMaterials();
+		mRTCameraBufferIndex = createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memoryFlags, &mRTCamera, sizeof(RTCamera));
+        mRTCameraBuffer = *mBufferManager.getBuffer(mRTCameraBufferIndex);
 	}
 
 	void AppRenderer::createAS()
@@ -303,7 +414,8 @@ namespace app
 		auto blasIndex1 = createBLAS(mRTMeshes[1]);
 
 		mat4 matrix0 = mat4(1.0f);
-		mat4 matrix1 = translate(mat4(1.0f), vec3(0.5f, 0.0f, 0.0f));
+		mat4 matrix1 = translate(mat4(1.0f), vec3(0.0f, 0.0f, 3.0f));
+        matrix1 = scale(matrix1, vec3(-0.5f, 0.5f, 0.5f));
 
 		createSceneGPU();
 

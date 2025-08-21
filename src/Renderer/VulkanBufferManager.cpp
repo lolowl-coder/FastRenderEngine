@@ -60,10 +60,17 @@ namespace fre
 		return result;
 	}
     
-    //Data size in bytes. Example: sizeof(Vertex) * mVertices.size();
-    const VulkanBuffer& VulkanBufferManager::createBuffer(const MainDevice& mainDevice, VkQueue transferQueue,
+	uint32_t VulkanBufferManager::createBuffer(const MainDevice& mainDevice, VkQueue transferQueue,
 		VkCommandPool transferCommandPool, VkBufferUsageFlags bufferUsage,
-		VkMemoryPropertyFlags memoryFlags, const void* data, size_t size)
+		VkMemoryPropertyFlags memoryFlags, const void* data, const size_t bufSize)
+	{
+		return createBuffer(mainDevice, transferQueue, transferCommandPool, bufferUsage, memoryFlags, data, bufSize, bufSize);
+	}
+
+    //Data size in bytes. Example: sizeof(Vertex) * mVertices.size();
+    uint32_t VulkanBufferManager::createBuffer(const MainDevice& mainDevice, VkQueue transferQueue,
+		VkCommandPool transferCommandPool, VkBufferUsageFlags bufferUsage,
+		VkMemoryPropertyFlags memoryFlags, const void* data, const size_t bufSize, const size_t dataSize)
 	{
 		//Temporary buffer to "stage" vertex data before transferring to GPU
 		VulkanBuffer stagingBuffer;
@@ -71,7 +78,7 @@ namespace fre
 		try
 		{
 			//Create buffer and allocate memory for it
-			fre::createBuffer(mainDevice, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			fre::createBuffer(mainDevice, bufSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				0,
 				&stagingBuffer.mBuffer, nullptr, &stagingBuffer.mBufferMemory);
@@ -80,15 +87,15 @@ namespace fre
 			//1. Create pointer in CPU-side memory
 			void* mappedData;
 			//Map the vertex buffer memory to that pointer
-			VK_CHECK(vkMapMemory(mainDevice.logicalDevice, stagingBuffer.mBufferMemory, 0, size, 0, &mappedData));
+			VK_CHECK(vkMapMemory(mainDevice.logicalDevice, stagingBuffer.mBufferMemory, 0, bufSize, 0, &mappedData));
 			if(data != nullptr)
 			{
 				//Copy memory from vertices vector to the point
-				memcpy(mappedData, data, size);
+				memcpy(mappedData, data, dataSize);
 			}
 			else
 			{
-                memset(mappedData, 0, size);
+                memset(mappedData, 0, bufSize);
 			}
 			//Unamp buffer memory
 			vkUnmapMemory(mainDevice.logicalDevice, stagingBuffer.mBufferMemory);
@@ -102,24 +109,25 @@ namespace fre
 			LOG_ERROR("Unknown exception");
 		}
 
+        uint32_t result = mBuffers.size();
 		mBuffers.push_back(VulkanBuffer());
 		auto& buffer = mBuffers.back();
 		//Create destination vertex buffer for GPU memory
 		const bool deviceAddressRequested = (bufferUsage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) != 0;
-		fre::createBuffer(mainDevice, size,
+		fre::createBuffer(mainDevice, bufSize,
 			VK_BUFFER_USAGE_TRANSFER_DST_BIT | bufferUsage,
 			memoryFlags, deviceAddressRequested ? VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR : 0,
 			&buffer.mBuffer, deviceAddressRequested ? &buffer.mDeviceAddress : nullptr, &buffer.mBufferMemory);
 
 		//Copy staging buffer to vertex buffer on GPU
 		copyBuffer(mainDevice.logicalDevice, transferQueue, transferCommandPool, stagingBuffer.mBuffer,
-			buffer.mBuffer, size);
+			buffer.mBuffer, dataSize);
 
 		//Clean up staging buffer parts
 		vkDestroyBuffer(mainDevice.logicalDevice, stagingBuffer.mBuffer, nullptr);
 		vkFreeMemory(mainDevice.logicalDevice, stagingBuffer.mBufferMemory, nullptr);
 
-		return buffer;
+		return result;
 	}
 
 	const VulkanBuffer& VulkanBufferManager::createExternalBuffer(
@@ -193,14 +201,49 @@ namespace fre
 		return buffer;
 	}
 
+	uint8_t* VulkanBufferManager::map(VkDevice device, uint32_t index, size_t size)
+	{
+		void* result = nullptr;
+
+		if(index < mBuffers.size())
+		{
+			VulkanBuffer& buffer = mBuffers[index];
+			vkMapMemory(device, buffer.mBufferMemory, 0, size, 0, &result);
+		}
+
+        return static_cast<uint8_t*>(result);
+	}
+
+	void VulkanBufferManager::unmap(VkDevice device, const uint32_t index)
+	{
+		if(index < mBuffers.size())
+		{
+			VulkanBuffer& buffer = mBuffers[index];
+			vkUnmapMemory(device, buffer.mBufferMemory);
+		}
+	}
+
+	void VulkanBufferManager::udpateBuffer(VkDevice device, uint32_t index, const void* data, size_t size)
+	{
+		if(index < mBuffers.size())
+		{
+			VulkanBuffer& buffer = mBuffers[index];
+			void* mappedData;
+			vkMapMemory(device, buffer.mBufferMemory, 0, size, 0, &mappedData);
+			memcpy(mappedData, data, size);
+			vkUnmapMemory(device, buffer.mBufferMemory);
+		}
+	}
+
+
 	bool VulkanBufferManager::isBufferAvailable(uint32_t index) const
 	{
 		return index < mBuffers.size();
 	}
 
-	const VulkanBuffer* VulkanBufferManager::getBuffer(uint32_t index) const
+	VulkanBuffer* VulkanBufferManager::getBuffer(uint32_t index)
 	{
-		const VulkanBuffer* result = isBufferAvailable(index) ? &mBuffers[index] : nullptr;
+		VulkanBuffer* result = isBufferAvailable(index) ? &mBuffers[index] : nullptr;
 
 		return result;
 	}

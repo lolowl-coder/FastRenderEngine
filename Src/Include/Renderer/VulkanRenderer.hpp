@@ -50,6 +50,8 @@ namespace fre
 		VulkanRenderer(ThreadPool& threadPool);
 		virtual ~VulkanRenderer();
 		
+		virtual void initUI() {}
+
 		virtual int createCoreGPUResources(GLFWwindow* newWindow);
 		virtual int createDynamicGPUResources();
 		virtual int createMeshGPUResources();
@@ -89,7 +91,7 @@ namespace fre
 		void updateTextureImage(const VulkanTextureInfoPtr& info);
 
 		VulkanBuffer createStagingBuffer(const void* data, size_t size);
-		const VulkanBuffer& createBuffer(VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags, void* data, size_t dataSize);
+		uint32_t createBuffer(VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags, void* data, size_t dataSize);
 		const VulkanBuffer& createExternalBuffer(VkBufferUsageFlags bufferUsage, VkMemoryPropertyFlags memoryFlags,
 			VkExternalMemoryHandleTypeFlagsKHR extMemHandleType, VkDeviceSize size);
 		void copyBuffer(VkBuffer src, VkBuffer dst, size_t dataSize, VkPipelineBindPoint pipelineBindPoint) const;
@@ -104,6 +106,7 @@ namespace fre
 		void addMaterial(Material& material);
 
 		int addShader(const std::string& shaderFileName);
+        const Shader* VulkanRenderer::getShader(const uint32_t shaderId) const;
 		
 		//Load model file
 		MeshModel::Ptr& createMeshModel(std::string modelFile,
@@ -128,8 +131,8 @@ namespace fre
 		//Push shader constants
 		void pushConstants(VkPushConstantRange pushConstants, const void* data, VkPipelineLayout pipelineLayout, VkPipelineBindPoint pipelineBindPoint);
 		void createBarrier(VkBuffer buffer, VkPipelineBindPoint pipelineBindPoint);
-		const VulkanBuffer* getVertexBuffer(const uint32_t meshId) const;
-		const VulkanBuffer* getIndexBuffer(const uint32_t meshId) const;
+		VulkanBuffer* getVertexBuffer(const uint32_t meshId);
+		VulkanBuffer* getIndexBuffer(const uint32_t meshId);
 		//External shader meta data provider
 		void setShaderMetaDataProvider(ShaderMetaDataProvider* provider);
 		//Shader used if no shader was selected for material
@@ -291,6 +294,8 @@ namespace fre
 		void createComputeFences();
 		void createSynchronisation();
 		void createTransferSynchronisation();
+
+		virtual std::vector<const VulkanShader*> getRTShaders(const uint32_t shaderId);
 		void initRayTracing();
 
 	protected:

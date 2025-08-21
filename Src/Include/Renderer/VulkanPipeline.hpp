@@ -16,7 +16,7 @@ namespace fre
     {
         void createGeometryPipeline(
             VkDevice logicalDevice,
-            std::vector<VulkanShader*> shaders,
+            const std::vector<const VulkanShader*>& shaders,
             VkPrimitiveTopology topology,
             uint32_t stride,
             const std::vector<VulkanVertexAttribute>& vertexAttributes,
@@ -39,7 +39,7 @@ namespace fre
             const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& mRayTracingPipelineProperties, VulkanBufferManager& bufferManager);
 
         void createRTPipeline(VkDevice logicalDevice,
-            std::vector<VulkanShader*> shaders,
+            std::vector<const VulkanShader*> shaders,
             std::vector<VkDescriptorSetLayout> descriptorSetLayouts,
             std::vector<VkPushConstantRange> pushConstantRanges);
 

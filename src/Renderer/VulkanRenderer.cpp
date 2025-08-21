@@ -57,7 +57,7 @@ namespace fre
         createTextureInfo(
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			false, image);
@@ -436,17 +436,15 @@ namespace fre
 		return result;
 	}
 
-	const VulkanBuffer& VulkanRenderer::createBuffer(VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags, void* data, size_t dataSize)
+	uint32_t VulkanRenderer::createBuffer(VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags, void* data, size_t dataSize)
 	{
-		const auto& result = mBufferManager.createBuffer(
+		return mBufferManager.createBuffer(
 			mainDevice,
 			mTransferQueue,
 			mTransferCommandPool,
 			usage,
 			memoryFlags,
 			data, dataSize);
-
-		return result;
 	}
 
 	const VulkanBuffer& VulkanRenderer::createExternalBuffer(VkBufferUsageFlags bufferUsage, VkMemoryPropertyFlags memoryFlags,
@@ -777,9 +775,6 @@ namespace fre
 
 	uint32_t VulkanRenderer::createBLAS(MeshPtr& mesh)
 	{
-		auto vertex_buffer_size = mesh->getVertexCount() * mesh->getVertexSize();
-		auto index_buffer_size = mesh->getIndexCount() * sizeof(uint32_t);
-
 		VkTransformMatrixKHR transform_matrix = {
 			1.0f, 0.0f, 0.0f, 0.0f,
 			0.0f, 1.0f, 0.0f, 0.0f,
@@ -792,10 +787,11 @@ namespace fre
 		const VkBufferUsageFlags buffer_usage_flags = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 
 		// Setup a single transformation matrix that can be used to transform the whole geometry for a single bottom level acceleration structure
-		VulkanBuffer transformMatrixBuffer = createBuffer(
+		uint32_t bufferIndex = createBuffer(
 			buffer_usage_flags,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			&transform_matrix, sizeof(transform_matrix));
+        VulkanBuffer* transformMatrixBuffer = mBufferManager.getBuffer(bufferIndex);
 
 		const VulkanBuffer* vbo = getVertexBuffer(mesh->getId());
 		const VulkanBuffer* ibo = getIndexBuffer(mesh->getId());
@@ -811,7 +807,7 @@ namespace fre
 
 		vertexDataDeviceAddress.deviceAddress = vbo->mDeviceAddress;
 		indexDataDeviceAddress.deviceAddress = ibo->mDeviceAddress;
-		transformMatrixDeviceAddress.deviceAddress = transformMatrixBuffer.mDeviceAddress;
+		transformMatrixDeviceAddress.deviceAddress = transformMatrixBuffer->mDeviceAddress;
 
 		VkAccelerationStructureGeometryTrianglesDataKHR triangles{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR };
 		triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
@@ -867,11 +863,12 @@ namespace fre
 
 		const VkMemoryPropertyFlags memoryFlags = 
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-		VulkanBuffer instancesBuffer = createBuffer(bufferUsageFlags, memoryFlags,
+		uint32_t bufferIndex = createBuffer(bufferUsageFlags, memoryFlags,
 			blasInstances.data(), blasInstances.size() * sizeof(VkAccelerationStructureInstanceKHR));
+        VulkanBuffer* instancesBuffer = mBufferManager.getBuffer(bufferIndex);
 		
 		VkDeviceOrHostAddressConstKHR instanceDataDeviceAddress{};
-		instanceDataDeviceAddress.deviceAddress = instancesBuffer.mDeviceAddress;
+		instanceDataDeviceAddress.deviceAddress = instancesBuffer->mDeviceAddress;
 
 		// The top level acceleration structure contains (bottom level) instance as the input geometry
 		VkAccelerationStructureGeometryKHR asGeometry{};
@@ -915,11 +912,12 @@ namespace fre
 		auto result = mAccelerationStructures.size();
 		mAccelerationStructures.emplace_back(AccelerationStructure());
 		AccelerationStructure& as = mAccelerationStructures.back();
-		as.mBuffer = createBuffer(
+		uint32_t bufferIndex = createBuffer(
 			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			nullptr,
 			asBuildSizesInfo.accelerationStructureSize);
+        as.mBuffer = *mBufferManager.getBuffer(bufferIndex);
 
 		// Create the acceleration structure
 		VkAccelerationStructureCreateInfoKHR asCreateInfo{};
@@ -932,11 +930,12 @@ namespace fre
 		// The actual build process starts here
 
 		// Create a scratch buffer as a temporary storage for the acceleration structure build
-		VulkanBuffer scratchBuffer = createBuffer(
+		bufferIndex = createBuffer(
 			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			nullptr,
 			asBuildSizesInfo.buildScratchSize);
+        VulkanBuffer scratchBuffer = *mBufferManager.getBuffer(bufferIndex);
 
 		VkAccelerationStructureBuildGeometryInfoKHR asBuildGeometryInfo{};
 		asBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
@@ -1345,6 +1344,39 @@ namespace fre
 		mUIDescriptorPool = getDescriptorPool(uiDPId);
 	}
 
+    const Shader* VulkanRenderer::getShader(const uint32_t shaderId) const
+    {
+		const Shader* result = nullptr;
+
+        if(shaderId < mShaders.size())
+        {
+            result = &mShaders[shaderId];
+        }
+        else
+        {
+            LOG_ERROR("Shader with ID {} not found", shaderId);
+        }
+
+		return result;
+    }
+
+	std::vector<const VulkanShader*> VulkanRenderer::getRTShaders(const uint32_t shaderId)
+	{
+		std::vector<const VulkanShader*> result;
+        const Shader* shader = getShader(shaderId);
+		if(shader != nullptr)
+		{
+			result =
+			{
+				&shader->mRayGenShader,
+				&shader->mRayMissShader,
+				&shader->mRayClosestHitShader
+			};
+		}
+
+		return result;
+	}
+
 	void VulkanRenderer::createPipelines()
 	{
 		for(auto& shader : mShaders)
@@ -1403,9 +1435,9 @@ namespace fre
 					shader.mRTPipelineIds.push_back(static_cast<uint32_t>(mPipelines.size()));
 					mPipelines.push_back(VulkanPipeline());
 					auto& pipeline = mPipelines.back();
+                    std::vector<const VulkanShader*> rtShaders = getRTShaders(shader.mId);
 					pipeline.createRTPipeline(
-						mainDevice.logicalDevice,
-						{&shader.mRayGenShader, &shader.mRayMissShader,&shader.mRayClosestHitShader},
+						mainDevice.logicalDevice, rtShaders,
 						dsls,
 						shaderMetaData.mPushConstantRanges);
 					pipeline.createShaderBindingTables(mainDevice, mTransferQueue, mTransferCommandPool,
@@ -1577,7 +1609,7 @@ namespace fre
 
 					if(shaderMetaData.mSubPassIndex == subPass && pipeline.mBindPoint == pipelineBindPoint) 
 					{
-						LOG_DEBUG("Render mesh: subpass {}, id {}, shader {}", subPass, mesh->getId(), shader.mName);
+						//LOG_DEBUG("Render mesh: subpass {}, id {}, shader {}", subPass, mesh->getId(), shader.mName);
 						if(mesh->getBeforeRecordCallback() != nullptr)
 						{
 							mesh->getBeforeRecordCallback()(this, subPass, pipelineBindPoint);
@@ -1689,7 +1721,7 @@ namespace fre
 								VkStridedDeviceAddressRegionKHR miss_shader_sbt_entry{};
 								miss_shader_sbt_entry.deviceAddress = pipeline.mMissShaderBindingTable.mDeviceAddress;
 								miss_shader_sbt_entry.stride = handle_size_aligned;
-								miss_shader_sbt_entry.size = handle_size_aligned;
+								miss_shader_sbt_entry.size = handle_size_aligned * 2;
 
 								VkStridedDeviceAddressRegionKHR hit_shader_sbt_entry{};
 								hit_shader_sbt_entry.deviceAddress = pipeline.mHhitShaderBindingTable.mDeviceAddress;
@@ -1884,19 +1916,19 @@ namespace fre
 			buffer, 0, VK_INDEX_TYPE_UINT32);
 	}
 
-	const VulkanBuffer* VulkanRenderer::getVertexBuffer(const uint32_t meshId) const
+	VulkanBuffer* VulkanRenderer::getVertexBuffer(const uint32_t meshId)
 	{
 		const auto found = mMeshToVertexBufferMap.find(meshId);
-		const VulkanBuffer* result = found == mMeshToVertexBufferMap.end() ? nullptr :
+		VulkanBuffer* result = found == mMeshToVertexBufferMap.end() ? nullptr :
 			mBufferManager.getBuffer(found->second);
 
 		return result;
 	}
 
-	const VulkanBuffer* VulkanRenderer::getIndexBuffer(const uint32_t meshId) const
+	VulkanBuffer* VulkanRenderer::getIndexBuffer(const uint32_t meshId)
 	{
 		const auto found = mMeshToIndexBufferMap.find(meshId);
-		const VulkanBuffer* result = found == mMeshToIndexBufferMap.end() ? nullptr :
+		VulkanBuffer* result = found == mMeshToIndexBufferMap.end() ? nullptr :
 			mBufferManager.getBuffer(found->second);
 
 		return result;
@@ -1904,7 +1936,7 @@ namespace fre
 
 	void VulkanRenderer::recordCommands(const Camera& camera, const Light& light)
 	{
-		LOG_DEBUG("recordCommands");
+		//LOG_DEBUG("recordCommands");
 
 		mGraphicsCommandBuffers[mImageIndex].begin();
 
@@ -1923,7 +1955,7 @@ namespace fre
 			}
 		}
 
-		LOG_DEBUG("Draw UI");
+		//LOG_DEBUG("Draw UI");
 		drawUI();
 
 		mRenderPass.end(commandBuffer);

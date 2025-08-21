@@ -1,10 +1,9 @@
 #include "Renderer/ShaderInputParser.hpp"
 #include "Renderer/VulkanDescriptorSetLayout.hpp"
+#include "Defines.hpp"
 #include "Log.hpp"
 
 #include "spirv_reflect.h"
-
-#define MAX_TEXTURES_COUNT 4
 
 namespace fre
 {
@@ -54,7 +53,7 @@ namespace fre
 				{
 					if(reflBinding.array.dims[k] == 0)
 					{
-						layoutInfos[reflSet.set].mDescriptorCount[reflBinding.binding] = MAX_TEXTURES_COUNT;
+						layoutInfos[reflSet.set].mDescriptorCount[reflBinding.binding] = MAX_TEXTURES_ARRAY_SIZE;
 					}
 					else
 					{

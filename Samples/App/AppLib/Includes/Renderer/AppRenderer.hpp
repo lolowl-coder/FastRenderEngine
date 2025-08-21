@@ -12,11 +12,9 @@ namespace app
 	class AppRenderer : public fre::VulkanRenderer
 	{
 	public:
-		AppRenderer(fre::ThreadPool& threadPool)
-			: VulkanRenderer(threadPool)
-		{
-		}
+		AppRenderer(fre::ThreadPool& threadPool);
 
+		virtual void initUI() override;
 		virtual int createDynamicGPUResources() override;
 		virtual int createMeshGPUResources() override;
 
@@ -28,6 +26,7 @@ namespace app
         virtual void createSwapChain() override;
 		virtual void update(const fre::Camera& camera, const fre::Light& light) override;
 
+		virtual std::vector<const fre::VulkanShader*> getRTShaders(const uint32_t shaderId) override;
 		virtual fre::ShaderMetaDatum getShaderMetaData(const std::string& shaderFileName) override;
 
 	private:
@@ -38,6 +37,7 @@ namespace app
 		uint32_t createRTTexture(uint32_t textureId);
 		void createSceneGPU();
 		void createScene();
+		void updateMaterials();
 
 	private:
         fre::VulkanTexturePtr mStorageImage;
@@ -69,13 +69,17 @@ namespace app
 		fre::VulkanDescriptorPtr mRTCameraDescriptor;
 		fre::VulkanDescriptorPtr mRTTexturesDescriptor;
 
-		VkPushConstantRange mCameraMatricesPCR;
 		std::vector<fre::MeshPtr> mRTMeshes;
 		fre::VulkanBuffer mRTMeshesGPUBuffer;
+		uint32_t mRTMaterialsGPUBufferIndex = MAX(uint32_t);
 		fre::VulkanBuffer mRTMaterialsGPUBuffer;
+        uint32_t mRTCameraBufferIndex = MAX(uint32_t);
+        fre::VulkanBuffer mRTMeshesBuffer;
+        fre::VulkanBuffer mRTMaterialsBuffer;
 		fre::VulkanBuffer mRTCameraBuffer;
         std::vector<VkImageView> mTextureViews;
         std::vector<VkSampler> mTextureSamplers;
+		uint32_t mShadowMissShaderId = MAX(uint32_t);
 
         fre::RTCamera mRTCamera;
 	};

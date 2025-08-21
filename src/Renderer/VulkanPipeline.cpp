@@ -7,7 +7,7 @@
 
 namespace fre
 {
-	std::vector<VkPipelineShaderStageCreateInfo> getPipelineShaderStageCreateInfo(const std::vector<VulkanShader*> shaders)
+	std::vector<VkPipelineShaderStageCreateInfo> getPipelineShaderStageCreateInfo(const std::vector<const VulkanShader*>& shaders)
 	{
 		std::vector<VkPipelineShaderStageCreateInfo> result;
 		for(auto shader : shaders)
@@ -47,7 +47,7 @@ namespace fre
 
     void VulkanPipeline::createGeometryPipeline(
 		VkDevice logicalDevice,
-		std::vector<VulkanShader*> shaders,
+		const std::vector<const VulkanShader*>& shaders,
 		VkPrimitiveTopology topology,
 		uint32_t stride,
         const std::vector<VulkanVertexAttribute>& vertexAttributes,
@@ -237,30 +237,57 @@ namespace fre
 		const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& mRayTracingPipelineProperties,
 		VulkanBufferManager& bufferManager)
 	{
+		std::vector<uint32_t> rgen_index{ 0 };
+		std::vector<uint32_t> miss_index{ 1, 2 };
+		std::vector<uint32_t> hit_index{ 3 };
+
 		const uint32_t           handle_size = mRayTracingPipelineProperties.shaderGroupHandleSize;
-		const uint32_t           handle_size_aligned = alignedSize(mRayTracingPipelineProperties.shaderGroupHandleSize, mRayTracingPipelineProperties.shaderGroupHandleAlignment);
 		const uint32_t           handle_alignment = mRayTracingPipelineProperties.shaderGroupHandleAlignment;
-		const uint32_t           group_count = static_cast<uint32_t>(mShaderGroups.size());
-		const uint32_t           sbt_size = group_count * handle_size_aligned;
+		const uint32_t           handle_size_aligned = alignedSize(handle_size, handle_alignment);
 		const VkBufferUsageFlags sbt_buffer_usage_flags = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 		const VkMemoryPropertyFlags     sbt_memory_usage = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
 		// Copy the pipeline's shader handles into a host buffer
+		const uint32_t group_count = static_cast<uint32_t>(rgen_index.size() + miss_index.size() + hit_index.size());
+		const auto sbt_size = group_count * handle_size_aligned;
 		std::vector<uint8_t> shader_handle_storage(sbt_size);
 		VK_CHECK(vkGetRayTracingShaderGroupHandlesKHR(mainDevice.logicalDevice, mPipeline, 0, group_count, sbt_size, shader_handle_storage.data()));
 
-		// Raygen
 		// Create binding table buffers for each shader type
-		mRaygenShaderBindingTable = bufferManager.createBuffer(mainDevice, transferQueue, transferCommandPool,
-			sbt_buffer_usage_flags, sbt_memory_usage, shader_handle_storage.data(), handle_size);
-		mMissShaderBindingTable = bufferManager.createBuffer(mainDevice, transferQueue, transferCommandPool,
-			sbt_buffer_usage_flags, sbt_memory_usage, shader_handle_storage.data() + handle_size_aligned, handle_size);
-		mHhitShaderBindingTable = bufferManager.createBuffer(mainDevice, transferQueue, transferCommandPool,
-			sbt_buffer_usage_flags, sbt_memory_usage, shader_handle_storage.data() + handle_size_aligned * 2, handle_size);
+		uint8_t* data = shader_handle_storage.data();
+		uint32_t bufSize = handle_size_aligned * rgen_index.size();
+		uint32_t dataSize = handle_size * rgen_index.size();
+		uint32_t bufferIndex = bufferManager.createBuffer(mainDevice, transferQueue, transferCommandPool,
+			sbt_buffer_usage_flags, sbt_memory_usage, data, bufSize, dataSize);
+		data += dataSize;
+        mRaygenShaderBindingTable = *bufferManager.getBuffer(bufferIndex);
+
+		// Miss shader SBT is different a bit because it contains multiple shader indices
+		bufSize = handle_size_aligned * miss_index.size();
+		dataSize = handle_size * miss_index.size();
+		bufferIndex = bufferManager.createBuffer(mainDevice, transferQueue, transferCommandPool,
+			sbt_buffer_usage_flags, sbt_memory_usage, nullptr, bufSize);
+
+		// Copy element wise, because of alignment difference
+		uint8_t* mappedData = bufferManager.map(mainDevice.logicalDevice, bufferIndex, bufSize);
+		for(int i = 0; i < miss_index.size(); i++)
+		{
+			memcpy(mappedData, data, handle_size);
+			mappedData += handle_size_aligned;
+			data += handle_size;
+		}
+        mMissShaderBindingTable = *bufferManager.getBuffer(bufferIndex);
+
+		bufSize = handle_size_aligned * hit_index.size();
+		dataSize = handle_size * hit_index.size();
+		bufferIndex = bufferManager.createBuffer(mainDevice, transferQueue, transferCommandPool,
+			sbt_buffer_usage_flags, sbt_memory_usage, data, bufSize, dataSize);
+
+		mHhitShaderBindingTable = *bufferManager.getBuffer(bufferIndex);
 	}
 
 	void VulkanPipeline::createRTPipeline(VkDevice logicalDevice,
-		std::vector<VulkanShader*> shaders,
+		std::vector<const VulkanShader*> shaders,
 		std::vector<VkDescriptorSetLayout> descriptorSetLayouts,
 		std::vector<VkPushConstantRange> pushConstantRanges)
 	{
@@ -297,7 +324,7 @@ namespace fre
 		raytracing_pipeline_create_info.pStages = shaderStageInfos.data();
 		raytracing_pipeline_create_info.groupCount = static_cast<uint32_t>(mShaderGroups.size());
 		raytracing_pipeline_create_info.pGroups = mShaderGroups.data();
-		raytracing_pipeline_create_info.maxPipelineRayRecursionDepth = 1;
+		raytracing_pipeline_create_info.maxPipelineRayRecursionDepth = 2;
 		raytracing_pipeline_create_info.layout = mPipelineLayout;
 		VK_CHECK(vkCreateRayTracingPipelinesKHR(logicalDevice, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &raytracing_pipeline_create_info, nullptr, &mPipeline));
 		
