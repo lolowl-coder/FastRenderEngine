@@ -28,6 +28,7 @@ namespace fre
 {
 	const int MAX_FRAME_DRAWS = 3;
 	const int MAX_OBJECTS = 40;
+	const int MAX_POOL_CAPACITY = 128;
 	const EAttachmentKind COLOR_ATTACHMENT = EAttachmentKind::Color;
 	const EAttachmentKind POSITION_ATTACHMENT = EAttachmentKind::Color16;
 	const EAttachmentKind DEPTH_ATTACHMENT = EAttachmentKind::DepthStencil;

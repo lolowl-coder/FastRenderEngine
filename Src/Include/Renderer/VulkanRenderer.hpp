@@ -182,6 +182,8 @@ namespace fre
 
 		void setHasExternalResources(bool hasExternalResources) { mHasExternalResources = hasExternalResources; }
 
+		FIELD_NS(bool, RTEnabled, private, public, public);
+
 	protected:
 		BoundingBox2D getViewport() const;
 		virtual void createPipelines();

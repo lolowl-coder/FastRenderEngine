@@ -50,6 +50,7 @@ namespace fre
 	
 	VulkanRenderer::VulkanRenderer(ThreadPool& threadPool)
 	: mThreadPool(threadPool)
+	, mRTEnabled(true)
 	{
 		LOG_TRACE("Number of concurent threads: {}", std::thread::hardware_concurrency());
 		Image image;
@@ -285,7 +286,7 @@ namespace fre
         return mDescriptorPoolCache.findOrCreate(key, [this](const VulkanDescriptorPoolKey& key)
             {
                 VulkanDescriptorPoolPtr dp = std::make_shared<VulkanDescriptorPool>();
-                dp->create(mainDevice.logicalDevice, /*MAX_FRAME_DRAWS*/32, key.mPoolSizes, key.mFlags);
+                dp->create(mainDevice.logicalDevice, MAX_POOL_CAPACITY, key.mPoolSizes, key.mFlags);
                 return dp;
             });
 	};
@@ -1881,10 +1882,18 @@ namespace fre
 			loadShader(shaderFileName, descriptorTypes);
 		}
 
+		int totalDescriptorsCount = 0;
+		for(const auto& [descriptorType, count] : descriptorTypes)
+		{
+			totalDescriptorsCount += count;
+		}
+
 		VulkanDescriptorPoolKey descriptorPoolKey;
         for(const auto& [descriptorType, count] : descriptorTypes)
 		{
-            descriptorPoolKey.mPoolSizes.push_back({ descriptorType, count * MAX_FRAME_DRAWS });
+            // Calculate count of this descriptor type on their percentage relative to total descriptors
+            const uint32_t cnt = MAX_POOL_CAPACITY * (count / static_cast<float>(totalDescriptorsCount));
+            descriptorPoolKey.mPoolSizes.push_back({ descriptorType, cnt });
 		}
         
 		mSharedDescriptorPoolId = createDescriptorPool(descriptorPoolKey);
@@ -2629,7 +2638,14 @@ namespace fre
 		{
 			if(material.hasTextureTypes({aiTextureType_BASE_COLOR, aiTextureType_NORMALS, aiTextureType_METALNESS}))
 			{
-				shaderFileName = "pbr";
+				if(mRTEnabled)
+				{
+					shaderFileName = "rt";
+				}
+				else
+				{
+					shaderFileName = "pbr";
+				}
 			}
 			else if(material.hasTextureTypes({aiTextureType_DIFFUSE, aiTextureType_NORMALS}))
 			{
