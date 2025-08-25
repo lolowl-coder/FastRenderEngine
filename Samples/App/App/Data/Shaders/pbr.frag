@@ -34,7 +34,7 @@ float D_GGX(float dotNH, float roughness)
 	float alpha = roughness * roughness;
 	float alpha2 = alpha * alpha;
 	float denom = dotNH * dotNH * (alpha2 - 1.0) + 1.0;
-	return (alpha2)/(PI * denom*denom); 
+	return (alpha2)/(PI * denom * denom); 
 }
 
 // Geometric Shadowing function --------------------------------------

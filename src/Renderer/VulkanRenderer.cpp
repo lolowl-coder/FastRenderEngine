@@ -31,6 +31,8 @@
 #include <stdexcept>
 #include <mutex>
 
+#include <assimp/scene.h>
+
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
@@ -776,6 +778,14 @@ namespace fre
 
 	uint32_t VulkanRenderer::createBLAS(MeshPtr& mesh)
 	{
+		const VulkanBuffer* vbo = getVertexBuffer(mesh->getId());
+		const VulkanBuffer* ibo = getIndexBuffer(mesh->getId());
+
+        if(vbo == nullptr || ibo == nullptr)
+        {
+            throw std::runtime_error("VulkanRenderer::createBLAS: Vertex or index buffer not found for mesh");
+        }
+
 		VkTransformMatrixKHR transform_matrix = {
 			1.0f, 0.0f, 0.0f, 0.0f,
 			0.0f, 1.0f, 0.0f, 0.0f,
@@ -793,14 +803,6 @@ namespace fre
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			&transform_matrix, sizeof(transform_matrix));
         VulkanBuffer* transformMatrixBuffer = mBufferManager.getBuffer(bufferIndex);
-
-		const VulkanBuffer* vbo = getVertexBuffer(mesh->getId());
-		const VulkanBuffer* ibo = getIndexBuffer(mesh->getId());
-
-        if(vbo == nullptr || ibo == nullptr)
-        {
-            throw std::runtime_error("VulkanRenderer::createBLAS: Vertex or index buffer not found for mesh");
-        }
 
 		VkDeviceOrHostAddressConstKHR vertexDataDeviceAddress{};
 		VkDeviceOrHostAddressConstKHR indexDataDeviceAddress{};
@@ -1740,12 +1742,19 @@ namespace fre
 									mSwapChain.mSwapChainExtent.width,
 									mSwapChain.mSwapChainExtent.height,
 									1);
+
+                                mTraced = true;
 							}
 							break;
 						}
 						if(mesh->getAfterRecordCallback() != nullptr)
 						{
 							mesh->getAfterRecordCallback()(this, subPass, pipelineBindPoint);
+						}
+
+						if(mRTEnabled && mTraced)
+						{
+							break;
 						}
 					}
 				}
@@ -1755,6 +1764,7 @@ namespace fre
 
 	void VulkanRenderer::recordSceneCommands(const Camera& camera, const Light& light, VkPipelineBindPoint pipelineBindPoint, uint32_t subPass)
 	{
+		mTraced = false;
 		for (size_t j = 0; j < mMeshModels.size(); j++)
 		{
 			auto& model = mMeshModels[j];
@@ -1777,6 +1787,11 @@ namespace fre
 				if(mesh->getAfterVisitCallback())
 				{
 					mesh->getAfterVisitCallback()(this, subPass, pipelineBindPoint);
+				}
+
+				if(mTraced && mRTEnabled)
+				{
+					break;
 				}
 			}
 		}
@@ -2680,7 +2695,7 @@ namespace fre
 	}
 
 	MeshModel::Ptr& VulkanRenderer::createMeshModel(std::string modelFile,
-		const std::vector<aiTextureType>& texturesLoadTypes)
+		const std::vector<aiTextureType>& texturesLoadTypes, const mat4& sceneTransform)
 	{
 		//Import model scene
 		Assimp::Importer importer;
@@ -2698,8 +2713,15 @@ namespace fre
 		for (uint32_t m = 0; m < scene->mNumMaterials; m++)
 		{
 			aiMaterial* externalMaterial = scene->mMaterials[m];
+
+			int iShading;
+			if(AI_SUCCESS == aiGetMaterialInteger(externalMaterial, AI_MATKEY_SHADING_MODEL, &iShading))
+			{
+				LOG_INFO("Material {} shading model: {}", m, aiShadingModeToString(static_cast<aiShadingMode>(iShading)));
+			}
+
 			Material material;
-			externalMaterial->Get(AI_MATKEY_SHININESS, material.mShininess);
+			aiGetMaterialFloat(externalMaterial, AI_MATKEY_ROUGHNESS_FACTOR, &material.mShininess);
 			if(areEqual(material.mShininess, 0.0f))
 			{
 				material.mShininess = mDefaultShininess;
@@ -2734,8 +2756,9 @@ namespace fre
 		}
 
 		//Load all meshes
+        mat4 rootTransform = aiToGlm(scene->mRootNode->mTransformation);
 		MeshModel::MeshList modelMeshes = MeshModel::loadNode(
-			scene->mRootNode, scene, mSceneBoundingBox, materialsOffset);
+			scene->mRootNode, scene, mSceneBoundingBox, materialsOffset, sceneTransform * rootTransform);
 
 		return addMeshModel(modelMeshes);
 	}

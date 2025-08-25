@@ -25,7 +25,7 @@ namespace app
 
 	void AppRenderer::initUI()
 	{
-		addUIRenderCallback
+		/*addUIRenderCallback
 		(
 			[this]()
 			{
@@ -47,7 +47,7 @@ namespace app
 					ImGui::End();
 				}
 			}
-		);
+		);*/
 	}
 
 	void AppRenderer::requestExtensions()
@@ -252,42 +252,21 @@ namespace app
 	{
 		//mMeshModel = createMeshModel("Models/unitQuad/unitQuad.obj", {});
 		//mMeshModel = createMeshModel("Models/unitCube/unitCube.obj", {});
-		mMeshModel = createMeshModel("Models/fish/scene.gltf", { aiTextureType_NORMALS, aiTextureType_BASE_COLOR });
+        mat4 sceneTransform = rotate(mat4(1.0f), glm::half_pi<float>(), vec3(1.0f, 0.0f, 0.0f));
+		mMeshModel = createMeshModel("Models/pool1/scene.gltf", { aiTextureType_NORMALS, aiTextureType_BASE_COLOR, aiTextureType_METALNESS }, sceneTransform);
 		mMeshModel->setVisible(false);
-        mMesh = mMeshModel->getMesh(0);
-		Material& material = getMaterial(mMesh->getMaterialId());
         auto shaderId = addShader("rt");
-		material.mShaderFileName = "rt";
-        material.mShaderId = shaderId;
-		material.mShininess = 0.0f;
         mShadowMissShaderId = addShader("shadow");
 
-		//Create instances of the same mesh with different BASE_COLOR texture
-		auto mesh0 = std::make_shared<Mesh>();
-		*mesh0 = *mMesh;
-		auto& material0 = getMaterial(mMesh->getMaterialId());
-		auto mesh1 = std::make_shared<Mesh>();
-        //Create a new material with the same shader and different texture
-		Material material1;
-		material1.mShaderFileName = material0.mShaderFileName;
-		material1.mShaderId = material0.mShaderId;
-		material1.mShininess = 0.2f;
-		material1.mTextureIds = material0.mTextureIds;
-		//Create texture for second material instance
-		auto& texInfo0 = getTextureInfo(material0.mId);
-		Image image1;
-		image1.mFileName = "test.jpg";
-		auto textureInfoIndex1 = createTextureInfo(texInfo0->mAddressMode, texInfo0->mTiling, texInfo0->mUsageFlags, texInfo0->mMemoryFlags, texInfo0->mLayout, false, image1);
-        //Update texture id in the material
-		material1.mTextureIds[aiTextureType_BASE_COLOR] = textureInfoIndex1;
-		*mesh1 = *mMesh;
-		mesh1->setMaterialId(material1.mId);
-        //Add materials to the renderer
-        addMaterial(material1);
-
-		//Collect RT meshes
-		mRTMeshes.push_back(mesh0);
-		mRTMeshes.push_back(mesh1);
+		const int meshCount = mMeshModel->getMeshCount();
+		for(int i = 0; i < meshCount; i++)
+		{
+			auto& mesh = mMeshModel->getMesh(i);
+			auto& material = getMaterial(mesh->getMaterialId());
+			material.mShaderFileName = "rt";
+			material.mShaderId = shaderId;
+			mRTMeshes.push_back(mesh);
+		}
 	}
 	
 	void AppRenderer::createResultMesh()
@@ -356,8 +335,16 @@ namespace app
 			{
 				rtMaterialGPU.mNormalMap = 0;
 			}
+			if(material.mTextureIds.find(aiTextureType_METALNESS) != material.mTextureIds.end())
+			{
+				rtMaterialGPU.mMetallness = material.mTextureIds[aiTextureType_METALNESS];
+			}
+			else
+			{
+				rtMaterialGPU.mMetallness = 0;
+			}
 			//TODO fix specular
-			rtMaterialGPU.mSpecular = mLighting.lightSpecularColor;
+			rtMaterialGPU.mSpecular = vec3(0.2f, 0.2f, 0.15f);
 			rtMaterialGPU.mShininess = material.mShininess;
 			rtMaterialsGPU.emplace_back(rtMaterialGPU);
 		}
@@ -410,20 +397,15 @@ namespace app
 	void AppRenderer::createAS()
 	{
 		//Create BLAS for each mesh
-		auto blasIndex0 = createBLAS(mRTMeshes[0]);
-		auto blasIndex1 = createBLAS(mRTMeshes[1]);
-
-		mat4 matrix0 = mat4(1.0f);
-		mat4 matrix1 = translate(mat4(1.0f), vec3(0.0f, 0.0f, 3.0f));
-        matrix1 = scale(matrix1, vec3(-0.5f, 0.5f, 0.5f));
-
+		std::vector<VkAccelerationStructureInstanceKHR> blasInstances;
+        for(auto& mesh : mRTMeshes)
+        {
+            auto blasIndex = createBLAS(mesh);
+			mat4 matrix = mesh->getModelMatrix();
+			blasInstances.push_back(createBlasInstance(blasIndex, matrix));
+        }
+		
 		createSceneGPU();
-
-		std::vector<VkAccelerationStructureInstanceKHR> blasInstances =
-		{
-			createBlasInstance(blasIndex0, matrix0),
-			createBlasInstance(blasIndex1, matrix1)
-		};
 
 		auto tlasIndex = createTLAS(blasInstances);
 		mTLAS = getAS(tlasIndex);
@@ -437,9 +419,9 @@ namespace app
 		mRTCameraDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, mRTCameraBuffer.mBuffer);
 		mRTMeshesGPUDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mRTMeshesGPUBuffer.mBuffer);
 		mRTMaterialsGPUDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mRTMaterialsGPUBuffer.mBuffer);
-		mRTTexturesDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mTextureViews, mTextureSamplers);
+ 		mRTTexturesDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mTextureViews, mTextureSamplers);
 
-		mMesh->setDescriptors({ {mTLASDescriptor, mStorageImageDescriptor, mRTCameraDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor, mRTTexturesDescriptor} });
+		mMeshModel->getMesh(0)->setDescriptors({ {mTLASDescriptor, mStorageImageDescriptor, mRTCameraDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor, mRTTexturesDescriptor} });
 		mMeshModel->setVisible(true);
 
 		mResultMesh->setVisible(true);

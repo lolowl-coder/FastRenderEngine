@@ -44,14 +44,17 @@ namespace fre
 	}
 
 	std::vector<Mesh::Ptr> MeshModel::loadNode(aiNode* node, const aiScene* scene,
-		BoundingBox3D& bb, uint32_t materialOffset)
+		BoundingBox3D& bb, uint32_t materialOffset, const mat4 parentTransform)
 	{
 		std::vector<Mesh::Ptr> meshList;
+
+		mat4 localTransform = aiToGlm(node->mTransformation);
+		mat4 globalTransform = parentTransform * localTransform;
 
 		for (size_t i = 0; i < node->mNumMeshes; i++)
 		{
 			meshList.push_back(
-				loadMesh(scene->mMeshes[node->mMeshes[i]], bb, materialOffset)
+				loadMesh(scene->mMeshes[node->mMeshes[i]], bb, materialOffset, globalTransform)
 			);
 		}
 
@@ -59,20 +62,21 @@ namespace fre
 		//then append their meshes to this node's mesh list
 		for (size_t i = 0; i < node->mNumChildren; i++)
 		{
-			std::vector<Mesh::Ptr> newList = loadNode(node->mChildren[i], scene, bb, materialOffset);
+			std::vector<Mesh::Ptr> newList = loadNode(node->mChildren[i], scene, bb, materialOffset, globalTransform);
 			meshList.insert(meshList.end(), newList.begin(), newList.end());
 		}
 
 		return meshList;
 	}
 
-	Mesh::Ptr MeshModel::loadMesh(aiMesh * mesh, BoundingBox3D& bb, uint32_t materialOffset)
+	Mesh::Ptr MeshModel::loadMesh(aiMesh * mesh, BoundingBox3D& bb, uint32_t materialOffset, const mat4 transform)
 	{
 		//sync with mesh vertex numbers
 		Mesh::Ptr newMesh(new Mesh(mesh->mMaterialIndex + materialOffset));
 		BoundingBox3D thisBB;
 		Mesh::Vertices vertices;
 		vertices.resize(mesh->mNumVertices * sizeof(Vertex));
+        newMesh->setModelMatrix(transform);
 		for (size_t i = 0; i < mesh->mNumVertices; i++)
 		{
 			auto* vertex = static_cast<Vertex*>((void*)&vertices[i * sizeof(Vertex)]);

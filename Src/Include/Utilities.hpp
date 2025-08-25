@@ -17,6 +17,9 @@
 
 #include <vector>
 #include <fstream>
+
+#include <assimp/scene.h>
+
 #include <glm/glm.hpp>
 
 #define SCENE_SCALE 1.0f
@@ -240,4 +243,8 @@ namespace fre
 	}
 
 	bool endsWith(const std::string& str, const std::string& suffix);
+
+	glm::mat4 aiToGlm(const aiMatrix4x4& m);
+
+	std::string aiShadingModeToString(aiShadingMode mode);
 }

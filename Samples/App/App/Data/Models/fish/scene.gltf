@@ -7824,10 +7824,10 @@
   ],
   "images": [
     {
-      "uri": "Textures/fish/SimplygonCastMaterial_baseColor.jpeg"
+      "uri": "fish/SimplygonCastMaterial_baseColor.jpeg"
     },
     {
-      "uri": "Textures/fish/SimplygonCastMaterial_normal.png"
+      "uri": "fish/SimplygonCastMaterial_normal.png"
     }
   ],
   "materials": [

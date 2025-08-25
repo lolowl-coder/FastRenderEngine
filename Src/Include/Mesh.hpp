@@ -68,6 +68,8 @@ namespace fre
 
         FIELD_NS(std::vector<std::vector<VulkanDescriptorPtr>>, Descriptors, private, public, public);
 
+        FIELD_NS(glm::mat4, ModelMatrix, private, public, public);
+
 	public:
 		//Callback to pass variables to shader
 		PushConstantCallback mPushConstantsCallback = nullptr;

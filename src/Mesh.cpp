@@ -7,6 +7,7 @@ namespace fre
 	Mesh::Mesh()
 		: mId(gMeshId++)
 		, mGeneratedVerticesCount(0)
+        , mModelMatrix(glm::mat4(1.0f))
 	{
 	}
 
@@ -14,6 +15,7 @@ namespace fre
 		: mId(gMeshId++)
 		, mMaterialId(materialId)
 		, mGeneratedVerticesCount(0)
+        , mModelMatrix(glm::mat4(1.0f))
 	{
 		
 	}

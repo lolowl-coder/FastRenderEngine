@@ -29,9 +29,9 @@ namespace fre
 
 		//Creates meshes from assimp node
 		static std::vector<Mesh::Ptr> loadNode(aiNode* node, const aiScene* scene,
-				BoundingBox3D& mn, uint32_t materialOffset);
+				BoundingBox3D& mn, uint32_t materialOffset, const glm::mat4 parentTransform);
 		//Creates single mesh from assimp mesh
-		static Mesh::Ptr loadMesh(aiMesh * mesh, BoundingBox3D& mn, uint32_t materialOffset);
+		static Mesh::Ptr loadMesh(aiMesh * mesh, BoundingBox3D& mn, uint32_t materialOffset, const glm::mat4 transform);
 
 		void setVisible(bool visible) { mVisible = visible; }
 		bool isVisible() { return mVisible; }

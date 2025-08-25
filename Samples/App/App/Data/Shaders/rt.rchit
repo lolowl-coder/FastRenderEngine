@@ -25,6 +25,7 @@ struct Material
 	float mShininess;
 	int mDiffuseMap;
 	int mNormalMap;
+	int mMetallnessMap;
 };
 
 struct Vertex
@@ -64,10 +65,10 @@ vec3 getNormal(int samplerIndex, vec3 vNormal, vec3 vTangent, vec2 uv)
 	return normal;
 }
 
-vec3 computeSpecular(Material mat, vec3 V, vec3 L, vec3 N)
+vec3 computeSpecular(Material mat, float metallness, vec3 V, vec3 L, vec3 N)
 {
 	const float kPi = 3.14159265;
-	const float kShininess = max(mat.mShininess, 4.0);
+	const float kShininess = max(metallness, 4.0);
 
 	// Specular
 	const float kEnergyConservation = (2.0 + kShininess) / (2.0 * kPi);
@@ -122,17 +123,17 @@ void main()
 	P = vec3(gl_ObjectToWorldEXT * vec4(P, 1.0));        // Transforming the position to world space
 
 	// Hardocded light position
-	vec3 lightPos = vec3(0.0, 0.0, 1.0);
+	vec3 lightPos = vec3(1.0, 1.0, 1.0);
 	// To light direction
 	vec3 L = normalize(lightPos);
 
 	float NdotL = dot(N, L);
 
 	vec3 materialDiffuse = texture(textures[mat.mDiffuseMap], uv).rgb;
-
 	vec3 diffuse = materialDiffuse * max(NdotL, 0.3);
-	//diffuse = N;
 	vec3 specular = vec3(0.0);
+
+	float metallness = 1.0 - texture(textures[mat.mMetallnessMap], uv).r;
 
 	// Tracing shadow ray only if the light is visible from the surface
 	//if(NdotL > 0.0)
@@ -161,14 +162,14 @@ void main()
 			diffuse *= 0.3;
 		else
 			// Add specular only if not in shadow
-			specular = computeSpecular(mat, gl_WorldRayDirectionEXT, L, N);
+			specular = computeSpecular(mat, metallness, gl_WorldRayDirectionEXT, L, N);
 	}
 
-	prd.radiance = (diffuse + specular) * (1.0 - mat.mShininess) * prd.attenuation;
+	prd.radiance = (diffuse + specular) * (1.0 - metallness) * prd.attenuation;
 
 	// Reflect
 	vec3 rayDir = reflect(gl_WorldRayDirectionEXT, N);
-	prd.attenuation *= vec3(mat.mShininess);
+	prd.attenuation *= vec3(metallness);
 	prd.rayOrigin = P;
 	prd.rayDir = rayDir;
 }

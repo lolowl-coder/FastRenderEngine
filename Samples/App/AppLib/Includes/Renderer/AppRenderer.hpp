@@ -54,7 +54,6 @@ namespace app
 
         uint32_t mRTShaderId = MAX(uint32_t);
 
-		fre::MeshPtr mMesh;
 		fre::MeshModelPtr mMeshModel;
 		fre::VulkanBuffer mVertexBuffer;
 		fre::VulkanBuffer mIndexBuffer;

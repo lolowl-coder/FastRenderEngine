@@ -72,6 +72,7 @@ namespace fre
 		float mShininess{ 0.f };
         int mDiffuseMap = MAX(int);
         int mNormalMap = MAX(int);
+		int mMetallness = MAX(int);
 	};
 
 	struct RTMeshGPU

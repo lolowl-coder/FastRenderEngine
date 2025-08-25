@@ -478,4 +478,31 @@ namespace fre
 		return str.size() >= suffix.size() &&
 			   str.rfind(suffix) == (str.size() - suffix.size());
 	}
+
+	glm::mat4 aiToGlm(const aiMatrix4x4& m) {
+		return glm::mat4(
+			m.a1, m.b1, m.c1, m.d1,
+			m.a2, m.b2, m.c2, m.d2,
+			m.a3, m.b3, m.c3, m.d3,
+			m.a4, m.b4, m.c4, m.d4
+		);
+	}
+
+	std::string aiShadingModeToString(aiShadingMode mode)
+	{
+		switch(mode) {
+		case aiShadingMode_Flat:          return "Flat";
+		case aiShadingMode_Gouraud:       return "Gouraud";
+		case aiShadingMode_Phong:         return "Phong";
+		case aiShadingMode_Blinn:         return "Blinn";
+		case aiShadingMode_Toon:          return "Toon";
+		case aiShadingMode_OrenNayar:     return "Oren-Nayar";
+		case aiShadingMode_Minnaert:      return "Minnaert";
+		case aiShadingMode_CookTorrance:  return "Cook-Torrance";
+		case aiShadingMode_NoShading:     return "No Shading";
+		case aiShadingMode_Fresnel:       return "Fresnel";
+		case aiShadingMode_PBR_BRDF:      return "PBR, BRDF";
+		default:                          return "Unknown";
+		}
+	}
 }

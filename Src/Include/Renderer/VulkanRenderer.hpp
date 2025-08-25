@@ -110,7 +110,7 @@ namespace fre
 		
 		//Load model file
 		MeshModel::Ptr& createMeshModel(std::string modelFile,
-			const std::vector<aiTextureType>& texturesLoadTypes);
+			const std::vector<aiTextureType>& texturesLoadTypes, const glm::mat4& sceneTransform);
 		//Add model to list
 		MeshModel::Ptr& addMeshModel(const MeshModel::MeshList& meshList);
 		MeshModel::Ptr getMeshModel(uint32_t modelId) const;
@@ -456,5 +456,6 @@ namespace fre
 		bool mUIFrameStarted = false;
 
         MeshPtr mFullscreenTriangleMesh;
+        bool mTraced = false;
 	};
 }
