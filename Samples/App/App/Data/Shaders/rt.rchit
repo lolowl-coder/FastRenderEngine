@@ -130,7 +130,7 @@ void main()
 	float NdotL = dot(N, L);
 
 	vec3 materialDiffuse = texture(textures[mat.mDiffuseMap], uv).rgb;
-	vec3 diffuse = materialDiffuse * max(NdotL, 0.3);
+	vec3 diffuse = materialDiffuse * max(NdotL, 0.8);
 	vec3 specular = vec3(0.0);
 
 	float metallness = 1.0 - texture(textures[mat.mMetallnessMap], uv).r;
@@ -159,7 +159,7 @@ void main()
 		);
 
 		if(isShadowed)
-			diffuse *= 0.3;
+			diffuse *= 0.8;
 		else
 			// Add specular only if not in shadow
 			specular = computeSpecular(mat, metallness, gl_WorldRayDirectionEXT, L, N);
