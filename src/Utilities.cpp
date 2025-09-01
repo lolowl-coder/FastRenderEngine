@@ -505,4 +505,9 @@ namespace fre
 		default:                          return "Unknown";
 		}
 	}
+
+	glm::vec4 toVec4(const aiColor4D& aiColor)
+	{
+		return glm::vec4(aiColor.r, aiColor.g, aiColor.b, aiColor.a);
+	}
 }

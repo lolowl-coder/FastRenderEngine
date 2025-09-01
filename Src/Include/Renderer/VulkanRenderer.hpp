@@ -184,6 +184,9 @@ namespace fre
 
 		FIELD_NS(bool, RTEnabled, private, public, public);
 
+		//Whole scene bounding box
+		FIELD_NS(BoundingBox3D, SceneBoundingBox, protected, public, public);
+
 	protected:
 		BoundingBox2D getViewport() const;
 		virtual void createPipelines();
@@ -337,9 +340,6 @@ namespace fre
 
 		VulkanBufferManager mBufferManager;
 		VulkanTextureManager mTextureManager;
-
-		//Whole scene bounding box
-		BoundingBox3D mSceneBoundingBox;
 
 		// - Assets
 		std::vector<MeshModelPtr> mMeshModels;

@@ -247,4 +247,6 @@ namespace fre
 	glm::mat4 aiToGlm(const aiMatrix4x4& m);
 
 	std::string aiShadingModeToString(aiShadingMode mode);
+
+	glm::vec4 toVec4(const aiColor4D& aiColor);
 }

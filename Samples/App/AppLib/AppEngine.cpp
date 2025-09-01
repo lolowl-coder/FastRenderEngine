@@ -29,7 +29,7 @@ namespace app
     AppEngine::AppEngine()
         : Engine()
     {
-        mCameraPanSpeed = 0.1f;
+        mCameraPanSpeed = 0.01f;
         mCameraZoomSpeed = 0.1f;
 
         FS;
@@ -44,8 +44,6 @@ namespace app
         mRenderer.reset(new AppRenderer(mThreadPool));
 
         mRenderer->setShaderMetaDataProvider(this);
-
-        mCamera.setEye(vec3(0, 0, -10.0f));
 
         initUI();
 
@@ -114,6 +112,12 @@ namespace app
     bool AppEngine::createMeshGPUResources()
     {
 		bool result = Engine::createMeshGPUResources();
+
+        // After loading the model, position the camera to the center of the scene
+        auto bb = mRenderer->getSceneBoundingBox();
+        auto center = bb.getCenter() + vec3(0.0f, 0.0f, -5.0f);
+        mCamera.setEye(center);
+
         return result;
     }
 

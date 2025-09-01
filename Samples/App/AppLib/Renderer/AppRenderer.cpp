@@ -252,21 +252,50 @@ namespace app
 	{
 		//mMeshModel = createMeshModel("Models/unitQuad/unitQuad.obj", {});
 		//mMeshModel = createMeshModel("Models/unitCube/unitCube.obj", {});
-        mat4 sceneTransform = rotate(mat4(1.0f), glm::half_pi<float>(), vec3(1.0f, 0.0f, 0.0f));
-		mMeshModel = createMeshModel("Models/pool1/scene.gltf", { aiTextureType_NORMALS, aiTextureType_BASE_COLOR, aiTextureType_METALNESS }, sceneTransform);
+        //mat4 sceneTransform = rotate(mat4(1.0f), glm::half_pi<float>(), vec3(1.0f, 0.0f, 0.0f));
+		mMeshModel = createMeshModel("Models/pool2/scene.gltf",
+			{
+				aiTextureType_NORMALS, aiTextureType_BASE_COLOR, aiTextureType_METALNESS,
+				aiTextureType_EMISSIVE, aiTextureType_AMBIENT_OCCLUSION, aiTextureType_LIGHTMAP
+			}, mat4(1.0f));
 		mMeshModel->setVisible(false);
         auto shaderId = addShader("rt");
         mShadowMissShaderId = addShader("shadow");
 
+		mat4 sceneTransform = rotate(mat4(1.0f), glm::half_pi<float>(), vec3(1.0f, 0.0f, 0.0f));
+		sceneTransform = translate(sceneTransform, vec3(-mSceneBoundingBox.getCenter()));
+		//mat4 sceneTransform = mat4(1.0f);
+
+        // Apply scene transform to the model
+        mMeshModel->setModelMatrix(sceneTransform * mMeshModel->getModelMatrix());
+
+        // Post-process the model
 		const int meshCount = mMeshModel->getMeshCount();
 		for(int i = 0; i < meshCount; i++)
 		{
 			auto& mesh = mMeshModel->getMesh(i);
+
+            // Force shader to ray tracing shader
 			auto& material = getMaterial(mesh->getMaterialId());
 			material.mShaderFileName = "rt";
 			material.mShaderId = shaderId;
 			mRTMeshes.push_back(mesh);
+
+            // Apply scene transform to each mesh
+			mesh->setModelMatrix(sceneTransform * mesh->getModelMatrix());
+
+			/*std::vector<
+			for(int i = 0; i < mesh->getIndexCount(); i++)
+			{
+				auto index0 = *(((uint32_t*)mesh->getIndexData()) + i);
+				mesh->getVertexData()
+			mEmissives.push_back(*/
 		}
+
+		auto worldCenter = sceneTransform * vec4(mSceneBoundingBox.getCenter(), 1.0f);
+		auto worldSize = sceneTransform * vec4(mSceneBoundingBox.getCenter() + mSceneBoundingBox.getSize(), 1.0f) - worldCenter;
+		mSceneBoundingBox.mMax = worldCenter + worldSize;
+		mSceneBoundingBox.mMin = worldCenter - worldSize;
 	}
 	
 	void AppRenderer::createResultMesh()
@@ -319,13 +348,28 @@ namespace app
 		for(auto& material : mMaterials)
 		{
 			RTMaterialGPU rtMaterialGPU;
+
+            rtMaterialGPU.mBaseColorFactor = material.mBaseColorFactor;
+            rtMaterialGPU.mMetallicFactor = material.mMetallicFactor;
+            rtMaterialGPU.mRoughnessFactor = material.mRoughnessFactor;
+            rtMaterialGPU.mNormalScale = material.mNormalScale;
+            rtMaterialGPU.mOcclusionStrength = material.mOcclusionStrength;
+            rtMaterialGPU.mEmissiveFactor = material.mEmissiveFactor;
 			if(material.mTextureIds.find(aiTextureType_BASE_COLOR) != material.mTextureIds.end())
 			{
-				rtMaterialGPU.mDiffuseMap = material.mTextureIds[aiTextureType_BASE_COLOR];
+				rtMaterialGPU.mBaseColorMap = material.mTextureIds[aiTextureType_BASE_COLOR];
 			}
 			else
 			{
-				rtMaterialGPU.mDiffuseMap = 0;
+				rtMaterialGPU.mBaseColorMap = -1;
+			}
+			if(material.mTextureIds.find(aiTextureType_METALNESS) != material.mTextureIds.end())
+			{
+				rtMaterialGPU.mMetallicRoughnessMap = material.mTextureIds[aiTextureType_METALNESS];
+			}
+			else
+			{
+				rtMaterialGPU.mMetallicRoughnessMap = -1;
 			}
 			if(material.mTextureIds.find(aiTextureType_NORMALS) != material.mTextureIds.end())
 			{
@@ -333,19 +377,33 @@ namespace app
 			}
 			else
 			{
-				rtMaterialGPU.mNormalMap = 0;
+				rtMaterialGPU.mNormalMap = -1;
 			}
-			if(material.mTextureIds.find(aiTextureType_METALNESS) != material.mTextureIds.end())
+			if(material.mTextureIds.find(aiTextureType_EMISSIVE) != material.mTextureIds.end())
 			{
-				rtMaterialGPU.mMetallness = material.mTextureIds[aiTextureType_METALNESS];
+				rtMaterialGPU.mEmissiveMap = material.mTextureIds[aiTextureType_EMISSIVE];
 			}
 			else
 			{
-				rtMaterialGPU.mMetallness = 0;
+				rtMaterialGPU.mEmissiveMap = -1;
 			}
-			//TODO fix specular
-			rtMaterialGPU.mSpecular = vec3(0.2f, 0.2f, 0.15f);
-			rtMaterialGPU.mShininess = material.mShininess;
+			if(material.mTextureIds.find(aiTextureType_AMBIENT_OCCLUSION) != material.mTextureIds.end())
+			{
+				rtMaterialGPU.mOcclusionMap = material.mTextureIds[aiTextureType_AMBIENT_OCCLUSION];
+			}
+			else
+			{
+				rtMaterialGPU.mOcclusionMap = -1;
+			}
+			// If not set before
+			if(rtMaterialGPU.mOcclusionMap == -1 && material.mTextureIds.find(aiTextureType_LIGHTMAP) != material.mTextureIds.end())
+			{
+				rtMaterialGPU.mOcclusionMap = material.mTextureIds[aiTextureType_LIGHTMAP];
+			}
+			else
+			{
+				rtMaterialGPU.mOcclusionMap = -1;
+			}
 			rtMaterialsGPU.emplace_back(rtMaterialGPU);
 		}
 		if(mRTMaterialsGPUBuffer.mBuffer == VK_NULL_HANDLE)

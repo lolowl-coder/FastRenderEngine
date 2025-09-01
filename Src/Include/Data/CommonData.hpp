@@ -4,6 +4,7 @@
 #include "Utilities.hpp"
 
 #include <map>
+#include <string>
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -43,13 +44,37 @@ namespace fre
     {
         Material();
 
-        std::map<aiTextureType, uint32_t> mTextureIds;
-        float mShininess = 1.0;
         bool hasTextureTypes(const std::vector<aiTextureType>& textureTypes) const;
+
+        std::map<aiTextureType, uint32_t> mTextureIds;
+        
         uint32_t mId = MAX(uint32_t);
+        std::string mName;
         uint32_t mShaderId = MAX(uint32_t);
         std::string mShaderFileName;
+		
+		glm::vec4  mBaseColorFactor = glm::vec4(1.0f);      // RGBA
+		float mMetallicFactor = 1.0f;       // [0,1]
+		float mRoughnessFactor = 1.0f;      // [0,1]
+		float mNormalScale = 1.0f;          // normal map scale (1 = as is)
+		float mOcclusionStrength = 1.0f;    // [0,1]
+		glm::vec3 mEmissiveFactor = glm::vec3(1.0f);
     };
+
+	struct RTMaterialGPU
+	{
+		glm::vec4  mBaseColorFactor;      // RGBA
+		float mMetallicFactor = 1.0f;       // [0,1]
+		float mRoughnessFactor = 1.0f;      // [0,1]
+		float mNormalScale = 1.0f;          // normal map scale (1 = as is)
+		float mOcclusionStrength = 1.0f;    // [0,1]
+		glm::vec3 mEmissiveFactor = glm::vec3(1.0f);       // RGB
+		int mBaseColorMap = -1;         // -1 if none
+		int mMetallicRoughnessMap = -1; // -1 if none (G=roughness, B=metallic)
+		int mNormalMap = -1;            // -1 if none (tangent space)
+		int mOcclusionMap = -1;         // -1 if none (R)
+		int mEmissiveMap = -1;          // -1 if none (RGB)
+	};
 
 	struct RTCamera
 	{
@@ -66,19 +91,18 @@ namespace fre
 		std::vector<int32_t> mMatIndices;
 	};
 
-	struct RTMaterialGPU
-	{
-		glm::vec3 mSpecular{ 0.7f, 0.7f, 0.7f };
-		float mShininess{ 0.f };
-        int mDiffuseMap = MAX(int);
-        int mNormalMap = MAX(int);
-		int mMetallness = MAX(int);
-	};
-
 	struct RTMeshGPU
 	{
 		VkDeviceAddress mVertices;
 		VkDeviceAddress mIndices;
 		int mMaterialIndex;
+	};
+
+	struct EmissiveTri
+	{
+		glm::vec3 v0, e1, e2;   // v0, and edges (v1-v0), (v2-v0)
+		glm::vec3 Le;           // emissive radiance (emissiveFactor * emissiveTex if you want)
+		float area;             // 0.5 * length(cross(e1, e2))
+		int   pad;              // align to 16B if you keep std430
 	};
 }

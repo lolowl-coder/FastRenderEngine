@@ -11,6 +11,7 @@
 #include "Renderer/VulkanSampler.hpp"
 
 #include "FileSystem/FileSystem.hpp"
+#include "UI/UIUtilities.hpp"
 #include "VulkanAccelerationStructure.hpp"
 #include "Camera.hpp"
 #include "Log.hpp"
@@ -1042,7 +1043,7 @@ namespace fre
 		lighting.normalMatrix = mat4(normalMatrix);
 		lighting.cameraEye = vec4(-camera.getEye(), 0.0);
 		const auto& material = mMaterials[mesh->getMaterialId()];
-		lighting.lightPos = vec4(light.mPosition, material.mShininess);
+		lighting.lightPos = vec4(light.mPosition, 16.0f);
 		lighting.lightDiffuseColor = vec4(light.mDiffuseColor, 1.0f);
 		lighting.lightSpecularColor = vec4(light.mSpecularColor, 1.0f);
 	}
@@ -2694,6 +2695,15 @@ namespace fre
 		return result;
 	}
 
+	#define AI_CHECK(c)\
+	{\
+		aiReturn aiResult = c;\
+		if(aiResult != AI_SUCCESS)\
+		{\
+			LOG_ERROR("ASSIMP error {}, {}", aiResult, #c);\
+		}\
+	}
+
 	MeshModel::Ptr& VulkanRenderer::createMeshModel(std::string modelFile,
 		const std::vector<aiTextureType>& texturesLoadTypes, const mat4& sceneTransform)
 	{
@@ -2714,18 +2724,76 @@ namespace fre
 		{
 			aiMaterial* externalMaterial = scene->mMaterials[m];
 
+            LOG_INFO("Load material {}", externalMaterial->GetName().C_Str());
+
 			int iShading;
 			if(AI_SUCCESS == aiGetMaterialInteger(externalMaterial, AI_MATKEY_SHADING_MODEL, &iShading))
 			{
 				LOG_INFO("Material {} shading model: {}", m, aiShadingModeToString(static_cast<aiShadingMode>(iShading)));
+
+				for(unsigned int i = 0; i < externalMaterial->mNumProperties; i++)
+				{
+					const aiMaterialProperty* prop = externalMaterial->mProperties[i];
+
+					std::string key = prop->mKey.C_Str();
+					unsigned int semantic = prop->mSemantic;
+					unsigned int index = prop->mIndex;
+
+					LOG_INFO("key {} (semantic {}, index {}, type {}, len {}", key, semantic, index, prop->mType, prop->mDataLength);
+
+					switch(prop->mType)
+					{
+					case aiPTI_Float:
+					{
+						unsigned int count = prop->mDataLength / sizeof(float);
+						const float* vals = (const float*)prop->mData;
+						for(unsigned int j = 0; j < count; j++)
+							LOG_INFO(vals[j]);
+						break;
+					}
+					case aiPTI_Integer:
+					{
+						unsigned int count = prop->mDataLength / sizeof(int);
+						const int* vals = (const int*)prop->mData;
+						for(unsigned int j = 0; j < count; j++)
+							LOG_INFO(vals[j]);
+						break;
+					}
+					case aiPTI_String:
+					{
+						aiString str;
+						externalMaterial->Get(key.c_str(), semantic, index, str);
+						LOG_INFO(str.C_Str());
+						break;
+					}
+					default:
+					{
+						LOG_INFO("(unhandled type)");
+						break;
+					}
+					}
+				}
 			}
 
 			Material material;
-			aiGetMaterialFloat(externalMaterial, AI_MATKEY_ROUGHNESS_FACTOR, &material.mShininess);
-			if(areEqual(material.mShininess, 0.0f))
-			{
-				material.mShininess = mDefaultShininess;
-			}
+			material.mName = externalMaterial->GetName().C_Str();
+
+			aiColor4D baseColor;
+			AI_CHECK(externalMaterial->Get(AI_MATKEY_BASE_COLOR, baseColor));
+			material.mBaseColorFactor = toVec4(baseColor);
+			aiColor4D diffuse;
+			AI_CHECK(externalMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse));
+			material.mBaseColorFactor = toVec4(diffuse);
+			AI_CHECK(externalMaterial->Get(AI_MATKEY_METALLIC_FACTOR, material.mMetallicFactor));
+			AI_CHECK(externalMaterial->Get(AI_MATKEY_ROUGHNESS_FACTOR, material.mRoughnessFactor));
+			AI_CHECK(externalMaterial->Get("$mat.gltf.normalTexture.scale", 0, 0, material.mNormalScale));
+			AI_CHECK(externalMaterial->Get("$mat.gltf.occlusionTexture.strength", 0, 0, material.mOcclusionStrength));
+			aiColor4D emissive;
+			AI_CHECK(externalMaterial->Get(AI_MATKEY_COLOR_EMISSIVE, emissive));
+			material.mEmissiveFactor = toVec4(emissive);
+			ai_real emissiveFactor = 1.0f;
+			AI_CHECK(externalMaterial->Get("$mat.emissiveIntensity", 0, 0, emissiveFactor));
+			material.mEmissiveFactor *= emissiveFactor;
 
 			//Look at textures we are interested in
 			for(uint32_t i = 1; i < aiTextureType_UNKNOWN; i++)
@@ -2748,6 +2816,7 @@ namespace fre
 							VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, false, image);
 
 						material.mTextureIds[textureType] = textureInfoId;
+                        LOG_INFO("Material {} texture {}: {}", material.mName, aiTextureTypeToString(textureType), path.C_Str());
 					}
 				}
 			}

@@ -115,7 +115,12 @@ namespace fre
 
 		newMesh->setVertices(vertices, sizeof(Vertex));
 
-		newMesh->setBoundingBox(bb);
+		newMesh->setBoundingBox(thisBB);
+
+		auto worldCenter = transform * vec4(thisBB.getCenter(), 1.0f);
+		auto worldSize = transform * vec4(thisBB.getCenter() + thisBB.getSize(), 0.0f) - worldCenter;
+		thisBB.mMin = worldCenter - worldSize;
+		thisBB.mMax = worldCenter + worldSize;
 
 		bb.mMin.x = std::min(bb.mMin.x, thisBB.mMin.x);
 		bb.mMin.y = std::min(bb.mMin.y, thisBB.mMin.y);

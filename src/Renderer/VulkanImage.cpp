@@ -171,10 +171,25 @@ namespace fre
 		viewCreateInfo.image = image;		//Image to create view for
 		viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 		viewCreateInfo.format = format;
-		viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;	//Allows remapping of RGBA components to other components
-		viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		// Allows remapping of RGBA components to other components
+		if(
+			format >= VK_FORMAT_R8_UNORM && format <= VK_FORMAT_R8_SRGB ||
+			format >= VK_FORMAT_R16_UNORM && format <= VK_FORMAT_R16_SFLOAT ||
+			format >= VK_FORMAT_R32_UINT && format <= VK_FORMAT_R32_SFLOAT ||
+			format >= VK_FORMAT_R64_UINT && format <= VK_FORMAT_R64_SFLOAT)
+		{
+			viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+			viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_R;
+			viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_R;
+			viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_ONE;
+		}
+		else
+		{
+			viewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+			viewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+			viewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+			viewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		}
 
 		//Subresource allow the view to view only a part of an image
 		viewCreateInfo.subresourceRange.aspectMask = aspectFlags;		//Which aspect of image to view (COLOR_BIT, etc.)

@@ -12,6 +12,7 @@ struct hitPayload
 	int  done;
 	vec3 rayOrigin;
 	vec3 rayDir;
+    vec3 lightPos;
 };
 
 layout(location = 0) rayPayloadInEXT hitPayload prd;
@@ -21,11 +22,17 @@ hitAttributeEXT vec3 attribs;
 
 struct Material
 {
-	vec3 mSpecular;
-	float mShininess;
-	int mDiffuseMap;
-	int mNormalMap;
-	int mMetallnessMap;
+	vec4  mBaseColorFactor;      // RGBA
+	float mMetallicFactor;       // [0,1]
+	float mRoughnessFactor;      // [0,1]
+	float mNormalScale;          // normal map scale (1 = as is)
+	float mOcclusionStrength;    // [0,1]
+	vec3  mEmissiveFactor;       // RGB
+	int mBaseColorTex;         // -1 if none
+	int mMetallicRoughnessTex; // -1 if none (G=roughness, B=metallic)
+	int mNormalTex;            // -1 if none (tangent space)
+	int mOcclusionTex;         // -1 if none (R)
+	int mEmissiveTex;          // -1 if none (RGB)
 };
 
 struct Vertex
@@ -53,30 +60,212 @@ layout(set = 0, binding = 4, scalar) buffer GlobalMaterials { Material i[]; } ma
 layout(set = 0, binding = 5) uniform sampler2D textures[];
 // clang-format on
 
-vec3 getNormal(int samplerIndex, vec3 vNormal, vec3 vTangent, vec2 uv)
-{
-	vec3 n = normalize(vNormal);
-	vec3 t = normalize(vTangent);
-	vec3 b = normalize(cross(n, t));
-	mat3 tbn = (mat3(t, b, n));
-	vec3 normal = normalize(texture(textures[samplerIndex], uv).xyz * 2.0 - 1.0);
-	normal = tbn * normal;
+// --------------------------- math helpers -----------------------------------
+const float PI = 3.14159265359;
 
-	return normal;
+float saturate(float x) { return clamp(x, 0.0, 1.0); }
+vec3  saturate(vec3  v) { return clamp(v, vec3(0.0), vec3(1.0)); }
+
+// Trowbridge-Reitz GGX normal distribution
+float D_GGX(float NdotH, float a) {
+    float a2 = a * a;
+    float d = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
+    return a2 / (PI * d * d);
 }
 
-vec3 computeSpecular(Material mat, float metallness, vec3 V, vec3 L, vec3 N)
+// Smith masking-shadowing using Schlick-GGX for both terms
+float G_SchlickGGX(float NdotV, float k) {
+    return NdotV / (NdotV * (1.0 - k) + k);
+}
+
+float G_Smith(float NdotV, float NdotL, float roughness) {
+    // k for direct lighting (correlated Smith)
+    float r = roughness + 1.0;
+    float k = (r * r) / 8.0;
+    return G_SchlickGGX(NdotV, k) * G_SchlickGGX(NdotL, k);
+}
+
+// Fresnel-Schlick (with optional roughness variant for grazing)
+vec3 F_Schlick(vec3 F0, float HdotV) {
+    float f = pow(1.0 - HdotV, 5.0);
+    return F0 + (1.0 - F0) * f;
+}
+
+// --------------------------- normal mapping ---------------------------------
+// Inputs: interpolated geometric normal/tangent in OBJECT space and UV
+// Tangent.w is expected to be the handedness (+1 / -1). If you don't have it, use +1.
+vec3 getWorldNormal(Material mat, int normalTexIndex,
+    vec3 objN, vec4 objT, vec2 uv,
+    mat4x3 objectToWorld)
 {
-	const float kPi = 3.14159265;
-	const float kShininess = max(metallness, 4.0);
+    // Orthonormalize T against N
+    vec3 N = normalize(objN);
+    vec3 T = normalize(objT.xyz - N * dot(objT.xyz, N));
+    vec3 B = normalize(cross(N, T)) * (objT.w >= 0.0 ? 1.0 : -1.0);
 
-	// Specular
-	const float kEnergyConservation = (2.0 + kShininess) / (2.0 * kPi);
-	V = normalize(-V);
-	vec3  R = reflect(-L, N);
-	float specular = kEnergyConservation * pow(max(dot(V, R), 0.0), kShininess);
+    mat3 TBN = mat3(T, B, N);
 
-	return vec3(mat.mSpecular * specular);
+    vec3 n = vec3(0.0, 0.0, 1.0);
+    if(normalTexIndex >= 0) {
+        // Tangent-space normal in [0,1] -> [-1,1]
+        n = texture(textures[normalTexIndex], uv).xyz * 2.0 - 1.0;
+        n.xy *= mat.mNormalScale;
+        n = normalize(n);
+    }
+
+    // To OBJECT space
+    vec3 nObj = normalize(TBN * n);
+    // To WORLD space (w = 0 for direction)
+    vec3 nWorld = normalize((objectToWorld * vec4(nObj, 0.0)).xyz);
+    return nWorld;
+}
+
+// --------------------------- texture sampling --------------------------------
+vec4 sampleBaseColor(const Material m, vec2 uv) {
+    vec4 base = m.mBaseColorFactor;
+    if(m.mBaseColorTex >= 0) {
+        // Base color is typically authored in sRGB; ensure your sampler/format handles sRGB -> linear
+        base *= texture(textures[m.mBaseColorTex], uv);
+    }
+    return base;
+}
+
+vec2 sampleMetallicRoughness(const Material m, vec2 uv) {
+    float metallic = m.mMetallicFactor;
+    float roughness = m.mRoughnessFactor;
+    if(m.mMetallicRoughnessTex >= 0) {
+        vec4 mr = texture(textures[m.mMetallicRoughnessTex], uv);
+        roughness *= mr.g;
+        metallic *= mr.b;
+    }
+    // Avoid zero roughness (can cause fireflies); clamp to a small floor
+    roughness = clamp(roughness, 0.04, 1.0);
+    metallic = saturate(metallic);
+    return vec2(metallic, roughness);
+}
+
+float sampleAO(const Material m, vec2 uv) {
+    if(m.mOcclusionTex >= 0) {
+        float ao = texture(textures[m.mOcclusionTex], uv).r;
+        return mix(1.0, ao, m.mOcclusionStrength);
+    }
+    return 1.0;
+}
+
+vec3 sampleEmissive(const Material m, vec2 uv) {
+    vec3 e = m.mEmissiveFactor;
+    if(m.mEmissiveTex >= 0) {
+        // Emissive is authored in sRGB; ensure your sampler/format linearizes
+        e *= texture(textures[m.mEmissiveTex], uv).rgb;
+    }
+    return e;
+}
+
+// --------------------------- BRDF core ---------------------------------------
+struct PBRInputs {
+    vec3 N;        // world-space normal
+    vec3 V;        // world-space view dir (from P toward camera), normalized
+    vec3 L;        // world-space light dir (from P toward light), normalized
+    vec3 radiance; // light radiance (RGB), already includes attenuation
+    vec3 baseColor;
+    float metallic;
+    float roughness;
+};
+
+vec3 BRDF_PBR(const PBRInputs I) {
+    vec3 H = normalize(I.V + I.L);
+
+    float NdotL = saturate(dot(I.N, I.L));
+    float NdotV = saturate(dot(I.N, I.V));
+    float NdotH = saturate(dot(I.N, H));
+    float HdotV = saturate(dot(H, I.V));
+
+    if(NdotL <= 0.0 || NdotV <= 0.0)
+        return vec3(0.0);
+
+    // Dielectric F0 ~ 0.04; metals use baseColor as F0
+    vec3 F0 = mix(vec3(0.04), I.baseColor, I.metallic);
+
+    float a = I.roughness * I.roughness; // perceptual -> alpha
+    float D = D_GGX(NdotH, a);
+    float G = G_Smith(NdotV, NdotL, I.roughness);
+    vec3  F = F_Schlick(F0, HdotV);
+
+    vec3  spec = (D * G * F) / max(4.0 * NdotL * NdotV, 1e-4);
+
+    // Lambert diffuse, energy-conserving with metallic
+    vec3 kd = (1.0 - F) * (1.0 - I.metallic);
+    vec3 diff = kd * I.baseColor / PI;
+
+    return (diff + spec) * I.radiance * NdotL;
+}
+
+// --------------------------- Full shading entry ------------------------------
+// Example directional light. For point/spot, compute L and radiance accordingly.
+vec3 shadeGLTF(
+    Material m,
+    vec2 uv,
+    vec3 P_world,
+    vec3 V_world,                 // from P toward camera, normalized
+    vec3 geomN_obj, vec4 tangent_obj, // interpolated geometric normal/tangent in OBJECT space
+    mat4x3 objectToWorld,
+    vec3 lightDir_world,          // normalized (from P toward light)
+    vec3 lightRadiance,           // RGB radiance at P (includes intensity & attenuation)
+    float shadowVisibility,       // 0..1 (1 = unshadowed). For hard shadow: 0 or 1.
+    float ambientOcclusion,       // If you have SSAO/etc. Multiply with AO map if both.
+    vec3 N_world,
+    out vec3 emissive
+) {
+    // Sample material inputs
+    vec4 base = sampleBaseColor(m, uv);
+    vec2 mr = sampleMetallicRoughness(m, uv);
+    float metallic = mr.x;
+    float roughness = mr.y;
+
+    // Optional AO (texture * screen-space AO)
+    float aoTex = sampleAO(m, uv);
+    float ao = clamp(ambientOcclusion * aoTex, 0.0, 1.0);
+
+    // Build BRDF inputs
+    PBRInputs I;
+    I.N = normalize(N_world);
+    I.V = normalize(V_world);
+    I.L = normalize(lightDir_world);
+    I.radiance = lightRadiance * shadowVisibility; // shadow term here
+    I.baseColor = base.rgb;
+    I.metallic = metallic;
+    I.roughness = roughness;
+
+    vec3 Lo = BRDF_PBR(I);
+    
+    /*float alpha = base.a;
+    // Alpha handling
+    if(material.alphaMode == ALPHA_MASK){
+        if(alpha < material.alphaCutoff) {
+            // Fully discard hit
+            return vec3(0.0); // Or call ignoreIntersectionEXT() if available
+        }
+    }
+    else if(material.alphaMode == ALPHA_BLEND) {
+        // For blending, return surface color but scale by alpha
+        // (in a full path tracer, you'd probabilistically transmit or absorb)
+        Lo *= alpha;
+    }*/
+
+
+    // Ambient factor
+    float af = 0.7; //0.03 by default
+    // Simple ambient term (you can replace with IBL)
+    vec3 ambient = I.baseColor * (1.0 - I.metallic) * af * ao;
+
+    // Emissive
+    emissive = sampleEmissive(m, uv);
+
+    // Alpha (if you need it for blending/masking)
+    // float alpha = base.a;
+
+    //return emissive;
+    return Lo + ambient + emissive;
 }
 
 void main()
@@ -113,28 +302,25 @@ void main()
 	// Computing the normal at hit position
 	vec3 vNormal = v0.mNormal.xyz * barycentrics.x + v1.mNormal.xyz * barycentrics.y + v2.mNormal.xyz * barycentrics.z;
 	vec3 vTangent = v0.mTangent.xyz * barycentrics.x + v1.mTangent.xyz * barycentrics.y + v2.mTangent.xyz * barycentrics.z;
-	vec3 N = getNormal(mat.mNormalMap, vNormal, vTangent, uv);
-	N = normalize(vec3(N.xyz * gl_WorldToObjectEXT));        // Transforming the normal to world space
-	//N = normalize((gl_ObjectToWorldEXT * vec4(N, 0.0)).xyz);
-
+    vec3 N_world = getWorldNormal(mat, mat.mNormalTex, vNormal, vec4(vTangent, 1.0), uv, gl_ObjectToWorldEXT);
 
 	// Computing the coordinates of the hit position
 	vec3 P = v0.mPos.xyz * barycentrics.x + v1.mPos.xyz * barycentrics.y + v2.mPos.xyz * barycentrics.z;
 	P = vec3(gl_ObjectToWorldEXT * vec4(P, 1.0));        // Transforming the position to world space
 
 	// Hardocded light position
-	vec3 lightPos = vec3(1.0, 1.0, 1.0);
+	//vec3 lightPos = vec3(1.5, 0.8, 0.5);
+	vec3 lightPos = vec3(1.5, 0.8, 0.5);
 	// To light direction
-	vec3 L = normalize(lightPos);
+	vec3 L = normalize(lightPos - P);
 
-	float NdotL = dot(N, L);
+	float NdotL = dot(N_world, L);
 
-	vec3 materialDiffuse = texture(textures[mat.mDiffuseMap], uv).rgb;
-	vec3 diffuse = materialDiffuse * max(NdotL, 0.8);
-	vec3 specular = vec3(0.0);
+	//vec3 materialDiffuse = texture(textures[mat.mBaseColorTex], uv).rgb;
+	//vec3 diffuse = materialDiffuse * max(NdotL, 0.5);
+	//vec3 specular = vec3(0.0);
 
-	float metallness = 1.0 - texture(textures[mat.mMetallnessMap], uv).r;
-
+	float metallness = sampleMetallicRoughness(mat, uv).x;
 	// Tracing shadow ray only if the light is visible from the surface
 	//if(NdotL > 0.0)
 	{
@@ -157,19 +343,30 @@ void main()
 			tMax,              // ray max range
 			1                  // payload (location = 1)
 		);
-
-		if(isShadowed)
-			diffuse *= 0.8;
-		else
-			// Add specular only if not in shadow
-			specular = computeSpecular(mat, metallness, gl_WorldRayDirectionEXT, L, N);
 	}
 
-	prd.radiance = (diffuse + specular) * (1.0 - metallness) * prd.attenuation;
+    N_world;
+    vec3 V_world = normalize(gl_WorldRayOriginEXT - P);
+    vec3 emissive;
+    prd.radiance = shadeGLTF(mat, uv, P, V_world, vNormal, vec4(vTangent, 1.0), gl_ObjectToWorldEXT,
+        L, vec3(1.0, 1.0, 0.9) * 2.5, // light direction & radiance
+        1.0 - (isShadowed ? 1.0 : 0.0), // shadow visibility (1 = unshadowed)
+        1.0, // ambient occlusion
+        N_world,
+        emissive
+    );
+
+    //int mBaseColorTex;         // -1 if none
+    //int mMetallicRoughnessTex; // -1 if none (G=roughness, B=metallic)
+    //int mNormalTex;            // -1 if none (tangent space)
+    //int mOcclusionTex;         // -1 if none (R)
+    //int mEmissiveTex;          // -1 if none (RGB)*/
+    //prd.radiance = N_world;
 
 	// Reflect
-	vec3 rayDir = reflect(gl_WorldRayDirectionEXT, N);
-	prd.attenuation *= vec3(metallness);
+    //prd.radiance = vec3(isEmissive);
+	vec3 rayDir = reflect(gl_WorldRayDirectionEXT, N_world);
+    prd.attenuation *= 0.8 * metallness;
 	prd.rayOrigin = P;
 	prd.rayDir = rayDir;
 }
