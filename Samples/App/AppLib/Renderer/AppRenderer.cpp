@@ -25,19 +25,48 @@ namespace app
 
 	void AppRenderer::initUI()
 	{
-		/*addUIRenderCallback
+		addUIRenderCallback
 		(
 			[this]()
 			{
 				if(!mRTMeshes.empty() && mRTMeshes[0] != nullptr)
 				{
-					ImGui::Begin("Settings");
+					ImGui::Begin("Materials");
                     ImGui::PushItemWidth(150.0f);
-					Material& mat0 = getMaterial(mRTMeshes[0]->getMaterialId());
-					Material& mat1 = getMaterial(mRTMeshes[1]->getMaterialId());
 					bool changed = false;
-					changed |= sliderFloat(0.0f, 1.0f, "Fish 0 shininess", mat0.mShininess, "%.2f");
-					changed |= sliderFloat(0.0f, 1.0f, "Fish 1 shininess", mat1.mShininess, "%.2f");
+					static int selectedIndex = -1;
+					for(int i = 0; i < mMaterials.size(); i++)
+					{
+						Material& mat = mMaterials[i];
+						if(!mat.mName.empty())
+						{
+							ImGuiTreeNodeFlags_ selected = i == selectedIndex ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None;
+							if(ImGui::TreeNodeEx(mat.mName.c_str(), ImGuiTreeNodeFlags_Leaf | selected, mat.mName.c_str()))
+							{
+								if(ImGui::IsItemClicked())
+								{
+									if(selectedIndex > -1)
+									{
+										mMaterials[selectedIndex].mBaseColorFactor = vec4(1.0f);
+									}
+									if(selected == ImGuiTreeNodeFlags_Selected)
+									{
+										selectedIndex = -1;
+										selected = ImGuiTreeNodeFlags_None;
+									}
+									else
+									{
+										selectedIndex = i;
+										selected = ImGuiTreeNodeFlags_Selected;
+									}
+									changed = true;
+									mat.mBaseColorFactor = selected == ImGuiTreeNodeFlags_Selected ? vec4(1.0f, 0.0f, 0.0f, 1.0f) : vec4(1.0f);
+								}
+
+								ImGui::TreePop();
+							}
+						}
+					}
 
 					if(changed)
 					{
@@ -47,7 +76,7 @@ namespace app
 					ImGui::End();
 				}
 			}
-		);*/
+		);
 	}
 
 	void AppRenderer::requestExtensions()
@@ -269,6 +298,8 @@ namespace app
         // Apply scene transform to the model
         mMeshModel->setModelMatrix(sceneTransform * mMeshModel->getModelMatrix());
 
+		std::vector<EmissiveTri> emissives;
+
         // Post-process the model
 		const int meshCount = mMeshModel->getMeshCount();
 		for(int i = 0; i < meshCount; i++)
@@ -282,15 +313,34 @@ namespace app
 			mRTMeshes.push_back(mesh);
 
             // Apply scene transform to each mesh
-			mesh->setModelMatrix(sceneTransform * mesh->getModelMatrix());
+			mat4 modelMatrix = sceneTransform * mesh->getModelMatrix();
+			mesh->setModelMatrix(modelMatrix);
 
-			/*std::vector<
-			for(int i = 0; i < mesh->getIndexCount(); i++)
+			if(length(material.mEmissiveFactor) > 0.01 && mesh->getIndexCount() > 0)
 			{
-				auto index0 = *(((uint32_t*)mesh->getIndexData()) + i);
-				mesh->getVertexData()
-			mEmissives.push_back(*/
+				LOG_INFO("Mesh {} is emissive", mesh->getName());
+				for(int i = 0; i < mesh->getIndexCount(); i += 3)
+				{
+					auto index0 = *(((uint32_t*)mesh->getIndexData()) + i);
+					auto index1 = *(((uint32_t*)mesh->getIndexData()) + i + 1);
+					auto index2 = *(((uint32_t*)mesh->getIndexData()) + i + 2);
+					const Vertex& vertex0 = *(static_cast<const Vertex*>(mesh->getVertexData()) + index0);
+					const Vertex& vertex1 = *(static_cast<const Vertex*>(mesh->getVertexData()) + index1);
+					const Vertex& vertex2 = *(static_cast<const Vertex*>(mesh->getVertexData()) + index2);
+					const vec3 p0 = modelMatrix * vec4(vertex0.pos, 1.0);
+					const vec3 p1 = modelMatrix * vec4(vertex1.pos, 1.0);
+					const vec3 p2 = modelMatrix * vec4(vertex2.pos, 1.0);
+					EmissiveTri emissiveTri = {p0, p1, p2, length(cross(p1 - p0, p2 - p0)), material.mId};
+                    emissives.push_back(emissiveTri);
+				}
+			}
 		}
+
+        auto emissivesBufferIndex = createBuffer(
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            emissives.data(), sizeof(EmissiveTri) * emissives.size());
+        mEmissiveTrianglesBuffer = *mBufferManager.getBuffer(emissivesBufferIndex);
 
 		auto worldCenter = sceneTransform * vec4(mSceneBoundingBox.getCenter(), 1.0f);
 		auto worldSize = sceneTransform * vec4(mSceneBoundingBox.getCenter() + mSceneBoundingBox.getSize(), 1.0f) - worldCenter;
@@ -478,8 +528,9 @@ namespace app
 		mRTMeshesGPUDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mRTMeshesGPUBuffer.mBuffer);
 		mRTMaterialsGPUDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mRTMaterialsGPUBuffer.mBuffer);
  		mRTTexturesDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mTextureViews, mTextureSamplers);
+		mEmissiveTrianglesDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mEmissiveTrianglesBuffer.mBuffer);
 
-		mMeshModel->getMesh(0)->setDescriptors({ {mTLASDescriptor, mStorageImageDescriptor, mRTCameraDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor, mRTTexturesDescriptor} });
+		mMeshModel->getMesh(0)->setDescriptors({ {mTLASDescriptor, mStorageImageDescriptor, mRTCameraDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor, mRTTexturesDescriptor, mEmissiveTrianglesDescriptor} });
 		mMeshModel->setVisible(true);
 
 		mResultMesh->setVisible(true);

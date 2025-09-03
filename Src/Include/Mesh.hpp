@@ -70,6 +70,8 @@ namespace fre
 
         FIELD_NS(glm::mat4, ModelMatrix, private, public, public);
 
+        FIELD_NS(std::string, Name, private, public, public);
+
 	public:
 		//Callback to pass variables to shader
 		PushConstantCallback mPushConstantsCallback = nullptr;

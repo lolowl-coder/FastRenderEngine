@@ -67,6 +67,7 @@ namespace app
 		fre::VulkanDescriptorPtr mRTMaterialsGPUDescriptor;
 		fre::VulkanDescriptorPtr mRTCameraDescriptor;
 		fre::VulkanDescriptorPtr mRTTexturesDescriptor;
+		fre::VulkanDescriptorPtr mEmissiveTrianglesDescriptor;
 
 		std::vector<fre::MeshPtr> mRTMeshes;
 		fre::VulkanBuffer mRTMeshesGPUBuffer;
@@ -76,6 +77,7 @@ namespace app
         fre::VulkanBuffer mRTMeshesBuffer;
         fre::VulkanBuffer mRTMaterialsBuffer;
 		fre::VulkanBuffer mRTCameraBuffer;
+		fre::VulkanBuffer mEmissiveTrianglesBuffer;
         std::vector<VkImageView> mTextureViews;
         std::vector<VkSampler> mTextureSamplers;
 		uint32_t mShadowMissShaderId = MAX(uint32_t);

@@ -30,6 +30,7 @@
 
 #include <limits>
 #include <stdexcept>
+#include <sstream>
 #include <mutex>
 
 #include <assimp/scene.h>
@@ -2731,7 +2732,7 @@ namespace fre
 			{
 				LOG_INFO("Material {} shading model: {}", m, aiShadingModeToString(static_cast<aiShadingMode>(iShading)));
 
-				for(unsigned int i = 0; i < externalMaterial->mNumProperties; i++)
+				/*for(unsigned int i = 0; i < externalMaterial->mNumProperties; i++)
 				{
 					const aiMaterialProperty* prop = externalMaterial->mProperties[i];
 
@@ -2739,31 +2740,30 @@ namespace fre
 					unsigned int semantic = prop->mSemantic;
 					unsigned int index = prop->mIndex;
 
-					LOG_INFO("key {} (semantic {}, index {}, type {}, len {}", key, semantic, index, prop->mType, prop->mDataLength);
-
+					std::stringstream ss;
+					ss << " key " << key << " ";
 					switch(prop->mType)
 					{
 					case aiPTI_Float:
 					{
 						unsigned int count = prop->mDataLength / sizeof(float);
 						const float* vals = (const float*)prop->mData;
-						for(unsigned int j = 0; j < count; j++)
-							LOG_INFO(vals[j]);
+
+						for(unsigned int j = 0; j < count; j++) ss << vals[j] << " ";
 						break;
 					}
 					case aiPTI_Integer:
 					{
 						unsigned int count = prop->mDataLength / sizeof(int);
 						const int* vals = (const int*)prop->mData;
-						for(unsigned int j = 0; j < count; j++)
-							LOG_INFO(vals[j]);
+						for(unsigned int j = 0; j < count; j++) ss << vals[j] << " ";
 						break;
 					}
 					case aiPTI_String:
 					{
 						aiString str;
 						externalMaterial->Get(key.c_str(), semantic, index, str);
-						LOG_INFO(str.C_Str());
+						ss << str.C_Str();
 						break;
 					}
 					default:
@@ -2772,7 +2772,8 @@ namespace fre
 						break;
 					}
 					}
-				}
+					LOG_INFO(ss.str());
+				}*/
 			}
 
 			Material material;
@@ -2794,6 +2795,7 @@ namespace fre
 			ai_real emissiveFactor = 1.0f;
 			AI_CHECK(externalMaterial->Get("$mat.emissiveIntensity", 0, 0, emissiveFactor));
 			material.mEmissiveFactor *= emissiveFactor;
+			LOG_INFO("*****Emissive factor {}, {}, {}", material.mEmissiveFactor.x, material.mEmissiveFactor.y, material.mEmissiveFactor.z);
 
 			//Look at textures we are interested in
 			for(uint32_t i = 1; i < aiTextureType_UNKNOWN; i++)

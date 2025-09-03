@@ -153,6 +153,7 @@ namespace fre
 			}
 		}
 		newMesh->setIndices(indices);
+		newMesh->setName(mesh->mName.C_Str());
 
 		return newMesh;
 	}

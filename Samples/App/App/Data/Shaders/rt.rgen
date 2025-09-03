@@ -18,6 +18,7 @@ struct hitPayload
 	vec3 rayOrigin;
 	vec3 rayDir;
 	vec3 lightPos;
+	uint rngState;
 };
 
 layout(location = 0) rayPayloadEXT hitPayload prd;
@@ -40,6 +41,7 @@ void main()
 	prd.radiance = vec3(0.0);
 	prd.attenuation = vec3(1.0);
 	prd.done = 0;
+	prd.rngState = uint(gl_LaunchIDEXT.x * 1973u ^ gl_LaunchIDEXT.y * 9277u ^ 89173u);
 
     vec3 hitValue = vec3(0.0);
 

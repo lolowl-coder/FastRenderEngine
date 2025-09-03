@@ -13,6 +13,7 @@ struct hitPayload
 	vec3 rayOrigin;
 	vec3 rayDir;
     vec3 lightPos;
+    uint rngState;
 };
 
 layout(location = 0) rayPayloadInEXT hitPayload prd;
@@ -50,6 +51,15 @@ struct Mesh
 	int mMaterialIndex;
 };
 
+struct EmissiveTriangle
+{
+    vec3 v0;
+    vec3 v1;
+    vec3 v2;
+    float area;
+    int matIndex;
+};
+
 // clang-format off
 layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions of an object
 layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indices
@@ -57,11 +67,17 @@ layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indi
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 layout(set = 0, binding = 3) buffer SceneDesc { Mesh i[]; } sceneDesc;
 layout(set = 0, binding = 4, scalar) buffer GlobalMaterials { Material i[]; } materials;
+// Scene textures
 layout(set = 0, binding = 5) uniform sampler2D textures[];
+// Emissive objects triangles
+layout(set = 0, binding = 6, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
 // clang-format on
 
 // --------------------------- math helpers -----------------------------------
 const float PI = 3.14159265359;
+
+uint lcg(inout uint s) { s = 1664525u * s + 1013904223u; return s; }
+float rng(inout uint s) { return (lcg(s) >> 8) * (1.0 / 16777216.0); } // [0,1)
 
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 vec3  saturate(vec3  v) { return clamp(v, vec3(0.0), vec3(1.0)); }
@@ -207,18 +223,16 @@ vec3 shadeGLTF(
     vec2 uv,
     vec3 P_world,
     vec3 V_world,                 // from P toward camera, normalized
-    vec3 geomN_obj, vec4 tangent_obj, // interpolated geometric normal/tangent in OBJECT space
     mat4x3 objectToWorld,
     vec3 lightDir_world,          // normalized (from P toward light)
     vec3 lightRadiance,           // RGB radiance at P (includes intensity & attenuation)
     float shadowVisibility,       // 0..1 (1 = unshadowed). For hard shadow: 0 or 1.
     float ambientOcclusion,       // If you have SSAO/etc. Multiply with AO map if both.
     vec3 N_world,
-    out vec3 emissive
+    vec4 base,
+    vec2 mr,
+    vec3 emissive
 ) {
-    // Sample material inputs
-    vec4 base = sampleBaseColor(m, uv);
-    vec2 mr = sampleMetallicRoughness(m, uv);
     float metallic = mr.x;
     float roughness = mr.y;
 
@@ -258,14 +272,97 @@ vec3 shadeGLTF(
     // Simple ambient term (you can replace with IBL)
     vec3 ambient = I.baseColor * (1.0 - I.metallic) * af * ao;
 
-    // Emissive
-    emissive = sampleEmissive(m, uv);
-
     // Alpha (if you need it for blending/masking)
     // float alpha = base.a;
 
     //return emissive;
     return Lo + ambient + emissive;
+}
+
+//Next event estimation for emissive triangles
+vec3 nee(vec3 P, vec3 N, vec3 V, vec4 base, vec2 mr, vec3 lightRadiance, float shadowVisibility)
+{
+    vec3 Lo_direct = vec3(0.0);
+
+    // --- NEXT-EVENT ESTIMATION (single sample) ---
+    if(emissiveTriangles.L.length() > 0)
+    {
+        // 1) Pick a random emissive triangle (uniform over triangles for now)
+        uint triIdx = uint(floor(rng(prd.rngState) * float(emissiveTriangles.L.length())));
+        triIdx = clamp(triIdx, 0u, uint(emissiveTriangles.L.length() - 1));
+        EmissiveTriangle tri = emissiveTriangles.L[triIdx];
+
+        // 2) Sample a random point on that triangle (uniform in area)
+        float u = rng(prd.rngState);
+        float v = rng(prd.rngState);
+
+        Material emissiveTriMat = materials.i[tri.matIndex];
+        vec3 lightEmissive = sampleEmissive(emissiveTriMat, vec2(u, v));
+        // Warp to barycentric with u+v<=1
+        float su = sqrt(u);
+        float b1 = 1.0 - su;
+        float b2 = v * su;
+        vec3 v0 = tri.v0;
+        vec3 v1 = tri.v1;
+        vec3 v2 = tri.v2;
+        vec3 e1 = v1 - v0;
+        vec3 e2 = v2 - v0;
+        vec3 xL = v0 + e1 * b1 + e2 * b2;
+        xL = v0;
+
+        // direction to light sample
+        vec3 wi = normalize(xL - P);
+        float dist = length(xL - P);
+        float dist2 = max(dist * dist, 1e-6);
+
+        // 3) Visibility test (shadow ray to xL)
+        //    Set tMax to dist - eps so we only count blockers strictly before the light
+        bool visible = true;
+        {
+            const uint flags = gl_RayFlagsTerminateOnFirstHitEXT |
+                gl_RayFlagsOpaqueEXT |
+                gl_RayFlagsSkipClosestHitShaderEXT;
+
+            // payload at location=1 is a boolean 'isShadowed' as in your code
+            isShadowed = true; // assume blocked
+            traceRayEXT(topLevelAS, flags, 0xFF, 0, 0, 1,
+                P, 0.001, wi, dist - 0.002, 1);
+            visible = !isShadowed;
+        }
+
+        if(visible)
+        {
+            // 4) Geometry term (need light normal; approximate from triangle)
+            vec3 nL = normalize(cross(e1, e2));
+            float cosLo = max(dot(N, wi), 0.0);
+            float cosLi = max(dot(nL, -wi), 0.0);
+
+            // 5) BRDF at the hit point toward the light
+            //    Use your existing eval for GGX/Lambert:
+            PBRInputs I;
+            I.N = normalize(N);
+            I.V = normalize(V);
+            I.L = normalize(wi);
+            I.radiance = lightRadiance * shadowVisibility; // shadow term here
+            I.baseColor = base.rgb;
+            I.metallic = mr.x;
+            I.roughness = mr.y;
+            vec3 f = BRDF_PBR(I);
+
+            // 6) PDF for this sampling strategy:
+            //    uniform over triangles + uniform over area of chosen tri
+            //    pdf_A = (1 / numTris) * (1 / area)
+            float numTris = float(emissiveTriangles.L.length());
+            float pdfA = (1.0 / numTris) * (1.0 / max(tri.area, 1e-8));
+            //pdfA = 1.0;
+
+            // Convert area-PDF to solid-angle factor via geometry term
+            // Contribution = Le * f * cosLo * cosLi / (dist2 * pdfA)
+            Lo_direct += lightEmissive * f * (cosLo * cosLi) / (max(dist2 * pdfA, 1e-6));
+        }
+    }
+
+    return Lo_direct;
 }
 
 void main()
@@ -345,17 +442,41 @@ void main()
 		);
 	}
 
-    N_world;
     vec3 V_world = normalize(gl_WorldRayOriginEXT - P);
-    vec3 emissive;
-    prd.radiance = shadeGLTF(mat, uv, P, V_world, vNormal, vec4(vTangent, 1.0), gl_ObjectToWorldEXT,
-        L, vec3(1.0, 1.0, 0.9) * 2.5, // light direction & radiance
-        1.0 - (isShadowed ? 1.0 : 0.0), // shadow visibility (1 = unshadowed)
+    vec4 base = sampleBaseColor(mat, uv);
+    vec2 mr = sampleMetallicRoughness(mat, uv);
+    vec3 emissive = sampleEmissive(mat, uv);
+    float shadowVisibility = 1.0 - (isShadowed ? 1.0 : 0.0);
+    vec3 lightRadiance = vec3(1.0, 1.0, 0.9) * 2.5; // light radiance at P (includes intensity & attenuation)
+    prd.radiance = shadeGLTF(
+        mat, uv, P, V_world, gl_ObjectToWorldEXT,
+        L, lightRadiance, // light direction & radiance
+        shadowVisibility, // shadow visibility (1 = unshadowed)
         1.0, // ambient occlusion
         N_world,
+        base,
+        mr,
         emissive
     );
 
+    vec3 emissiveExt = vec3(0.0);
+    const int emissiveSamplesCount = 32;
+    for(int i = 0; i < emissiveSamplesCount; i++)
+    {
+        emissiveExt += nee(P, N_world, V_world, base, mr, lightRadiance, shadowVisibility);
+    }
+    prd.radiance += emissiveExt;
+    /*for(int i = 0; i < emissiveTriangles.L.length(); i++)
+    {
+        EmissiveTriangle tri = emissiveTriangles.L[i];
+        if(length(tri.v0 - P) < 0.001 || length(tri.v1 - P) < 0.001 || length(tri.v2 - P) < 0.001)
+        {
+            prd.radiance = vec3(1.0, 0.0, 0.0);
+            return;
+        }
+    }*/
+
+    //prd.radiance = vec3(emissiveTriangles.L.length() / 100.0);
     //int mBaseColorTex;         // -1 if none
     //int mMetallicRoughnessTex; // -1 if none (G=roughness, B=metallic)
     //int mNormalTex;            // -1 if none (tangent space)

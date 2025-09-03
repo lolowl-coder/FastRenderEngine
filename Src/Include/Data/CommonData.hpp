@@ -100,9 +100,8 @@ namespace fre
 
 	struct EmissiveTri
 	{
-		glm::vec3 v0, e1, e2;   // v0, and edges (v1-v0), (v2-v0)
-		glm::vec3 Le;           // emissive radiance (emissiveFactor * emissiveTex if you want)
+		glm::vec3 v0, v1, v2;   // v0, and edges (v1-v0), (v2-v0)
 		float area;             // 0.5 * length(cross(e1, e2))
-		int   pad;              // align to 16B if you keep std430
+        int matIndex;
 	};
 }
