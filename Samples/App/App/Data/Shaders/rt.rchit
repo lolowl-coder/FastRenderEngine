@@ -279,6 +279,41 @@ vec3 shadeGLTF(
     return Lo + ambient + emissive;
 }
 
+// Get a random emissive triangle that faces the view direction V
+// V - reversed ray direction (origin - hit position)
+// e1, e2 - triangle edges (v1-v0, v2-v0)
+EmissiveTriangle getEmissiveTriangle(vec3 P, out vec2 uv, out vec3 n, out vec3 e1, out vec3 e2, out vec3 xL)
+{
+    EmissiveTriangle result;
+    for(int i = 0; i < 8; i++)
+    {
+        // Pick a random emissive triangle (uniform over triangles for now)
+        uint triIdx = uint(floor(rng(prd.rngState) * float(emissiveTriangles.L.length())));
+        triIdx = clamp(triIdx, 0u, uint(emissiveTriangles.L.length() - 1));
+        result = emissiveTriangles.L[triIdx];
+        vec3 v0 = result.v0;
+        vec3 v1 = result.v1;
+        vec3 v2 = result.v2;
+        e1 = v1 - v0;
+        e2 = v2 - v0;
+
+        // Sample a random point on that triangle (uniform in area)
+        uv = vec2(rng(prd.rngState), rng(prd.rngState));
+        // Warp to barycentric with u+v<=1
+        float su = sqrt(uv.x);
+        float b1 = 1.0 - su;
+        float b2 = uv.y * su;
+        n = normalize(cross(e1, e2));
+        xL = v0 + e1 * b1 + e2 * b2;
+        if(dot(normalize(P - xL), n) > 0.0)
+        {
+            break;
+        }
+    }
+
+    return result;
+}
+
 //Next event estimation for emissive triangles
 vec3 nee(vec3 P, vec3 N, vec3 V, vec4 base, vec2 mr, vec3 lightRadiance, float shadowVisibility)
 {
@@ -287,28 +322,15 @@ vec3 nee(vec3 P, vec3 N, vec3 V, vec4 base, vec2 mr, vec3 lightRadiance, float s
     // --- NEXT-EVENT ESTIMATION (single sample) ---
     if(emissiveTriangles.L.length() > 0)
     {
-        // 1) Pick a random emissive triangle (uniform over triangles for now)
-        uint triIdx = uint(floor(rng(prd.rngState) * float(emissiveTriangles.L.length())));
-        triIdx = clamp(triIdx, 0u, uint(emissiveTriangles.L.length() - 1));
-        EmissiveTriangle tri = emissiveTriangles.L[triIdx];
-
-        // 2) Sample a random point on that triangle (uniform in area)
-        float u = rng(prd.rngState);
-        float v = rng(prd.rngState);
+        vec3 e1;
+        vec3 e2;
+        vec3 xL;
+        vec2 uv;
+        vec3 nTri;
+        EmissiveTriangle tri = getEmissiveTriangle(P, uv, nTri, e1, e2, xL);
 
         Material emissiveTriMat = materials.i[tri.matIndex];
-        vec3 lightEmissive = sampleEmissive(emissiveTriMat, vec2(u, v));
-        // Warp to barycentric with u+v<=1
-        float su = sqrt(u);
-        float b1 = 1.0 - su;
-        float b2 = v * su;
-        vec3 v0 = tri.v0;
-        vec3 v1 = tri.v1;
-        vec3 v2 = tri.v2;
-        vec3 e1 = v1 - v0;
-        vec3 e2 = v2 - v0;
-        vec3 xL = v0 + e1 * b1 + e2 * b2;
-        xL = v0;
+        vec3 lightEmissive = sampleEmissive(emissiveTriMat, uv);
 
         // direction to light sample
         vec3 wi = normalize(xL - P);
@@ -333,9 +355,8 @@ vec3 nee(vec3 P, vec3 N, vec3 V, vec4 base, vec2 mr, vec3 lightRadiance, float s
         if(visible)
         {
             // 4) Geometry term (need light normal; approximate from triangle)
-            vec3 nL = normalize(cross(e1, e2));
             float cosLo = max(dot(N, wi), 0.0);
-            float cosLi = max(dot(nL, -wi), 0.0);
+            float cosLi = max(dot(nTri, -wi), 0.0);
 
             // 5) BRDF at the hit point toward the light
             //    Use your existing eval for GGX/Lambert:
@@ -343,7 +364,7 @@ vec3 nee(vec3 P, vec3 N, vec3 V, vec4 base, vec2 mr, vec3 lightRadiance, float s
             I.N = normalize(N);
             I.V = normalize(V);
             I.L = normalize(wi);
-            I.radiance = lightRadiance * shadowVisibility; // shadow term here
+            I.radiance = lightRadiance * float(visible); // shadow term here
             I.baseColor = base.rgb;
             I.metallic = mr.x;
             I.roughness = mr.y;
@@ -354,7 +375,6 @@ vec3 nee(vec3 P, vec3 N, vec3 V, vec4 base, vec2 mr, vec3 lightRadiance, float s
             //    pdf_A = (1 / numTris) * (1 / area)
             float numTris = float(emissiveTriangles.L.length());
             float pdfA = (1.0 / numTris) * (1.0 / max(tri.area, 1e-8));
-            //pdfA = 1.0;
 
             // Convert area-PDF to solid-angle factor via geometry term
             // Contribution = Le * f * cosLo * cosLi / (dist2 * pdfA)
@@ -460,12 +480,13 @@ void main()
     );
 
     vec3 emissiveExt = vec3(0.0);
-    const int emissiveSamplesCount = 32;
+    const int emissiveSamplesCount = 8;
     for(int i = 0; i < emissiveSamplesCount; i++)
     {
         emissiveExt += nee(P, N_world, V_world, base, mr, lightRadiance, shadowVisibility);
     }
     prd.radiance += emissiveExt;
+
     /*for(int i = 0; i < emissiveTriangles.L.length(); i++)
     {
         EmissiveTriangle tri = emissiveTriangles.L[i];
