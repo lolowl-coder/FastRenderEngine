@@ -330,7 +330,10 @@ namespace app
 					const vec3 p0 = modelMatrix * vec4(vertex0.pos, 1.0);
 					const vec3 p1 = modelMatrix * vec4(vertex1.pos, 1.0);
 					const vec3 p2 = modelMatrix * vec4(vertex2.pos, 1.0);
-					EmissiveTri emissiveTri = {p0, p1, p2, length(cross(p1 - p0, p2 - p0)), material.mId};
+					const vec2 uv0 = vertex0.tex;
+					const vec2 uv1 = vertex1.tex;
+					const vec2 uv2 = vertex2.tex;
+					EmissiveTri emissiveTri = {p0, p1, p2, uv0, uv1, uv2, length(cross(p1 - p0, p2 - p0)), material.mId};
                     emissives.push_back(emissiveTri);
 				}
 			}

@@ -49,7 +49,7 @@ void main()
 	{
 		traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, prd.rayOrigin, tmin, prd.rayDir, tmax, 0);
 		hitValue += prd.radiance;
-		if(prd.done == 1 || length(prd.attenuation) < 0.1)
+		if(prd.done == 1 || length(prd.attenuation) < 0.001)
 			break;
 	}
 

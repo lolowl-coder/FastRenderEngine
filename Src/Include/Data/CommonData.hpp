@@ -101,6 +101,7 @@ namespace fre
 	struct EmissiveTri
 	{
 		glm::vec3 v0, v1, v2;   // v0, and edges (v1-v0), (v2-v0)
+		glm::vec2 uv0, uv1, uv2;// tex coords
 		float area;             // 0.5 * length(cross(e1, e2))
         int matIndex;
 	};
