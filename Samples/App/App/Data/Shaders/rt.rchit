@@ -248,7 +248,7 @@ vec3 BRDF_PBR(const PBRInputs I) {
 // Example directional light. For point/spot, compute L and radiance accordingly.
 vec3 shadeGLTF(
     Material m,
-    vec2 uv,
+    vec2 objUV,
     vec3 P_world,
     vec3 V_world,                 // from P toward camera, normalized
     mat4x3 objectToWorld,
@@ -265,7 +265,7 @@ vec3 shadeGLTF(
     float roughness = mr.y;
 
     // Optional AO (texture * screen-space AO)
-    float aoTex = sampleAO(m, uv);
+    float aoTex = sampleAO(m, objUV);
     float ao = clamp(ambientOcclusion * aoTex, 0.0, 1.0);
 
     // Build BRDF inputs
@@ -309,7 +309,7 @@ vec3 shadeGLTF(
 // Get a random emissive triangle that faces the view direction V
 // V - reversed ray direction (origin - hit position)
 // e1, e2 - triangle edges (v1-v0, v2-v0)
-EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 uv, out vec3 n, out vec3 e1, out vec3 e2, out vec3 xL)
+EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 lightUV, out vec3 n, out vec3 e1, out vec3 e2, out vec3 xL)
 {
     EmissiveTriangle result;
     for(int i = 0; i < 10; i++)
@@ -330,27 +330,27 @@ EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 uv, out vec
         uint seqForBary2 = baseSeq + uint(sampleIdx) * 4u + 2u; // +2 for bary v
 
         float u_tri = halton(seqForTri, 7u);   // choose base 7 (avoid 2/3 correlation)
-        uv.x = halton(seqForBary1, 2u); // base 2
-        uv.y = halton(seqForBary2, 3u); // base 3
+        lightUV.x = halton(seqForBary1, 2u); // base 2
+        lightUV.y = halton(seqForBary2, 3u); // base 3
 
         // Pick emissive triangle index using u
         uint triIdx = uint(u_tri * float(emissiveTriangles.L.length()));
 #else
-        uv = vec2(rng(prd.rngState), rng(prd.rngState));
+        lightUV = vec2(rng(prd.rngState), rng(prd.rngState));
         uint triIdx = uint(floor(rng(prd.rngState) * float(emissiveTriangles.L.length())));
 #endif
         triIdx = clamp(triIdx, 0u, uint(emissiveTriangles.L.length() - 1));
         //triIdx = 10;
-        //uv = vec2(0.5);
+        //lightUV = vec2(0.5);
         // Barycentric coords inside triangle using (u,v)
-        float su = sqrt(uv.y);
+        float su = sqrt(lightUV.y);
         float b0 = 1.0 - su;
-        float b1 = uv.x * su;
+        float b1 = lightUV.x * su;
         float b2 = 1.0 - b0 - b1;
 
         result = emissiveTriangles.L[triIdx];
 
-        uv = result.uv0 * b0 + result.uv1 * b1 + result.uv2 * b2;
+        lightUV = result.uv0 * b0 + result.uv1 * b1 + result.uv2 * b2;
         xL = result.v0 * b0 + result.v1 * b1 + result.v2 * b2;
         //xL = result.v0;
         vec3 v0 = result.v0;
@@ -370,7 +370,7 @@ EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 uv, out vec
 }
 
 //Next event estimation for emissive triangles
-vec3 nee(int sampleIdx, vec3 P, vec3 N, vec3 V, vec4 base, vec2 mr)
+vec3 nee(int sampleIdx, Material objMat, vec2 objUV, vec3 P, vec3 N, vec3 V, vec4 base, vec3 emissive, vec2 mr)
 {
     vec3 Lo_direct = vec3(0.0);
 
@@ -380,12 +380,12 @@ vec3 nee(int sampleIdx, vec3 P, vec3 N, vec3 V, vec4 base, vec2 mr)
         vec3 e1;
         vec3 e2;
         vec3 xL;
-        vec2 uv;
+        vec2 lightUV;
         vec3 nTri;
-        EmissiveTriangle tri = getEmissiveTriangle(sampleIdx, P, uv, nTri, e1, e2, xL);
+        EmissiveTriangle tri = getEmissiveTriangle(sampleIdx, P, lightUV, nTri, e1, e2, xL);
 
         Material emissiveTriMat = materials.i[tri.matIndex];
-        vec3 lightEmissive = sampleEmissive(emissiveTriMat, uv) * 3.5;
+        vec3 lightEmissive = sampleEmissive(emissiveTriMat, lightUV) * 3.5;
 
         // direction to light sample
         vec3 wi = normalize(xL - P);
@@ -406,27 +406,28 @@ vec3 nee(int sampleIdx, vec3 P, vec3 N, vec3 V, vec4 base, vec2 mr)
             //    P, 0.001, wi, dist - 0.002, 1);
 
             traceRayEXT(topLevelAS, flags, 0xFF, 0, 0, 1,
-                P, dist * 0.05, wi, dist * 0.93, 1);
+                P, 0.002, wi, dist * 0.93, 1);
             visible = !isShadowed;
         }
 
-        if(visible)
+        //if(visible)
         {
             // 4) Geometry term (need light normal; approximate from triangle)
             float cosLo = max(dot(N, wi), 0.0);
             float cosLi = max(dot(nTri, -wi), 0.0);
 
             // 5) BRDF at the hit point toward the light
-            //    Use your existing eval for GGX/Lambert:
-            PBRInputs I;
-            I.N = normalize(N);
-            I.V = normalize(V);
-            I.L = normalize(wi);
-            I.radiance = lightEmissive;
-            I.baseColor = base.rgb;
-            I.metallic = mr.x;
-            I.roughness = mr.y;
-            vec3 f = BRDF_PBR(I);
+
+            vec3 f = shadeGLTF(
+                objMat, objUV, P, V, gl_ObjectToWorldEXT,
+                wi, lightEmissive, // light direction & radiance
+                float(!isShadowed), // shadow visibility (1 = unshadowed)
+                1.0, // ambient occlusion
+                N,
+                base,
+                mr,
+                emissive
+            );
 
             // 6) PDF for this sampling strategy:
             //    uniform over triangles + uniform over area of chosen tri
@@ -436,18 +437,10 @@ vec3 nee(int sampleIdx, vec3 P, vec3 N, vec3 V, vec4 base, vec2 mr)
 
             // Convert area-PDF to solid-angle factor via geometry term
             //Lo_direct += lightEmissive * f * (cosLo * cosLi) / (max(dist2 * pdfA, 1e-6));
-            vec3 contrib = f * cosLi / max(dist2 * pdfA, 1e-6);
+            vec3 contrib = f * cosLi/* / max(dist2 * pdfA, 1e-6)*/;
 
             Lo_direct += contrib;
-
-            //return f;
-            //return vec3(dist2) / 20.0;
-            //return vec3(1.0);
         }
-        /*else
-        {
-            return vec3(1.0, 0.0, 0.0);
-        }*/
     }
 
     return Lo_direct;
@@ -464,7 +457,7 @@ void main()
 	Vertices vertices = Vertices(mesh.mVertices);
 
 	//Mesh material
-	Material mat = materials.i[mesh.mMaterialIndex];
+	Material objMat = materials.i[mesh.mMaterialIndex];
 
 	// Indices of the triangle
 	uvec3 ind = indices.i[gl_PrimitiveID];
@@ -482,12 +475,12 @@ void main()
 	vec2 uv1 = v1.mTC;
 	vec2 uv2 = v2.mTC;
 
-	vec2 uv = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
+	vec2 objUV = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
 
 	// Computing the normal at hit position
 	vec3 vNormal = v0.mNormal.xyz * barycentrics.x + v1.mNormal.xyz * barycentrics.y + v2.mNormal.xyz * barycentrics.z;
 	vec3 vTangent = v0.mTangent.xyz * barycentrics.x + v1.mTangent.xyz * barycentrics.y + v2.mTangent.xyz * barycentrics.z;
-    vec3 N_world = getWorldNormal(mat, mat.mNormalTex, vNormal, vec4(vTangent, 1.0), uv, gl_ObjectToWorldEXT);
+    vec3 N_world = getWorldNormal(objMat, objMat.mNormalTex, vNormal, vec4(vTangent, 1.0), objUV, gl_ObjectToWorldEXT);
 
 	// Computing the coordinates of the hit position
 	vec3 P = v0.mPos.xyz * barycentrics.x + v1.mPos.xyz * barycentrics.y + v2.mPos.xyz * barycentrics.z;
@@ -500,7 +493,9 @@ void main()
 
 	float NdotL = dot(N_world, L);
 
-	float metallness = sampleMetallicRoughness(mat, uv).x;
+	vec2 mr = sampleMetallicRoughness(objMat, objUV);
+    float metallness = mr.x;
+    float roughness = mr.y;
 	// Tracing shadow ray only if the light is visible from the surface
     // TODO: learn more about back fack check. Not shure if we need it here
 	if(NdotL > 0.0)
@@ -527,15 +522,13 @@ void main()
 	}
 
     vec3 V_world = normalize(gl_WorldRayOriginEXT - P);
-    vec4 base = sampleBaseColor(mat, uv);
-    vec2 mr = sampleMetallicRoughness(mat, uv);
-    vec3 emissive = sampleEmissive(mat, uv);
-    float shadowVisibility = 1.0 - (isShadowed ? 1.0 : 0.0);
-    vec3 lightRadiance = vec3(1.0, 1.0, 0.9) * 2.5; // light radiance at P (includes intensity & attenuation)
+    vec4 base = sampleBaseColor(objMat, objUV);
+    vec3 emissive = sampleEmissive(objMat, objUV);
+    vec3 lightRadiance = vec3(1.0, 1.0, 0.9) * 3.5; // light radiance at P (includes intensity & attenuation)
     prd.radiance = shadeGLTF(
-        mat, uv, P, V_world, gl_ObjectToWorldEXT,
+        objMat, objUV, P, V_world, gl_ObjectToWorldEXT,
         L, lightRadiance, // light direction & radiance
-        shadowVisibility, // shadow visibility (1 = unshadowed)
+        float(!isShadowed), // shadow visibility (1 = unshadowed)
         1.0, // ambient occlusion
         N_world,
         base,
@@ -543,16 +536,14 @@ void main()
         emissive
     );
 
-    vec3 emissiveExt = vec3(0.0);
+    vec3 neeEmissive = vec3(0.0);
     for(int i = 0; i < NUM_NEE_SAMPLES; i++)
     {
-        emissiveExt += nee(i, P, N_world, V_world, base, mr);
+        neeEmissive += nee(i, objMat, objUV, P, N_world, V_world, base, emissive, mr);
     }
-    emissiveExt /= float(NUM_NEE_SAMPLES);
-    //emissiveExt += vec3(float(effectiveSamplesCount) / float(NUM_NEE_SAMPLES));
-    prd.radiance += emissiveExt;
+    neeEmissive /= float(NUM_NEE_SAMPLES);
+    prd.radiance += neeEmissive;
     prd.radiance *= prd.attenuation;
-    //prd.radiance = min(prd.radiance, vec3(1e3)); // avoid fireflies (depends on scene)
 
 	// Reflect
 	vec3 rayDir = reflect(gl_WorldRayDirectionEXT, N_world);
