@@ -6,20 +6,21 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 
-#define NUM_NEE_SAMPLES 4
+#define NUM_EMISSIVE_SAMPLES 1
+#define NUM_GI_SAMPLES 1
 
-struct hitPayload
+struct Payload
 {
-	vec3 radiance;
-	vec3 attenuation;
-	int  done;
-	vec3 rayOrigin;
-	vec3 rayDir;
-    vec3 lightPos;
+    vec3 radiance;
+    vec3 attenuation;
+    vec3 rayOrigin;
+    vec3 rayDir;
     uint rngState;
+    int done;
+    int depth;
 };
 
-layout(location = 0) rayPayloadInEXT hitPayload prd;
+layout(location = 0) rayPayloadInEXT Payload payload;
 layout(location = 1) rayPayloadEXT bool isShadowed;
 
 hitAttributeEXT vec3 attribs;
@@ -107,6 +108,29 @@ uint wangHash(uint x) {
     return x;
 }
 
+float rnd(uint seed)
+{
+    return 0.0;
+}
+
+vec3 cosineHemisphere(inout uint seed) {
+    float u1 = rng(seed);
+    float u2 = rng(seed);
+
+    float r = sqrt(u1);
+    float phi = 2.0 * 3.14159265 * u2;
+
+    float x = r * cos(phi);
+    float y = r * sin(phi);
+    float z = sqrt(max(0.0, 1.0 - u1));
+
+    return vec3(x, y, z);
+}
+
+vec3 toTBNSpace(vec3 local, vec3 n, vec3 t, vec3 b) {
+    return local.x * t + local.y * b + local.z * n;
+}
+
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 vec3  saturate(vec3  v) { return clamp(v, vec3(0.0), vec3(1.0)); }
 
@@ -140,12 +164,12 @@ vec3 F_Schlick(vec3 F0, float HdotV) {
 // Tangent.w is expected to be the handedness (+1 / -1). If you don't have it, use +1.
 vec3 getWorldNormal(Material mat, int normalTexIndex,
     vec3 objN, vec4 objT, vec2 uv,
-    mat4x3 objectToWorld)
+    mat4x3 objectToWorld, out vec3 T, out vec3 B, out vec3 N)
 {
     // Orthonormalize T against N
-    vec3 N = normalize(objN);
-    vec3 T = normalize(objT.xyz - N * dot(objT.xyz, N));
-    vec3 B = normalize(cross(N, T)) * (objT.w >= 0.0 ? 1.0 : -1.0);
+    N = normalize(objN);
+    T = normalize(objT.xyz - N * dot(objT.xyz, N));
+    B = normalize(cross(N, T)) * (objT.w >= 0.0 ? 1.0 : -1.0);
 
     mat3 TBN = mat3(T, B, N);
 
@@ -160,7 +184,8 @@ vec3 getWorldNormal(Material mat, int normalTexIndex,
     // To OBJECT space
     vec3 nObj = normalize(TBN * n);
     // To WORLD space (w = 0 for direction)
-    vec3 nWorld = normalize((objectToWorld * vec4(nObj, 0.0)).xyz);
+    vec3 nWorld = normalize(inverse(transpose(mat3(gl_ObjectToWorldEXT))) * nObj);
+    //vec3 nWorld = normalize((objectToWorld * vec4(nObj, 0.0)).xyz);
     return nWorld;
 }
 
@@ -296,7 +321,7 @@ vec3 shadeGLTF(
     }*/
 
     // Ambient factor
-    float af = 0.7; //0.03 by default. Increased because of dark result
+    float af = 0.5; //0.03 by default. Increased because of dark result
     // Simple ambient term (you can replace with IBL)
     vec3 ambient = I.baseColor * (1.0 - I.metallic) * af * ao;
 
@@ -336,8 +361,8 @@ EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 lightUV, ou
         // Pick emissive triangle index using u
         uint triIdx = uint(u_tri * float(emissiveTriangles.L.length()));
 #else
-        lightUV = vec2(rng(prd.rngState), rng(prd.rngState));
-        uint triIdx = uint(floor(rng(prd.rngState) * float(emissiveTriangles.L.length())));
+        lightUV = vec2(rng(payload.rngState), rng(payload.rngState));
+        uint triIdx = uint(floor(rng(payload.rngState) * float(emissiveTriangles.L.length())));
 #endif
         triIdx = clamp(triIdx, 0u, uint(emissiveTriangles.L.length() - 1));
         //triIdx = 10;
@@ -385,7 +410,7 @@ vec3 nee(int sampleIdx, Material objMat, vec2 objUV, vec3 P, vec3 N, vec3 V, vec
         EmissiveTriangle tri = getEmissiveTriangle(sampleIdx, P, lightUV, nTri, e1, e2, xL);
 
         Material emissiveTriMat = materials.i[tri.matIndex];
-        vec3 lightEmissive = sampleEmissive(emissiveTriMat, lightUV) * 3.5;
+        vec3 lightEmissive = sampleEmissive(emissiveTriMat, lightUV)/* * 3.5*/;
 
         // direction to light sample
         vec3 wi = normalize(xL - P);
@@ -402,8 +427,6 @@ vec3 nee(int sampleIdx, Material objMat, vec2 objUV, vec3 P, vec3 N, vec3 V, vec
 
             // payload at location=1 is a boolean 'isShadowed' as in your code
             isShadowed = true; // assume blocked
-            //traceRayEXT(topLevelAS, flags, 0xFF, 0, 0, 1,
-            //    P, 0.001, wi, dist - 0.002, 1);
 
             traceRayEXT(topLevelAS, flags, 0xFF, 0, 0, 1,
                 P, 0.002, wi, dist * 0.93, 1);
@@ -446,8 +469,69 @@ vec3 nee(int sampleIdx, Material objMat, vec2 objUV, vec3 P, vec3 N, vec3 V, vec
     return Lo_direct;
 }
 
+void processEmissives(Material objMat, vec2 objUV, vec3 P, vec3 N_world, vec3 V_world, vec4 base, vec3 emissive, vec2 mr)
+{
+    vec3 neeEmissiveContrib = vec3(0.0);
+    for(int i = 0; i < NUM_EMISSIVE_SAMPLES; i++)
+    {
+        neeEmissiveContrib += nee(i, objMat, objUV, P, N_world, V_world, base, emissive, mr);
+    }
+    neeEmissiveContrib /= float(NUM_EMISSIVE_SAMPLES);
+    payload.radiance += neeEmissiveContrib;
+}
+
+void processGI(vec3 P, vec3 T, vec3 B, vec3 N)
+{
+    vec3 giContrib = vec3(0.0);
+    Payload old = payload;
+    payload.depth++;
+    for(int i = 0; i < NUM_GI_SAMPLES; i++)
+    {
+        float tMin = 0.001;
+        // infinite
+        float tMax = 1e32;
+        vec3 origin = P;
+
+        /*uvec2 launchID = gl_LaunchIDEXT.xy;
+        uvec2 launchSize = gl_LaunchSizeEXT.xy;
+        uint pixelIndex = launchID.x + launchID.y * launchSize.x;
+        uint pixHash = wangHash(pixelIndex);
+        uint baseSeq = pixHash * 1664525u + 1013904223u; // mixed base seed
+        // then for each sample, build a small sequence index
+        uint seqForTri = baseSeq + uint(sampleIdx) * 4u + 3u; // +0 for tri index
+        float u_tri = halton(seqForTri, 7u);   // choose base 7 (avoid 2/3 correlation)*/
+
+        vec3 rayDir = normalize(mat3(gl_ObjectToWorldEXT) * toTBNSpace(cosineHemisphere(payload.rngState), N, T, B));
+        uint flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT;
+
+        payload.radiance = vec3(0.0);
+
+        traceRayEXT(topLevelAS,        // acceleration structure
+            flags,             // rayFlags
+            0xFF,              // cullMask
+            0,                 // sbtRecordOffset
+            0,                 // sbtRecordStride
+            0,                 // missIndex
+            origin,            // ray origin
+            tMin,              // ray min range
+            rayDir,            // ray direction
+            tMax,              // ray max range
+            0                  // payload (location = 0, 1)
+        );
+        giContrib += payload.radiance;
+    }
+    giContrib /= float(NUM_GI_SAMPLES);
+    payload = old;
+    payload.radiance += giContrib;
+}
+
 void main()
 {
+    if(payload.depth > 1)
+    {
+        return;
+    }
+
 	// When contructing the TLAS, we stored the model id in InstanceCustomIndexEXT, so the
 	// the instance can quickly have access to the data
 
@@ -480,7 +564,10 @@ void main()
 	// Computing the normal at hit position
 	vec3 vNormal = v0.mNormal.xyz * barycentrics.x + v1.mNormal.xyz * barycentrics.y + v2.mNormal.xyz * barycentrics.z;
 	vec3 vTangent = v0.mTangent.xyz * barycentrics.x + v1.mTangent.xyz * barycentrics.y + v2.mTangent.xyz * barycentrics.z;
-    vec3 N_world = getWorldNormal(objMat, objMat.mNormalTex, vNormal, vec4(vTangent, 1.0), objUV, gl_ObjectToWorldEXT);
+    vec3 T;
+    vec3 B;
+    vec3 N;
+    vec3 N_world = getWorldNormal(objMat, objMat.mNormalTex, vNormal, vec4(vTangent, 1.0), objUV, gl_ObjectToWorldEXT, T, B, N);
 
 	// Computing the coordinates of the hit position
 	vec3 P = v0.mPos.xyz * barycentrics.x + v1.mPos.xyz * barycentrics.y + v2.mPos.xyz * barycentrics.z;
@@ -525,7 +612,7 @@ void main()
     vec4 base = sampleBaseColor(objMat, objUV);
     vec3 emissive = sampleEmissive(objMat, objUV);
     vec3 lightRadiance = vec3(1.0, 1.0, 0.9) * 3.5; // light radiance at P (includes intensity & attenuation)
-    prd.radiance = shadeGLTF(
+    vec3 directLightContrib = shadeGLTF(
         objMat, objUV, P, V_world, gl_ObjectToWorldEXT,
         L, lightRadiance, // light direction & radiance
         float(!isShadowed), // shadow visibility (1 = unshadowed)
@@ -535,20 +622,20 @@ void main()
         mr,
         emissive
     );
+    payload.radiance += directLightContrib;
 
-    vec3 neeEmissive = vec3(0.0);
-    for(int i = 0; i < NUM_NEE_SAMPLES; i++)
-    {
-        neeEmissive += nee(i, objMat, objUV, P, N_world, V_world, base, emissive, mr);
-    }
-    neeEmissive /= float(NUM_NEE_SAMPLES);
-    prd.radiance += neeEmissive;
-    prd.radiance *= prd.attenuation;
+    processEmissives(objMat, objUV, P, N_world, V_world, base, emissive, mr);
+
+    processGI(P, T, B, N);
+
+    payload.radiance *= payload.attenuation;
 
 	// Reflect
 	vec3 rayDir = reflect(gl_WorldRayDirectionEXT, N_world);
-    prd.attenuation *= 0.8 * (metallness);
-	prd.rayOrigin = P;
-	prd.rayDir = rayDir;
+    if(payload.depth == 0)
+    {
+        payload.attenuation *= 0.8 * (metallness);
+    }
+    payload.rayOrigin = P;
+    payload.rayDir = rayDir;
 }
-

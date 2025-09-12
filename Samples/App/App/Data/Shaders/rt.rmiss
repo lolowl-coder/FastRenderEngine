@@ -1,19 +1,21 @@
 #version 460
 #extension GL_EXT_ray_tracing : enable
 
-struct hitPayload
+struct Payload
 {
-	vec3 radiance;
-	vec3 attenuation;
-	int  done;
-	vec3 rayOrigin;
-	vec3 rayDir;
+    vec3 radiance;
+    vec3 attenuation;
+    vec3 rayOrigin;
+    vec3 rayDir;
+    uint rngState;
+    int done;
+    int depth;
 };
 
-layout(location = 0) rayPayloadInEXT hitPayload prd;
+layout(location = 0) rayPayloadInEXT Payload payload;
 
 void main()
 {
-	prd.radiance = vec3(0.1) * prd.attenuation;
-	prd.done = 1;
+	payload.radiance = vec3(0.1) * payload.attenuation;
+	payload.done = 1;
 }
