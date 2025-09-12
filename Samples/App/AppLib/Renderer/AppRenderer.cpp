@@ -47,7 +47,14 @@ namespace app
 								{
 									if(selectedIndex > -1)
 									{
-										mMaterials[selectedIndex].mBaseColorFactor = vec4(1.0f);
+										if(selectedIndex == 2)
+										{
+											mMaterials[selectedIndex].mEmissiveFactor = vec3(6.154f);
+										}
+										else
+										{
+											mMaterials[selectedIndex].mBaseColorFactor = vec4(1.0f);
+										}
 									}
 									if(selected == ImGuiTreeNodeFlags_Selected)
 									{
@@ -60,7 +67,15 @@ namespace app
 										selected = ImGuiTreeNodeFlags_Selected;
 									}
 									changed = true;
-									mat.mBaseColorFactor = selected == ImGuiTreeNodeFlags_Selected ? vec4(1.0f, 0.0f, 0.0f, 1.0f) : vec4(1.0f);
+									if(selectedIndex == 2)
+									{
+										mat.mEmissiveFactor = selected == ImGuiTreeNodeFlags_Selected ? vec3(6.154f, 0.0f, 0.0f) : vec3(6.154, 6.154f, 6.154f);
+									}
+									else
+									{
+										mat.mBaseColorFactor = selected == ImGuiTreeNodeFlags_Selected ? vec4(1.0f, 0.0f, 0.0f, 1.0f) : vec4(1.0f);
+									}
+
 								}
 
 								ImGui::TreePop();

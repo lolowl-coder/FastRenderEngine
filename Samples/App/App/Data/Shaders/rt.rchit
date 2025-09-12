@@ -108,14 +108,17 @@ uint wangHash(uint x) {
     return x;
 }
 
-float rnd(uint seed)
-{
-    return 0.0;
-}
+vec3 cosineHemisphere(int sampleIdx) {
+    uvec2 launchID = gl_LaunchIDEXT.xy;
+    uvec2 launchSize = gl_LaunchSizeEXT.xy;
+    uint pixelIndex = launchID.x + launchID.y * launchSize.x;
+    uint pixHash = wangHash(pixelIndex);
+    uint baseSeq = pixHash * 1664525u + 1013904223u; // mixed base seed
+    // then for each sample, build a small sequence index
+    uint seqForU = baseSeq + uint(sampleIdx) * 4u + 3u; // +0 for tri index
 
-vec3 cosineHemisphere(inout uint seed) {
-    float u1 = rng(seed);
-    float u2 = rng(seed);
+    float u1 = halton(seqForU, 11u);
+    float u2 = halton(seqForU, 15u);
 
     float r = sqrt(u1);
     float phi = 2.0 * 3.14159265 * u2;
@@ -492,16 +495,7 @@ void processGI(vec3 P, vec3 T, vec3 B, vec3 N)
         float tMax = 1e32;
         vec3 origin = P;
 
-        /*uvec2 launchID = gl_LaunchIDEXT.xy;
-        uvec2 launchSize = gl_LaunchSizeEXT.xy;
-        uint pixelIndex = launchID.x + launchID.y * launchSize.x;
-        uint pixHash = wangHash(pixelIndex);
-        uint baseSeq = pixHash * 1664525u + 1013904223u; // mixed base seed
-        // then for each sample, build a small sequence index
-        uint seqForTri = baseSeq + uint(sampleIdx) * 4u + 3u; // +0 for tri index
-        float u_tri = halton(seqForTri, 7u);   // choose base 7 (avoid 2/3 correlation)*/
-
-        vec3 rayDir = normalize(mat3(gl_ObjectToWorldEXT) * toTBNSpace(cosineHemisphere(payload.rngState), N, T, B));
+        vec3 rayDir = normalize(mat3(gl_ObjectToWorldEXT) * toTBNSpace(cosineHemisphere(i), N, T, B));
         uint flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT;
 
         payload.radiance = vec3(0.0);
