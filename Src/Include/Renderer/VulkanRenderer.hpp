@@ -11,6 +11,7 @@
 #include "Shader.hpp"
 #include "Statistics.hpp"
 #include "Utilities.hpp"
+#include "Renderer/Denoiser.hpp"
 #include "Renderer/VulkanBufferManager.hpp"
 #include "Renderer/VulkanResourceCache.hpp"
 #include "Renderer/VulkanCommandBuffer.hpp"
@@ -82,7 +83,6 @@ namespace fre
 			const VkImageUsageFlags usageFlags,
 			const VkMemoryPropertyFlags memoryFlags,
 			const VkImageLayout layout,
-			const bool isExternal,
 			Image& image);
 		VulkanTextureInfoPtr getTextureInfo(const uint32_t id);
 
@@ -121,6 +121,7 @@ namespace fre
 		
 		//Draw all models and UI
 		virtual void draw(const Camera& camera, const Light& light);
+		virtual void onFrameEnd();
 		void preprocessUI();
 		void drawUI();
 
@@ -457,5 +458,6 @@ namespace fre
 
         MeshPtr mFullscreenTriangleMesh;
         bool mTraced = false;
+		OptixDenoiser mDenoiser;
 	};
 }

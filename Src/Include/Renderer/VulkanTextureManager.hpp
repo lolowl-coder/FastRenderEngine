@@ -36,7 +36,6 @@ namespace fre
 			const VkImageUsageFlags usageFlags,
 			const VkMemoryPropertyFlags memoryFlags,
 			const VkImageLayout layout,
-			const bool isExternal,
 			Image& image);
 		VulkanTextureInfoPtr getTextureInfo(const uint32_t id);
 		uint32_t createTexture(

@@ -12,6 +12,7 @@
 struct Payload
 {
     vec3 radiance;
+    vec3 normal;
     vec3 attenuation;
     vec3 rayOrigin;
     vec3 rayDir;
@@ -72,12 +73,12 @@ layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions o
 layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indices
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
-layout(set = 0, binding = 3) buffer SceneDesc { Mesh i[]; } sceneDesc;
-layout(set = 0, binding = 4, scalar) buffer GlobalMaterials { Material i[]; } materials;
+layout(set = 0, binding = 4) buffer SceneDesc { Mesh i[]; } sceneDesc;
+layout(set = 0, binding = 5, scalar) buffer GlobalMaterials { Material i[]; } materials;
 // Scene textures
-layout(set = 0, binding = 5) uniform sampler2D textures[];
+layout(set = 0, binding = 6) uniform sampler2D textures[];
 // Emissive objects triangles
-layout(set = 0, binding = 6, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
+layout(set = 0, binding = 7, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
 // clang-format on
 
 // --------------------------- math helpers -----------------------------------
@@ -632,4 +633,5 @@ void main()
     }
     payload.rayOrigin = P;
     payload.rayDir = rayDir;
+    payload.normal = N_world;
 }

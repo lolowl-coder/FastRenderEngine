@@ -25,12 +25,18 @@ namespace app
         virtual void cleanupSwapChain() override;
         virtual void createSwapChain() override;
 		virtual void update(const fre::Camera& camera, const fre::Light& light) override;
+		virtual void onFrameEnd() override;
 
 		virtual std::vector<const fre::VulkanShader*> getRTShaders(const uint32_t shaderId) override;
 		virtual fre::ShaderMetaDatum getShaderMetaData(const std::string& shaderFileName) override;
 
 	private:
-		void createStorageImage();
+		struct StorageImage
+		{
+			fre::VulkanTexturePtr texture;
+            fre::VulkanDescriptorPtr descriptor;
+		};
+		StorageImage createStorageImage(bool external, VkFormat format, VkImageTiling tiling, const std::string& name);
 		void loadMeshModel();
 		void createResultMesh();
 		void createAS();
@@ -38,18 +44,11 @@ namespace app
 		void createSceneGPU();
 		void createScene();
 		void updateMaterials();
+		void createGBuffer();
 
 	private:
-        fre::VulkanTexturePtr mStorageImage;
-		fre::VulkanDescriptorPoolPtr mStorageImageDP;
-		fre::VulkanDescriptorSetLayoutPtr mStorageImageDSL;
-		fre::VulkanDescriptorSetPtr mStorageImageDS;
-		fre::VulkanDescriptorPoolPtr mASDescriptorPool;
-		fre::VulkanDescriptorSetLayoutPtr mASDescriptorSetLayout;
-		fre::VulkanDescriptorSetPtr mASDescriptorSet;
-		fre::VulkanDescriptorPool mResultDP;
-		fre::VulkanDescriptorSetLayout mResultDSL;
-		fre::VulkanDescriptorSet mResultDS;
+        StorageImage mColorStorage;
+        StorageImage mNormalStorage;
 		fre::MeshPtr mResultMesh;
 
         uint32_t mRTShaderId = MAX(uint32_t);
@@ -62,7 +61,6 @@ namespace app
 		fre::AccelerationStructure mTLAS;
 		fre::VulkanBuffer mSceneGPU;
 		fre::VulkanDescriptorPtr mTLASDescriptor;
-		fre::VulkanDescriptorPtr mStorageImageDescriptor;
 		fre::VulkanDescriptorPtr mRTMeshesGPUDescriptor;
 		fre::VulkanDescriptorPtr mRTMaterialsGPUDescriptor;
 		fre::VulkanDescriptorPtr mRTCameraDescriptor;
@@ -83,5 +81,7 @@ namespace app
 		uint32_t mShadowMissShaderId = MAX(uint32_t);
 
         fre::RTCamera mRTCamera;
+		uint32_t mColorTextureId = MAX(uint32_t);
+		uint32_t mNormalTextureId = MAX(uint32_t);
 	};
 }

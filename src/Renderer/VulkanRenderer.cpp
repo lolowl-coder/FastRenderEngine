@@ -65,7 +65,7 @@ namespace fre
 			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			false, image);
+			image);
 	}
 
 	VulkanRenderer::~VulkanRenderer()
@@ -396,7 +396,6 @@ namespace fre
 		const VkImageUsageFlags usageFlags,
 		const VkMemoryPropertyFlags memoryFlags,
 		const VkImageLayout layout,
-		const bool isExternal,
 		Image& image)
 	{
 		return mTextureManager.createTextureInfo(
@@ -405,7 +404,6 @@ namespace fre
 			usageFlags,
 			memoryFlags,
 			layout,
-			isExternal,
 			image);
 	}
 
@@ -556,6 +554,10 @@ namespace fre
 		}
 	}
 
+	void VulkanRenderer::onFrameEnd()
+	{
+	}
+
 	void VulkanRenderer::draw(const Camera& camera, const Light& light)
 	{
 		if(needRedraw())
@@ -655,6 +657,8 @@ namespace fre
 				}
 				//Get next frame
 				mCurrentFrame = (mCurrentFrame + 1) % MAX_FRAME_DRAWS;
+
+				onFrameEnd();
 			}
 			mFrameNumber++;
 			if(!reshaped)
@@ -2815,7 +2819,7 @@ namespace fre
 						auto textureInfoId = createTextureInfo(
 							VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_IMAGE_TILING_OPTIMAL,
 							VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-							VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, false, image);
+							VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, image);
 
 						material.mTextureIds[textureType] = textureInfoId;
                         LOG_INFO("Material {} texture {}: {}", material.mName, aiTextureTypeToString(textureType), path.C_Str());

@@ -195,6 +195,33 @@ namespace app
         VulkanRenderer::update(camera, light);
 	}
 
+	void AppRenderer::onFrameEnd()
+	{
+		VulkanRenderer::onFrameEnd();
+		OptiXDenoiser::Data data;
+		auto maxViewSize = getViewport().getSize();
+		data.width = maxViewSize.x;
+		data.height = maxViewSize.y;
+		/*data.color = reinterpret_cast<float*>(color.data);
+		data.albedo = reinterpret_cast<float*>(albedo.data);
+		data.normal = reinterpret_cast<float*>(normal.data);
+		data.flow = reinterpret_cast<float*>(flow.data);
+		data.flowtrust = reinterpret_cast<float*>(flowtrust.data);
+		
+		if(mFrameNumber == 0)
+		{
+			const double t0 = mTime;
+			denoiser.init(data, tileWidth, tileHeight, kpMode, temporalMode, applyFlow, upscale2x, alphaMode, specularMode);
+			const double t1 = getCurrentTime();
+			std::cout << "\tAPI Initialization        :" << std::fixed << std::setw(8) << std::setprecision(2)
+				<< (t1 - t0) * 1000.0 << " ms" << std::endl;
+		}
+		else
+		{
+			denoiser.update(data);
+		}*/
+	}
+
 	std::vector<const VulkanShader*> AppRenderer::getRTShaders(const uint32_t shaderId)
 	{
 		std::vector<const VulkanShader*> result;
@@ -245,19 +272,22 @@ namespace app
 		return result;
 	}
 
-    void AppRenderer::createStorageImage()
+    AppRenderer::StorageImage AppRenderer::createStorageImage(bool external, VkFormat format,VkImageTiling tiling, const std::string& name)
     {
+		StorageImage result;
+
 		auto maxViewSize = getViewport().getSize();
 		Image image;
 		image.mDimension = maxViewSize;
-		image.mFormat = VK_FORMAT_R8G8B8A8_UNORM;
+		image.mFormat = format;
+		image.mFileName = name;
+		image.mIsExternal = external;
 		auto textureInfoId = mTextureManager.createTextureInfo(
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-			VK_IMAGE_TILING_OPTIMAL,
+			tiling,
 			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			VK_IMAGE_LAYOUT_GENERAL,
-			false,
 			image);
 		auto textureInfo = getTextureInfo(textureInfoId);
 		auto textureId = mTextureManager.createTexture(
@@ -267,17 +297,19 @@ namespace app
 			mGraphicsQueue,
 			mGraphicsCommandPool,
             textureInfo);
-		mStorageImage = getTexture(textureId);
+		result.texture = getTexture(textureId);
 
 		auto samplerId = createSampler({});
 		auto sampler = getSampler(samplerId);
 
-        std::vector<VkImageView> imageViews = { mStorageImage->mImageView };
+        std::vector<VkImageView> imageViews = { result.texture->mImageView };
         std::vector<VkSampler> samplers = { sampler };
 
-		mStorageImageDescriptor = std::make_shared<DescriptorImage>(
+		result.descriptor = std::make_shared<DescriptorImage>(
 			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL,
 			imageViews, samplers);
+
+		return result;
     }
 
 	int AppRenderer::createDynamicGPUResources()
@@ -286,7 +318,9 @@ namespace app
 
 		if(result == 0)
 		{
-			createStorageImage();
+			//Create G-buffer
+			mColorStorage = createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, "#colorStorage");
+			mNormalStorage = createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, "#normalStorage");
 		}
 
 		return result;
@@ -373,7 +407,7 @@ namespace app
 		addMaterial(material);
 		mResultMesh = std::make_shared<Mesh>(material.mId);
 		mResultMesh->setGeneratedVerticesCount(3);
-        mResultMesh->setDescriptors({ { mStorageImageDescriptor } });
+        mResultMesh->setDescriptors({ { mColorStorage.descriptor } });
 		mResultMesh->setVisible(false);
 		addMeshModel({ mResultMesh });
 	}
@@ -548,7 +582,10 @@ namespace app
  		mRTTexturesDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mTextureViews, mTextureSamplers);
 		mEmissiveTrianglesDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mEmissiveTrianglesBuffer.mBuffer);
 
-		mMeshModel->getMesh(0)->setDescriptors({ {mTLASDescriptor, mStorageImageDescriptor, mRTCameraDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor, mRTTexturesDescriptor, mEmissiveTrianglesDescriptor} });
+		mMeshModel->getMesh(0)->setDescriptors({ {
+                mTLASDescriptor, mColorStorage.descriptor, mNormalStorage.descriptor,
+				mRTCameraDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor,
+				mRTTexturesDescriptor, mEmissiveTrianglesDescriptor} });
 		mMeshModel->setVisible(true);
 
 		mResultMesh->setVisible(true);

@@ -66,6 +66,7 @@ namespace fre
 
 		FIELD_NS(std::vector<uint32_t>, DescriptorSets, private, public, public);
 
+        //Each inner vector represents descriptors for one descriptor set
         FIELD_NS(std::vector<std::vector<VulkanDescriptorPtr>>, Descriptors, private, public, public);
 
         FIELD_NS(glm::mat4, ModelMatrix, private, public, public);
