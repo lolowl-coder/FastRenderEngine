@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Renderer/VulkanRenderer.hpp"
 #include "CudaBuffer.hpp"
 #include "CudaUtilities.hpp"
 #include "Log.hpp"
@@ -50,7 +51,7 @@ namespace fre
 			CudaBuffer<T> result;
 			//static T* dummy;
 			//result.mDataType = getDataType(dummy);
-			result.mElementsCount = glm::u64vec3(elementsCountX, elementsCountY, elementsCountZ);
+			result.mDimensions = glm::u64vec3(elementsCountX, elementsCountY, elementsCountZ);
 
 			InternalBuffer internalBuffer;
 			lockImpl(result.getSize(), internalBuffer, name);
@@ -69,6 +70,30 @@ namespace fre
 		CudaBuffer<T> lock(const std::string& name, const glm::u64vec2& elementsCount)
 		{
 			return lock<T>(name, elementsCount.x, elementsCount.y, 1);
+		}
+
+		template<typename T>
+		CudaBuffer<T> createExternalBuffer(const uint32_t textureId, VulkanRenderer* renderer)
+		{
+            CudaBuffer<T> result;
+			cudaExternalMemory_t cudaExternalMem;
+			// Get Vulkan texture memory
+			VkDeviceMemory vulkanExternalMem = renderer->getTextureManager().getTextureMemory(textureId);
+			// Get image for actual size
+            Image& image = renderer->getTextureInfo(textureId)->mImage;
+			VulkanTexturePtr& texture = renderer->getTexture(textureId);
+			importCudaExternalMemory((void**)&result.mData, cudaExternalMem, vulkanExternalMem,
+				texture->mActualSize,
+				getDefaultMemHandleType(), renderer);
+			glm::ivec2 actualImageDimensions = ivec2(
+				texture->mActualSize / image.mStride / image.mDimension.y,
+				image.mDimension.y);
+			result.mDimensions.x = actualImageDimensions.x;
+			result.mDimensions.y = actualImageDimensions.y;
+			result.mDimensions.z = 1;
+            mExternalMems.push_back(cudaExternalMem);
+
+			return result;
 		}
 
 		void unlockImpl(const uint64_t size, InternalBuffer& buffer);
@@ -127,6 +152,7 @@ namespace fre
 		const std::string mName;
 		TBuffers mBuffers;
 		TBuffers mLockedBuffers;
+		std::vector<cudaExternalMemory_t> mExternalMems;
 		bool mCleanupRequested = false;
 		uint64_t mFrameNumber = 0;
 		uint64_t mLockRequests = 0;

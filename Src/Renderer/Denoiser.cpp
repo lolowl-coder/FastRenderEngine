@@ -55,7 +55,7 @@ namespace fre
         CUDA_CHECK(cudaMemcpy((void*)dest.data, (void*)src.data, src.width * src.height * sizeof(float4), cudaMemcpyDeviceToDevice));
     }
 
-    void OptiXDenoiser::init(const Data& data,
+    void Denoiser::init(const Data& data,
         unsigned int tileWidth,
         unsigned int tileHeight,
         bool         kpMode,
@@ -66,7 +66,7 @@ namespace fre
         bool         specularMode)
     {
         assert(data.color);
-        assert(data.outputs.size() >= 1);
+        //assert(data.outputs.size() >= 1);
         assert(data.width);
         assert(data.height);
         assert(!data.normal || data.albedo, "Currently albedo is required if normal input is given");
@@ -277,10 +277,10 @@ namespace fre
         }
     }
 
-    void OptiXDenoiser::update(const Data& data)
+    void Denoiser::update(const Data& data)
     {
         assert(data.color);
-        assert(data.outputs.size() >= 1);
+        //assert(data.outputs.size() >= 1);
         assert(data.width);
         assert(data.height);
         assert(!data.normal || data.albedo, "Currently albedo is required if normal input is given");
@@ -320,7 +320,7 @@ namespace fre
         m_params.temporalModeUsePreviousLayers = 1;
     }
 
-    void OptiXDenoiser::exec()
+    void Denoiser::exec()
     {
         if(m_intensity)
         {
@@ -460,7 +460,7 @@ namespace fre
     }
 
     // Apply flow from current frame to the previous noisy image. 
-    void OptiXDenoiser::applyFlow()
+    void Denoiser::applyFlow()
     {
         if(m_layers.size() == 0)
             return;
@@ -491,7 +491,7 @@ namespace fre
         delete[] flow;
     }
 
-    void OptiXDenoiser::getResults()
+    void Denoiser::getResults()
     {
         const uint64_t frame_byte_size = m_layers[0].output.width * m_layers[0].output.height * sizeof(float4);
         for(size_t i = 0; i < m_layers.size(); i++)
@@ -511,7 +511,18 @@ namespace fre
         }
     }
 
-    void OptiXDenoiser::getInternalGuideLayerData(unsigned char** data, size_t* sizeInBytes)
+    void Denoiser::copyResultDevice(void* data)
+    {
+        const uint64_t frame_byte_size = m_layers[0].output.width * m_layers[0].output.height * sizeof(float4);
+        CUDA_CHECK(cudaMemcpy(
+            data,
+            reinterpret_cast<void*>(m_layers[0].output.data),
+            frame_byte_size,
+            cudaMemcpyDeviceToDevice
+        ));
+    }
+
+    void Denoiser::getInternalGuideLayerData(unsigned char** data, size_t* sizeInBytes)
     {
         *data = 0;
         *sizeInBytes = 0;
@@ -524,7 +535,7 @@ namespace fre
         }
     }
 
-    void OptiXDenoiser::finish()
+    void Denoiser::finish()
     {
         // Cleanup resources
         optixDenoiserDestroy(m_denoiser);

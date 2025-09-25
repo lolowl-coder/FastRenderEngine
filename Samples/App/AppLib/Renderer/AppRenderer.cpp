@@ -1,3 +1,4 @@
+#include "Interop/Interop.hpp"
 #include "Renderer/AppRenderer.hpp"
 #include "Renderer/FeatureMacro.hpp"
 #include "Renderer/FeatureStorage.hpp"
@@ -9,6 +10,7 @@
 #include "Renderer/VulkanTexture.hpp"
 #include "UI/UIUtilities.hpp"
 #include "Camera.hpp"
+#include "CudaUtilities.hpp"
 #include "Utilities.hpp"
 
 #include<memory>
@@ -20,6 +22,7 @@ namespace app
 {
 	AppRenderer::AppRenderer(ThreadPool& threadPool)
 		: VulkanRenderer(threadPool)
+		, mCudaBufferManager("CudaBufferManager")
 	{
 	}
 
@@ -31,57 +34,63 @@ namespace app
 			{
 				if(!mRTMeshes.empty() && mRTMeshes[0] != nullptr)
 				{
-					ImGui::Begin("Materials");
+					ImGui::Begin("Options");
                     ImGui::PushItemWidth(150.0f);
 					bool changed = false;
 					static int selectedIndex = -1;
-					for(int i = 0; i < mMaterials.size(); i++)
+					if(ImGui::TreeNodeEx("Materials", ImGuiTreeNodeFlags_DefaultOpen, "Materials"))
 					{
-						Material& mat = mMaterials[i];
-						if(!mat.mName.empty())
+						for(int i = 0; i < mMaterials.size(); i++)
 						{
-							ImGuiTreeNodeFlags_ selected = i == selectedIndex ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None;
-							if(ImGui::TreeNodeEx(mat.mName.c_str(), ImGuiTreeNodeFlags_Leaf | selected, mat.mName.c_str()))
+							Material& mat = mMaterials[i];
+							if(!mat.mName.empty())
 							{
-								if(ImGui::IsItemClicked())
+								ImGuiTreeNodeFlags_ selected = i == selectedIndex ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None;
+								if(ImGui::TreeNodeEx(mat.mName.c_str(), ImGuiTreeNodeFlags_Leaf | selected, mat.mName.c_str()))
 								{
-									if(selectedIndex > -1)
+									if(ImGui::IsItemClicked())
 									{
-										if(selectedIndex == 2)
+										if(selectedIndex > -1)
 										{
-											mMaterials[selectedIndex].mEmissiveFactor = vec3(6.154f);
+											if(selectedIndex == 2)
+											{
+												mMaterials[selectedIndex].mEmissiveFactor = vec3(6.154f);
+											}
+											else
+											{
+												mMaterials[selectedIndex].mBaseColorFactor = vec4(1.0f);
+											}
+										}
+										if(selected == ImGuiTreeNodeFlags_Selected)
+										{
+											selectedIndex = -1;
+											selected = ImGuiTreeNodeFlags_None;
 										}
 										else
 										{
-											mMaterials[selectedIndex].mBaseColorFactor = vec4(1.0f);
+											selectedIndex = i;
+											selected = ImGuiTreeNodeFlags_Selected;
 										}
-									}
-									if(selected == ImGuiTreeNodeFlags_Selected)
-									{
-										selectedIndex = -1;
-										selected = ImGuiTreeNodeFlags_None;
-									}
-									else
-									{
-										selectedIndex = i;
-										selected = ImGuiTreeNodeFlags_Selected;
-									}
-									changed = true;
-									if(selectedIndex == 2)
-									{
-										mat.mEmissiveFactor = selected == ImGuiTreeNodeFlags_Selected ? vec3(6.154f, 0.0f, 0.0f) : vec3(6.154, 6.154f, 6.154f);
-									}
-									else
-									{
-										mat.mBaseColorFactor = selected == ImGuiTreeNodeFlags_Selected ? vec4(1.0f, 0.0f, 0.0f, 1.0f) : vec4(1.0f);
+										changed = true;
+										if(selectedIndex == 2)
+										{
+											mat.mEmissiveFactor = selected == ImGuiTreeNodeFlags_Selected ? vec3(6.154f, 0.0f, 0.0f) : vec3(6.154, 6.154f, 6.154f);
+										}
+										else
+										{
+											mat.mBaseColorFactor = selected == ImGuiTreeNodeFlags_Selected ? vec4(1.0f, 0.0f, 0.0f, 1.0f) : vec4(1.0f);
+										}
+
 									}
 
+									ImGui::TreePop();
 								}
-
-								ImGui::TreePop();
 							}
 						}
+
+						ImGui::TreePop();
 					}
+					ImGui::Checkbox("Denoise", &mIsDenoiserEnabled);
 
 					if(changed)
 					{
@@ -195,31 +204,59 @@ namespace app
         VulkanRenderer::update(camera, light);
 	}
 
-	void AppRenderer::onFrameEnd()
+	void AppRenderer::onRaytracingCommandsSubmitted()
 	{
-		VulkanRenderer::onFrameEnd();
-		OptiXDenoiser::Data data;
-		auto maxViewSize = getViewport().getSize();
-		data.width = maxViewSize.x;
-		data.height = maxViewSize.y;
-		/*data.color = reinterpret_cast<float*>(color.data);
-		data.albedo = reinterpret_cast<float*>(albedo.data);
-		data.normal = reinterpret_cast<float*>(normal.data);
-		data.flow = reinterpret_cast<float*>(flow.data);
-		data.flowtrust = reinterpret_cast<float*>(flowtrust.data);
-		
-		if(mFrameNumber == 0)
+		VulkanRenderer::onRaytracingCommandsSubmitted();
+		if(
+			mCUDAExternalColorBuffer.mData != nullptr &&
+			mCUDAExternalAlbedoBuffer.mData != nullptr &&
+			mCUDAExternalNormalBuffer.mData != nullptr &&
+			mIsDenoiserEnabled)
 		{
-			const double t0 = mTime;
-			denoiser.init(data, tileWidth, tileHeight, kpMode, temporalMode, applyFlow, upscale2x, alphaMode, specularMode);
-			const double t1 = getCurrentTime();
-			std::cout << "\tAPI Initialization        :" << std::fixed << std::setw(8) << std::setprecision(2)
-				<< (t1 - t0) * 1000.0 << " ms" << std::endl;
+			cudaExternalSemaphoreWaitParams waitParams = {};
+			waitParams.flags = 0;
+			waitParams.params.fence.value = 0;
+			// Wait for vulkan to complete it's work
+			CUDA_CHECK(cudaWaitExternalSemaphoresAsync(&mCudaWaitSemaphore, &waitParams, 1, 0));
+
+			Denoiser::Data data;
+			auto maxViewSize = getViewport().getSize();
+			data.width = maxViewSize.x;
+			data.height = maxViewSize.y;
+			data.color = reinterpret_cast<float*>(mCUDAExternalColorBuffer.mData);
+			data.albedo = reinterpret_cast<float*>(mCUDAExternalAlbedoBuffer.mData);
+			data.normal = reinterpret_cast<float*>(mCUDAExternalNormalBuffer.mData);
+			//data.flow = reinterpret_cast<float*>(flow.data);
+			//data.flowtrust = reinterpret_cast<float*>(flowtrust.data);
+
+			if(!mDenoiserInitialized)
+			{
+				const int tileWidth = 0;
+				const int tileHeight = 0;
+				const bool kpMode = true;
+				const bool temporalMode = false;
+				const bool applyFlow = false;
+				const bool upscale2x = false;
+				const OptixDenoiserAlphaMode alphaMode = OPTIX_DENOISER_ALPHA_MODE_COPY;
+				const bool specularMode = false;
+				mDenoiser.init(data, tileWidth, tileHeight, kpMode, temporalMode, applyFlow,
+					upscale2x, alphaMode, specularMode);
+				mDenoiserInitialized = true;
+			}
+			else
+			{
+				mDenoiser.update(data);
+			}
+            mDenoiser.exec();
+			mDenoiser.copyResultDevice(mCUDAExternalColorBuffer.mData);
+
+			cudaExternalSemaphoreSignalParams signalParams = {};
+			signalParams.flags = 0;
+			signalParams.params.fence.value = 0;
+
+			// Signal vulkan to continue with the updated buffers
+			CUDA_CHECK(cudaSignalExternalSemaphoresAsync(&mCudaSignalSemaphore, &signalParams, 1, 0));
 		}
-		else
-		{
-			denoiser.update(data);
-		}*/
 	}
 
 	std::vector<const VulkanShader*> AppRenderer::getRTShaders(const uint32_t shaderId)
@@ -320,6 +357,7 @@ namespace app
 		{
 			//Create G-buffer
 			mColorStorage = createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, "#colorStorage");
+			mAlbedoStorage = createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, "#albedoStorage");
 			mNormalStorage = createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, "#normalStorage");
 		}
 
@@ -571,6 +609,23 @@ namespace app
 		mTLAS = getAS(tlasIndex);
 	}
 
+	void AppRenderer::initInterop()
+	{
+        mCUDAExternalColorBuffer = mCudaBufferManager.createExternalBuffer<float4>(mColorStorage.texture->mId, this);
+        mCUDAExternalAlbedoBuffer = mCudaBufferManager.createExternalBuffer<float4>(mAlbedoStorage.texture->mId, this);
+        mCUDAExternalNormalBuffer = mCudaBufferManager.createExternalBuffer<float4>(mNormalStorage.texture->mId, this);
+        assert(mExternalWaitSemaphore != VK_NULL_HANDLE);
+        assert(mExternalSignalSemaphore != VK_NULL_HANDLE);
+
+		//Vulkan will wait for cuda's signal
+		importCudaExternalSemaphore(mCudaSignalSemaphore, mExternalWaitSemaphore,
+			getDefaultSemaphoreHandleType(), this);
+
+		//Cuda will wait for Vulkan's signal
+		importCudaExternalSemaphore(mCudaWaitSemaphore, mExternalSignalSemaphore,
+			getDefaultSemaphoreHandleType(), this);
+	}
+
 	void AppRenderer::createScene()
 	{
 		createAS();
@@ -583,11 +638,14 @@ namespace app
 		mEmissiveTrianglesDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mEmissiveTrianglesBuffer.mBuffer);
 
 		mMeshModel->getMesh(0)->setDescriptors({ {
-                mTLASDescriptor, mColorStorage.descriptor, mNormalStorage.descriptor,
+                mTLASDescriptor, mColorStorage.descriptor, mAlbedoStorage.descriptor, mNormalStorage.descriptor,
 				mRTCameraDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor,
 				mRTTexturesDescriptor, mEmissiveTrianglesDescriptor} });
 		mMeshModel->setVisible(true);
 
 		mResultMesh->setVisible(true);
+        
+		initInterop();
+		setHasExternalResources(true);
 	}
 }

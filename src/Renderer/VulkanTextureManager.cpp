@@ -136,8 +136,6 @@ namespace fre
 				result->mImage = fre::createExternalImage(
 					mainDevice, info->mImage.mDimension.x, info->mImage.mDimension.y,
 					info->mImage.mFormat, info->mTiling,
-					//VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-					//VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 					info->mUsageFlags,
 					info->mMemoryFlags,
 					getDefaultMemHandleType(), &result->mImageMemory, result->mActualSize);

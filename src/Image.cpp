@@ -162,6 +162,9 @@ namespace fre
 		case VK_FORMAT_R8G8B8A8_UNORM:
 			mStride = 4;
 			break;
+		case VK_FORMAT_R32G32B32A32_SFLOAT:
+			mStride = 16;
+			break;
 		}
 		mDataSize = mDimension.x * mDimension.y * mStride;
 	}

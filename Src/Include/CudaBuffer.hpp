@@ -10,11 +10,11 @@
 #include <cufft.h>
 
 #define CUDA_BUFFER_1D(n,t,x) auto n = bufferManager.lock<t>(#n, x);
-#define CUDA_BUFFER_2D(n,t,x,y) auto n = bufferManager.lock<t>(#n, x, y);
+#define CUDA_BUFFER_2D(n,t,x,y) auto n = 
 #define CUDA_BUFFER_2D_CREATE(n,t,x,y) n = bufferManager.lock<t>(#n, x, y);
 #define CUDA_BUFFER_3D(n,t,x,y,z) auto n = bufferManager.lock<t>(#n, x, y, z);
-#define CUDA_BUFFER_SAME(n,t,same) auto n = bufferManager.lock<t>(#n, same.mElementsCount);
-#define CUDA_PRINT_BUFFER(b,c) LOG_INFO("Buffer {}", #b); printCudaBuffer(b.mData, b.mElementsCount, c);
+#define CUDA_BUFFER_SAME(n,t,same) auto n = bufferManager.lock<t>(#n, same.mDimensions);
+#define CUDA_PRINT_BUFFER(b,c) LOG_INFO("Buffer {}", #b); printCudaBuffer(b.mData, b.mDimensions, c);
 #define CUDA_DUMP_BUFFER_R_TIFF(b, n) bufferManager.saveToTiffReal(formatString("textures/%s.tiff", #b), n, b, 0);
 #define CUDA_DUMP_BUFFER_R_CSV(b) bufferManager.saveToCSVReal(formatString("textures/%s.csv", #b), b, 0);
 #define CUDA_DUMP_BUFFER_C_TIFF(b,re,im) bufferManager.saveToTiffComplex(formatString("textures/%s.tiff", #b), b, re, im, 0);
@@ -106,17 +106,15 @@ namespace fre
 	struct CudaBuffer
 	{
 		//EDataType mDataType = EDataType::Count;
-		glm::u64vec3 mElementsCount = glm::u64vec3(0);
+		glm::u64vec3 mDimensions = glm::u64vec3(0);
 		//uint64_t mSize;
 		T* mData = nullptr;
 
-		ExternalBufferData* mExternalData = nullptr;
-
 		//CudaBuffer(const u64vec3& elementsCount)
 		//	: mData(data)
-		//	: mElementsCount(elementsCount)
+		//	: mDimensions(elementsCount)
 		//	//, mDataType = getDataType(mData);
-		//	//, mSize = sizeof(T) * mElementsCount;
+		//	//, mSize = sizeof(T) * mDimensions;
 		//{
 		//}
 
@@ -152,22 +150,22 @@ namespace fre
 
 		int getRowSize() const
 		{
-			return mElementsCount.x * getStride();
+			return mDimensions.x * getStride();
 		}
 
 		constexpr int getSize() const
 		{
-			return getStride() * mElementsCount.x * mElementsCount.y * mElementsCount.z;
+			return getStride() * mDimensions.x * mDimensions.y * mDimensions.z;
 		}
 
 		constexpr int getLength() const
 		{
-			return mElementsCount.x * mElementsCount.y * mElementsCount.z;
+			return mDimensions.x * mDimensions.y * mDimensions.z;
 		}
 
 		void clear(uint8_t value, cudaStream_t stream) { CUDA_CHECK(cudaMemsetAsync(mData, value, getSize(), stream)); }
 
-		void uploadData(void* data) { CUDA_CHECK(cudaMemcpy(mData, data, mElementsCount.x * mElementsCount.y * mElementsCount.z * sizeof(T), cudaMemcpyHostToDevice)); }
-		void getData(void* data) const { CUDA_CHECK(cudaMemcpy(data, mData, mElementsCount.x * mElementsCount.y * mElementsCount.z * sizeof(T), cudaMemcpyDeviceToHost)); }
+		void uploadData(void* data) { CUDA_CHECK(cudaMemcpy(mData, data, mDimensions.x * mDimensions.y * mDimensions.z * sizeof(T), cudaMemcpyHostToDevice)); }
+		void getData(void* data) const { CUDA_CHECK(cudaMemcpy(data, mData, mDimensions.x * mDimensions.y * mDimensions.z * sizeof(T), cudaMemcpyDeviceToHost)); }
 	};
 }

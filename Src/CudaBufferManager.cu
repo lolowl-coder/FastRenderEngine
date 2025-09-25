@@ -88,6 +88,7 @@ namespace fre
 		mFrameNumber++;
 		if(mCleanupRequested)
 		{
+            // Clean up unused buffers
 			CUDA_CHECK(cudaDeviceSynchronize());
 			for(auto& buffers : mBuffers)
 			{
@@ -107,6 +108,7 @@ namespace fre
 				}
 			}
 
+            // If requested, clean up all buffers and report errors if any buffer was not freed properly
 			if(!unusedOnly)
 			{
 				std::vector<std::string> errors;
@@ -142,6 +144,12 @@ namespace fre
 					}
 				}
 				mLockedBuffers.clear();
+
+                for(auto& mem : mExternalMems)
+                {
+					CUDA_CHECK(cudaDestroyExternalMemory(mem));
+                }
+				mExternalMems.clear();
 			}
 		}
 	}

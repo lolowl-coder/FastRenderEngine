@@ -26,7 +26,7 @@ namespace fre
 
 		#define NPP_CHECK(f) (f)
 	#else*/
-		inline void onCudaError(cudaError_t cudaResult, const char* f);
+		void onCudaError(cudaError_t cudaResult, const char* f);
 
 		#define CUDA_CHECK(f)\
 		{\

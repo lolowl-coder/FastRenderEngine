@@ -13,7 +13,7 @@
 
 namespace fre
 {
-    class OptiXDenoiser
+    class Denoiser
     {
     public:
         struct Data
@@ -52,6 +52,9 @@ namespace fre
 
         // Copy results from GPU to host memory.
         void getResults();
+
+        // Copy results from device buffer to another device buffer
+        void copyResultDevice(void* data);
 
         // Return internal guide layer data for temporal models, if available. Returned memory must be freed.
         void getInternalGuideLayerData(unsigned char** data, size_t* sizeInBytes);

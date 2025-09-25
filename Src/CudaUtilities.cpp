@@ -2,7 +2,7 @@
 
 namespace fre
 {
-	inline void onCudaError(cudaError_t cudaResult, const char* f)
+	void onCudaError(cudaError_t cudaResult, const char* f)
 	{
 		LOG_ERROR("CUDA error: {}, {}. Call: {}", static_cast<unsigned int>(cudaResult), cudaGetErrorName(cudaResult), f);
 	}

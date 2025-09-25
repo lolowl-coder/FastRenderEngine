@@ -6,12 +6,13 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 
-#define NUM_EMISSIVE_SAMPLES 1
-#define NUM_GI_SAMPLES 1
+#define NUM_EMISSIVE_SAMPLES 2
+#define NUM_GI_SAMPLES 2
 
 struct Payload
 {
     vec3 radiance;
+    vec3 albedo;
     vec3 normal;
     vec3 attenuation;
     vec3 rayOrigin;
@@ -73,12 +74,12 @@ layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions o
 layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indices
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
-layout(set = 0, binding = 4) buffer SceneDesc { Mesh i[]; } sceneDesc;
-layout(set = 0, binding = 5, scalar) buffer GlobalMaterials { Material i[]; } materials;
+layout(set = 0, binding = 5) buffer SceneDesc { Mesh i[]; } sceneDesc;
+layout(set = 0, binding = 6, scalar) buffer GlobalMaterials { Material i[]; } materials;
 // Scene textures
-layout(set = 0, binding = 6) uniform sampler2D textures[];
+layout(set = 0, binding = 7) uniform sampler2D textures[];
 // Emissive objects triangles
-layout(set = 0, binding = 7, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
+layout(set = 0, binding = 8, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
 // clang-format on
 
 // --------------------------- math helpers -----------------------------------
@@ -605,6 +606,7 @@ void main()
 
     vec3 V_world = normalize(gl_WorldRayOriginEXT - P);
     vec4 base = sampleBaseColor(objMat, objUV);
+    payload.albedo = base.rgb;
     vec3 emissive = sampleEmissive(objMat, objUV);
     vec3 lightRadiance = vec3(1.0, 1.0, 0.9) * 3.5; // light radiance at P (includes intensity & attenuation)
     vec3 directLightContrib = shadeGLTF(

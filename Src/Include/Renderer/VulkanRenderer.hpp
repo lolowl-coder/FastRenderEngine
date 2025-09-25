@@ -118,7 +118,15 @@ namespace fre
 
 		//Update
 		virtual void update(const Camera& camera, const Light& light);
-		
+        //Called after raytracing commands were submitted
+		virtual void onRaytracingCommandsSubmitted();
+        //Submit command buffer to graphics queue
+        virtual void submitCommandBuffer(
+			VkCommandBuffer commandBuffer,
+			std::vector<VkSemaphore> waitSemaphores,
+			std::vector<VkPipelineStageFlags> waitStages,
+			std::vector<VkSemaphore> signalSemaphores,
+			VkFence fence);
 		//Draw all models and UI
 		virtual void draw(const Camera& camera, const Light& light);
 		virtual void onFrameEnd();
@@ -458,6 +466,5 @@ namespace fre
 
         MeshPtr mFullscreenTriangleMesh;
         bool mTraced = false;
-		OptixDenoiser mDenoiser;
 	};
 }

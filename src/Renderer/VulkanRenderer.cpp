@@ -529,7 +529,7 @@ namespace fre
 				VK_CHECK(vkResetFences(mainDevice.logicalDevice, 1, &mComputeFences[mCurrentFrame]));
 
 				const auto commandBuffer = mComputeCommandBuffers[mImageIndex];
-				VK_CHECK(vkResetCommandBuffer(commandBuffer.mCommandBuffer, 0));
+				commandBuffer.reset();
 				commandBuffer.begin();
 				recordSceneCommands(camera, light, VK_PIPELINE_BIND_POINT_COMPUTE, 0);
 				commandBuffer.end();
@@ -555,6 +555,32 @@ namespace fre
 	}
 
 	void VulkanRenderer::onFrameEnd()
+	{
+	}
+
+	void VulkanRenderer::submitCommandBuffer(
+		VkCommandBuffer commandBuffer,
+		std::vector<VkSemaphore> waitSemaphores,
+		std::vector<VkPipelineStageFlags> waitStages,
+		std::vector<VkSemaphore> signalSemaphores,
+		VkFence fence)
+	{
+		// -- SUBMIT COMMAND BUFFER TO RENDER --
+				//Queue submission info
+		VkSubmitInfo submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.waitSemaphoreCount = waitSemaphores.size();		//Number of semaphores to wait on
+		submitInfo.pWaitSemaphores = waitSemaphores.data();	//List of samephores to wait on
+		submitInfo.pWaitDstStageMask = waitStages.data();	//Stages to check semaphores at
+		submitInfo.commandBufferCount = 1;	//Number of command buffers to submit
+		submitInfo.pCommandBuffers = &commandBuffer;	//Command buffer to submit
+		submitInfo.signalSemaphoreCount = signalSemaphores.size();	//Number of semaphores to signal
+		submitInfo.pSignalSemaphores = signalSemaphores.data();	//Semaphore to signal when command buffer finishes
+
+		VK_CHECK(vkQueueSubmit(mGraphicsQueue, 1, &submitInfo, fence));
+	}
+
+	void VulkanRenderer::onRaytracingCommandsSubmitted()
 	{
 	}
 
@@ -586,46 +612,79 @@ namespace fre
 				//Manually reset (close) fences
 				VK_CHECK(vkResetFences(mainDevice.logicalDevice, 1, &mDrawFences[mCurrentFrame]));
 			
-				VK_CHECK(vkResetCommandBuffer(mGraphicsCommandBuffers[mCurrentFrame].mCommandBuffer, 0));
+                VulkanCommandBuffer& commandBuffer = mGraphicsCommandBuffers[mImageIndex];
+                commandBuffer.reset();
+				commandBuffer.begin();
 
+				// Record ray tracing commands
+				recordSceneCommands(camera, light, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, 0);
+
+				// End commands buffer before submit
+				commandBuffer.end();
+				
+				// Submit ray tracing
+				{
+                    // We wait on external semaphore first to ensure interoperation completed,
+					// then compute, then image available
+					std::vector<VkSemaphore> waitSemaphores;
+					std::vector<VkPipelineStageFlags> waitStages;
+					if(mExternalWaitSemaphore != VK_NULL_HANDLE && mHasExternalResources)
+					{
+						waitSemaphores.push_back(mExternalWaitSemaphore);
+						waitStages.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+					}
+					if(mHasComputeTasks)
+					{
+						waitSemaphores.push_back(mComputeFinished[mCurrentFrame]);
+						waitStages.push_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+					}
+					waitSemaphores.push_back(mImageAvailable[mCurrentFrame]);
+					waitStages.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+					std::vector<VkSemaphore> signalSemaphores;
+                    // Signal ray tracing finished semaphore to ensure subsequent stages wait on it
+					if(mExternalSignalSemaphore != VK_NULL_HANDLE && mHasExternalResources)
+					{
+						signalSemaphores.push_back(mExternalSignalSemaphore);
+					}
+					submitCommandBuffer(commandBuffer.mCommandBuffer,
+						waitSemaphores, waitStages, signalSemaphores, mDrawFences[mCurrentFrame]);
+				}
+
+				// Do post ray tracing processing e. g. denoising
+				onRaytracingCommandsSubmitted();
+
+                // Ensure ray tracing and post-processing complete before rendering result to screen
+				VK_CHECK(vkWaitForFences(mainDevice.logicalDevice, 1, &mDrawFences[mCurrentFrame], VK_TRUE, UINT64_MAX));
+				VK_CHECK(vkResetFences(mainDevice.logicalDevice, 1, &mDrawFences[mCurrentFrame]));
+
+                // Reuse command buffer (assuming onRaytracingCommandsSubmitted() waits for semaphore)
+				commandBuffer.reset();
+				commandBuffer.begin();
+				// Record conservative rendering commands
 				recordCommands(camera, light);
-
-				// -- SUBMIT COMMAND BUFFER TO RENDER --
-				//Queue submission info
-				VkSubmitInfo submitInfo = {};
-				submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-				std::vector<VkSemaphore> waitSemaphores;
-				std::vector<VkPipelineStageFlags> waitStages;
-				if(mExternalWaitSemaphore != VK_NULL_HANDLE)
+				// End commands buffer before submit
+				commandBuffer.end();
+				// Submit fullscreen rectangle with result texture
 				{
-					waitSemaphores.push_back(mExternalWaitSemaphore);
+					std::vector<VkSemaphore> waitSemaphores;
+					std::vector<VkPipelineStageFlags> waitStages;
+					if(mExternalSignalSemaphore != VK_NULL_HANDLE && mHasExternalResources)
+					{
+						// We wait on external semaphore to ensure interoperation completed
+						waitSemaphores.push_back(mExternalSignalSemaphore);
+						waitStages.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+					}
+					std::vector<VkSemaphore> signalSemaphores;
+					if(mExternalWaitSemaphore != VK_NULL_HANDLE && mHasExternalResources)
+					{
+                        // Signal rendering of fullscreen rectangle with result texture is finished
+						signalSemaphores.push_back(mExternalWaitSemaphore);
+					}
+					signalSemaphores.push_back(mRenderFinished[mCurrentFrame]);
+					submitCommandBuffer(
+						commandBuffer.mCommandBuffer,
+						waitSemaphores, waitStages, signalSemaphores, mDrawFences[mCurrentFrame]);
 				}
-				waitStages.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-				if(mHasComputeTasks)
-				{
-					waitSemaphores.push_back(mComputeFinished[mCurrentFrame]);
-					waitStages.push_back(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
-				}
-
-				waitSemaphores.push_back(mImageAvailable[mCurrentFrame]);
-				waitStages.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-
-				submitInfo.waitSemaphoreCount = waitSemaphores.size();		//Number of semaphores to wait on
-				submitInfo.pWaitSemaphores = waitSemaphores.data();	//List of samephores to wait on
-				submitInfo.pWaitDstStageMask = waitStages.data();	//Stages to check semaphores at
-				submitInfo.commandBufferCount = 1;	//Number of command buffers to submit
-				VkCommandBuffer commandBuffer = mGraphicsCommandBuffers[mImageIndex].mCommandBuffer;
-				submitInfo.pCommandBuffers = &commandBuffer;	//Command buffer to submit
-				std::vector<VkSemaphore> signalSemaphores;
-				if(mExternalSignalSemaphore != VK_NULL_HANDLE)
-				{
-					signalSemaphores.push_back(mExternalSignalSemaphore);
-				}
-				signalSemaphores.push_back(mRenderFinished[mCurrentFrame]);
-				submitInfo.signalSemaphoreCount = signalSemaphores.size();	//Number of semaphores to signal
-				submitInfo.pSignalSemaphores = signalSemaphores.data();	//Semaphore to signal when command buffer finishes
-
-				VK_CHECK(vkQueueSubmit(mGraphicsQueue, 1, &submitInfo, mDrawFences[mCurrentFrame]));
 
 				// -- PRESENT RENDERED IMAGE TO SCREEN --
 				VkPresentInfoKHR presentInfo = {};
@@ -649,12 +708,12 @@ namespace fre
 					throw std::runtime_error("failed to present swap chain image!");
 				}
 
-				VkResult vulkanResult = vkWaitForFences(mainDevice.logicalDevice, 1, &mDrawFences[mCurrentFrame],
+				/*VkResult vulkanResult = vkWaitForFences(mainDevice.logicalDevice, 1, &mDrawFences[mCurrentFrame],
 					VK_TRUE, std::numeric_limits<uint32_t>::max());
 				if(vulkanResult != VK_SUCCESS)
 				{
 					LOG_ERROR("Vulkan error {}", vulkanResult);
-				}
+				}*/
 				//Get next frame
 				mCurrentFrame = (mCurrentFrame + 1) % MAX_FRAME_DRAWS;
 
@@ -1967,10 +2026,6 @@ namespace fre
 	void VulkanRenderer::recordCommands(const Camera& camera, const Light& light)
 	{
 		//LOG_DEBUG("recordCommands");
-
-		mGraphicsCommandBuffers[mImageIndex].begin();
-
-		recordSceneCommands(camera, light, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, 0);
 		VkCommandBuffer commandBuffer = mGraphicsCommandBuffers[mImageIndex].mCommandBuffer;
 		mRenderPass.begin(mFrameBuffers[mImageIndex].mFrameBuffer, mSwapChain.mSwapChainExtent,
 			commandBuffer, mClearColor);
@@ -1989,8 +2044,6 @@ namespace fre
 		drawUI();
 
 		mRenderPass.end(commandBuffer);
-
-		mGraphicsCommandBuffers[mImageIndex].end();
 	}
 
 	void VulkanRenderer::getPhysicalDevice()
@@ -2401,10 +2454,7 @@ namespace fre
 		createDrawFences();
 		createComputeFences();
 		createTransferSynchronisation();
-		if(mHasExternalResources)
-		{
-			createExternalSemaphores();
-		}
+		createExternalSemaphores();
 
 		LOG_INFO("Synchronisation objects created");
 	}

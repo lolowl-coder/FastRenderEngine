@@ -2,6 +2,8 @@
 
 #include "Renderer/VulkanAccelerationStructure.hpp"
 #include "Renderer/VulkanRenderer.hpp"
+#include "Renderer/Denoiser.hpp"
+#include "CudaBufferManager.hpp"
 #include "ThreadPool.hpp"
 #include "Pointers.hpp"
 
@@ -25,7 +27,7 @@ namespace app
         virtual void cleanupSwapChain() override;
         virtual void createSwapChain() override;
 		virtual void update(const fre::Camera& camera, const fre::Light& light) override;
-		virtual void onFrameEnd() override;
+		virtual void onRaytracingCommandsSubmitted() override;
 
 		virtual std::vector<const fre::VulkanShader*> getRTShaders(const uint32_t shaderId) override;
 		virtual fre::ShaderMetaDatum getShaderMetaData(const std::string& shaderFileName) override;
@@ -42,12 +44,13 @@ namespace app
 		void createAS();
 		uint32_t createRTTexture(uint32_t textureId);
 		void createSceneGPU();
+		void initInterop();
 		void createScene();
 		void updateMaterials();
-		void createGBuffer();
 
 	private:
         StorageImage mColorStorage;
+        StorageImage mAlbedoStorage;
         StorageImage mNormalStorage;
 		fre::MeshPtr mResultMesh;
 
@@ -80,8 +83,28 @@ namespace app
         std::vector<VkSampler> mTextureSamplers;
 		uint32_t mShadowMissShaderId = MAX(uint32_t);
 
+		//Interop
+
+		//Cuda-Vulkan synchronization primitives
+		cudaExternalSemaphore_t mCudaWaitSemaphore = nullptr;
+		cudaExternalSemaphore_t mCudaSignalSemaphore = nullptr;
+
+		cudaExternalMemory_t mCUDAExternalColorMem = nullptr;
+		cudaExternalMemory_t mCUDAExternalAlbedoMem = nullptr;
+		cudaExternalMemory_t mCUDAExternalNormalMem = nullptr;
+        fre::CudaBuffer<float4> mCUDAExternalColorBuffer;
+        fre::CudaBuffer<float4> mCUDAExternalAlbedoBuffer;
+        fre::CudaBuffer<float4> mCUDAExternalNormalBuffer;
+
         fre::RTCamera mRTCamera;
 		uint32_t mColorTextureId = MAX(uint32_t);
+		uint32_t mAlbedoTextureId = MAX(uint32_t);
 		uint32_t mNormalTextureId = MAX(uint32_t);
+		fre::Denoiser mDenoiser;
+		fre::CudaBufferManager mCudaBufferManager;
+		VkSemaphore mExternalVulkanWaitSemaphore = VK_NULL_HANDLE;
+		VkSemaphore mExternalVulkanSignalSemaphore = VK_NULL_HANDLE;
+		bool mDenoiserInitialized = false;
+		bool mIsDenoiserEnabled = true;
 	};
 }
