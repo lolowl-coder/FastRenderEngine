@@ -1002,7 +1002,7 @@
 		},
 		{
 			"doubleSided":true,
-			"name":"torcher_mat",
+			"name":"lamp_mat",
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
 					"index":3

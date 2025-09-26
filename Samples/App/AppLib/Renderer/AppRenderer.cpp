@@ -26,6 +26,12 @@ namespace app
 	{
 	}
 
+	void AppRenderer::destroy()
+	{
+		VulkanRenderer::destroy();
+		mDenoiser.finish();
+	}
+
 	void AppRenderer::initUI()
 	{
 		addUIRenderCallback
@@ -52,7 +58,8 @@ namespace app
 									{
 										if(selectedIndex > -1)
 										{
-											if(selectedIndex == 2)
+											// Restore previously selected material properties
+											if(mMaterials[selectedIndex].mName == "light_mat")
 											{
 												mMaterials[selectedIndex].mEmissiveFactor = vec3(6.154f);
 											}
@@ -72,7 +79,7 @@ namespace app
 											selected = ImGuiTreeNodeFlags_Selected;
 										}
 										changed = true;
-										if(selectedIndex == 2)
+										if(mat.mName == "light_mat")
 										{
 											mat.mEmissiveFactor = selected == ImGuiTreeNodeFlags_Selected ? vec3(6.154f, 0.0f, 0.0f) : vec3(6.154, 6.154f, 6.154f);
 										}
@@ -91,6 +98,25 @@ namespace app
 						ImGui::TreePop();
 					}
 					ImGui::Checkbox("Denoise", &mIsDenoiserEnabled);
+					sliderFloat(0.0f, 10.0f, "Main ligth intensity", mDynamicData.mLightIntensity, "%.2f");
+					sliderFloat(0.0f, 1.0f, "Ambient intensity", mDynamicData.mAmbient, "%.2f");
+                    auto& itr = std::find_if(mMaterials.begin(), mMaterials.end(), [](const Material& mat) { return mat.mName == "light_mat"; });
+                    if(itr != mMaterials.end())
+					{
+                        float intensity = itr->mEmissiveFactor.x;
+						if(sliderFloat(0.0f, 100.0f, "Lamp light intensity", intensity, "%.2f"))
+						{
+							itr->mEmissiveFactor = vec3(intensity);
+							changed = true;
+						}
+					}
+					if(ImGui::Button("Restore defaults"))
+					{
+						selectedIndex = -1;
+						mDynamicData = DynamicData();
+						mMaterials = mDefaultMaterials;
+                        changed = true;
+					}
 
 					if(changed)
 					{
@@ -196,10 +222,10 @@ namespace app
             }
         }
 
-		mRTCamera.mViewInverse = glm::inverse(camera.mView);
-		mRTCamera.mProjInverse = glm::inverse(camera.mProjection);
+		mDynamicData.mViewInverse = glm::inverse(camera.mView);
+		mDynamicData.mProjInverse = glm::inverse(camera.mProjection);
 
-        mBufferManager.udpateBuffer(mainDevice.logicalDevice, mRTCameraBufferIndex, &mRTCamera, sizeof(mRTCamera));
+        mBufferManager.udpateBuffer(mainDevice.logicalDevice, mDynamicDataBufferIndex, &mDynamicData, sizeof(mDynamicData));
 
         VulkanRenderer::update(camera, light);
 	}
@@ -588,8 +614,8 @@ namespace app
         uint32_t bufferIndex = createBuffer(bufferUsageFlags, memoryFlags, rtMeshesGPU.data(), rtMeshesGPU.size() * sizeof(RTMeshGPU));
         mRTMeshesGPUBuffer = *mBufferManager.getBuffer(bufferIndex);
 		updateMaterials();
-		mRTCameraBufferIndex = createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memoryFlags, &mRTCamera, sizeof(RTCamera));
-        mRTCameraBuffer = *mBufferManager.getBuffer(mRTCameraBufferIndex);
+		mDynamicDataBufferIndex = createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memoryFlags, &mDynamicData, sizeof(DynamicData));
+        mDynamicDataBuffer = *mBufferManager.getBuffer(mDynamicDataBufferIndex);
 	}
 
 	void AppRenderer::createAS()
@@ -631,7 +657,7 @@ namespace app
 		createAS();
 
 		mTLASDescriptor = std::make_shared<DescriptorAccelerationStructure>(mTLAS.mHandle);
-		mRTCameraDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, mRTCameraBuffer.mBuffer);
+		mDynamicDataDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, mDynamicDataBuffer.mBuffer);
 		mRTMeshesGPUDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mRTMeshesGPUBuffer.mBuffer);
 		mRTMaterialsGPUDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mRTMaterialsGPUBuffer.mBuffer);
  		mRTTexturesDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mTextureViews, mTextureSamplers);
@@ -639,7 +665,7 @@ namespace app
 
 		mMeshModel->getMesh(0)->setDescriptors({ {
                 mTLASDescriptor, mColorStorage.descriptor, mAlbedoStorage.descriptor, mNormalStorage.descriptor,
-				mRTCameraDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor,
+				mDynamicDataDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor,
 				mRTTexturesDescriptor, mEmissiveTrianglesDescriptor} });
 		mMeshModel->setVisible(true);
 
@@ -647,5 +673,6 @@ namespace app
         
 		initInterop();
 		setHasExternalResources(true);
+		mDefaultMaterials = mMaterials;
 	}
 }

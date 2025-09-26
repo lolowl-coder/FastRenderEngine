@@ -6,8 +6,8 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 
-#define NUM_EMISSIVE_SAMPLES 2
-#define NUM_GI_SAMPLES 2
+#define NUM_EMISSIVE_SAMPLES 6
+#define NUM_GI_SAMPLES 6
 
 struct Payload
 {
@@ -74,6 +74,13 @@ layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions o
 layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indices
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
+layout(set = 0, binding = 4) uniform DynamicData
+{
+    mat4 viewInverse;
+    mat4 projInverse;
+    float mainLightIntensity;
+    float ambient;
+} dynamicData;
 layout(set = 0, binding = 5) buffer SceneDesc { Mesh i[]; } sceneDesc;
 layout(set = 0, binding = 6, scalar) buffer GlobalMaterials { Material i[]; } materials;
 // Scene textures
@@ -326,7 +333,7 @@ vec3 shadeGLTF(
     }*/
 
     // Ambient factor
-    float af = 0.5; //0.03 by default. Increased because of dark result
+    float af = dynamicData.ambient; //0.03 by default. Increased because of dark result
     // Simple ambient term (you can replace with IBL)
     vec3 ambient = I.baseColor * (1.0 - I.metallic) * af * ao;
 
@@ -342,7 +349,7 @@ vec3 shadeGLTF(
 EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 lightUV, out vec3 n, out vec3 e1, out vec3 e2, out vec3 xL)
 {
     EmissiveTriangle result;
-    for(int i = 0; i < 10; i++)
+    //for(int i = 0; i < 10; i++)
     {
         // Pick a random emissive triangle (uniform over triangles for now)
 
@@ -390,10 +397,10 @@ EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 lightUV, ou
         e2 = v2 - v0;
 
         n = normalize(cross(e1, e2));
-        if(dot(normalize(P - xL), n) > 0.0)
+        /*if(dot(normalize(P - xL), n) > 0.0)
         {
             break;
-        }
+        }*/
     }
 
     return result;
@@ -608,7 +615,7 @@ void main()
     vec4 base = sampleBaseColor(objMat, objUV);
     payload.albedo = base.rgb;
     vec3 emissive = sampleEmissive(objMat, objUV);
-    vec3 lightRadiance = vec3(1.0, 1.0, 0.9) * 3.5; // light radiance at P (includes intensity & attenuation)
+    vec3 lightRadiance = vec3(1.0, 1.0, 0.9) * dynamicData.mainLightIntensity; // light radiance at P (includes intensity & attenuation)
     vec3 directLightContrib = shadeGLTF(
         objMat, objUV, P, V_world, gl_ObjectToWorldEXT,
         L, lightRadiance, // light direction & radiance

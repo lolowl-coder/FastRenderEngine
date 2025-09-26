@@ -19,6 +19,7 @@ namespace app
 		virtual void initUI() override;
 		virtual int createDynamicGPUResources() override;
 		virtual int createMeshGPUResources() override;
+		virtual void destroy() override;
 
 	protected:
 		virtual void requestExtensions() override;
@@ -66,7 +67,7 @@ namespace app
 		fre::VulkanDescriptorPtr mTLASDescriptor;
 		fre::VulkanDescriptorPtr mRTMeshesGPUDescriptor;
 		fre::VulkanDescriptorPtr mRTMaterialsGPUDescriptor;
-		fre::VulkanDescriptorPtr mRTCameraDescriptor;
+		fre::VulkanDescriptorPtr mDynamicDataDescriptor;
 		fre::VulkanDescriptorPtr mRTTexturesDescriptor;
 		fre::VulkanDescriptorPtr mEmissiveTrianglesDescriptor;
 
@@ -74,10 +75,10 @@ namespace app
 		fre::VulkanBuffer mRTMeshesGPUBuffer;
 		uint32_t mRTMaterialsGPUBufferIndex = MAX(uint32_t);
 		fre::VulkanBuffer mRTMaterialsGPUBuffer;
-        uint32_t mRTCameraBufferIndex = MAX(uint32_t);
+        uint32_t mDynamicDataBufferIndex = MAX(uint32_t);
         fre::VulkanBuffer mRTMeshesBuffer;
         fre::VulkanBuffer mRTMaterialsBuffer;
-		fre::VulkanBuffer mRTCameraBuffer;
+		fre::VulkanBuffer mDynamicDataBuffer;
 		fre::VulkanBuffer mEmissiveTrianglesBuffer;
         std::vector<VkImageView> mTextureViews;
         std::vector<VkSampler> mTextureSamplers;
@@ -96,7 +97,7 @@ namespace app
         fre::CudaBuffer<float4> mCUDAExternalAlbedoBuffer;
         fre::CudaBuffer<float4> mCUDAExternalNormalBuffer;
 
-        fre::RTCamera mRTCamera;
+        fre::DynamicData mDynamicData;
 		uint32_t mColorTextureId = MAX(uint32_t);
 		uint32_t mAlbedoTextureId = MAX(uint32_t);
 		uint32_t mNormalTextureId = MAX(uint32_t);
@@ -106,5 +107,7 @@ namespace app
 		VkSemaphore mExternalVulkanSignalSemaphore = VK_NULL_HANDLE;
 		bool mDenoiserInitialized = false;
 		bool mIsDenoiserEnabled = true;
+		uint32_t mLampMaterialIndex = MAX(uint32_t);
+        std::vector<fre::Material> mDefaultMaterials;
 	};
 }
