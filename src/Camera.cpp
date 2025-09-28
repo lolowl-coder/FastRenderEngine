@@ -10,6 +10,7 @@ namespace fre
     void Camera::setPerspectiveProjection(float fov, float aspectRatio)
     {
         mFov = fov;
+        mAspectRatio = aspectRatio;
         mProjection = perspective(
 			radians(fov),
 			aspectRatio,
@@ -44,6 +45,13 @@ namespace fre
     {
         updateMovement(timeDelta);
         updateViewMatrix();
+        mat4 scaling = scale(mat4(1.0f), vec3(mZoom));
+        mProjection = scaling * perspective(
+            radians(mFov),
+            mAspectRatio,
+            mNear, mFar);
+        //In Vulkan Up direction points down
+        mProjection[1][1] *= -1.0f;
         updateVectors();
     }
 
@@ -87,18 +95,18 @@ namespace fre
 
 		mat4 translation;
 		translation = translate(mat4(1.0f), mEye);
-        mat4 invTranslation;
-		invTranslation = translate(mat4(1.0f), -mEye);
+        //mat4 invTranslation;
+		//invTranslation = translate(mat4(1.0f), -mEye);
 
-        mat4 scaling = scale(mat4(1.0f), vec3(mZoom));
+        //mat4 scaling = scale(mat4(1.0f), vec3(mZoom));
 
         if(mIsFirstPerson)
         {
-            mView = scaling * rotation * translation;
+            mView = /*scaling * */rotation * translation;
         }
         else
         {
-            mView = translation * rotation * scaling;
+            mView = translation * rotation/* * scaling*/;
         }
     }
 
@@ -109,6 +117,7 @@ namespace fre
             mForward.x = -cos(radians(mRotationAngles.x)) * sin(radians(mRotationAngles.y));
             mForward.y = sin(radians(mRotationAngles.x));
             mForward.z = cos(radians(mRotationAngles.x)) * cos(radians(mRotationAngles.y));
+
             mForward = normalize(mForward);
         }
         /*else

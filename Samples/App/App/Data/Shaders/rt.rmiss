@@ -1,18 +1,7 @@
 #version 460
 #extension GL_EXT_ray_tracing : enable
 
-struct Payload
-{
-    vec3 radiance;
-    vec3 albedo;
-    vec3 normal;
-    vec3 attenuation;
-    vec3 rayOrigin;
-    vec3 rayDir;
-    uint rngState;
-    int done;
-    int depth;
-};
+#include "Payload.h"
 
 layout(location = 0) rayPayloadInEXT Payload payload;
 

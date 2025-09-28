@@ -220,7 +220,7 @@ function(buildApp appName sources headers libs includes)
 	# Shaders
 	set (SHADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Data/Shaders)
 	# Get a list of all shaders in the shaders directory
-	file(GLOB_RECURSE SHADER_SOURCES "${SHADERS_DIR}/*.vert" "${SHADERS_DIR}/*.frag" "${SHADERS_DIR}/*.comp" "${SHADERS_DIR}/*.rgen" "${SHADERS_DIR}/*.rchit" "${SHADERS_DIR}/*.rmiss")
+	file(GLOB_RECURSE SHADER_SOURCES "${SHADERS_DIR}/*.vert" "${SHADERS_DIR}/*.frag" "${SHADERS_DIR}/*.comp" "${SHADERS_DIR}/*.rgen" "${SHADERS_DIR}/*.rchit" "${SHADERS_DIR}/*.rahit" "${SHADERS_DIR}/*.rmiss")
 
 	# Create a source group for the shaders
 	source_group("Shaders" FILES ${SHADER_SOURCES})

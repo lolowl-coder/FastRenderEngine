@@ -891,8 +891,9 @@ namespace fre
 		VkAccelerationStructureGeometryKHR asGeometry{};
 		asGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
 		asGeometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-		asGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+		//asGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
 		asGeometry.geometry.triangles = triangles;
+		asGeometry.flags = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;
 
 		auto asIndex = buildAccelerationStructure(asGeometry, VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR, mesh->getIndexCount() / 3);
 
@@ -942,7 +943,8 @@ namespace fre
 		VkAccelerationStructureGeometryKHR asGeometry{};
 		asGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
 		asGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
-		asGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+		//asGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+		asGeometry.flags = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;
 		asGeometry.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
 		asGeometry.geometry.instances.pNext = nullptr;
 		asGeometry.geometry.instances.arrayOfPointers = VK_FALSE;
@@ -1438,7 +1440,8 @@ namespace fre
 			{
 				&shader->mRayGenShader,
 				&shader->mRayMissShader,
-				&shader->mRayClosestHitShader
+				&shader->mRayClosestHitShader,
+				&shader->mRayAnyHitShader
 			};
 		}
 
@@ -1900,6 +1903,7 @@ namespace fre
 			case VK_SHADER_STAGE_RAYGEN_BIT_KHR: stageStr = "rgen"; break;
 			case VK_SHADER_STAGE_MISS_BIT_KHR: stageStr = "rmiss"; break;
 			case VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR: stageStr = "rchit"; break;
+			case VK_SHADER_STAGE_ANY_HIT_BIT_KHR: stageStr = "rahit"; break;
 			default: stageStr = "unknown"; break;
 		}
 		parser.parseShaderInput(shader.create(mainDevice.logicalDevice, "Shaders/" + shaderFileName + "." + stageStr + ".spv", stage), layouts);
@@ -1917,6 +1921,7 @@ namespace fre
 		loadShaderStage(parser, shader.mRayGenShader, shaderFileName, VK_SHADER_STAGE_RAYGEN_BIT_KHR, layoutInfos);
 		loadShaderStage(parser, shader.mRayMissShader, shaderFileName, VK_SHADER_STAGE_MISS_BIT_KHR, layoutInfos);
 		loadShaderStage(parser, shader.mRayClosestHitShader, shaderFileName, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, layoutInfos);
+		loadShaderStage(parser, shader.mRayAnyHitShader, shaderFileName, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, layoutInfos);
 
 		for(const auto& layoutInfo : layoutInfos)
 		{

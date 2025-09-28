@@ -117,6 +117,8 @@ namespace app
 						mMaterials = mDefaultMaterials;
                         changed = true;
 					}
+                    ImGui::Separator();
+                    ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
 
 					if(changed)
 					{
@@ -296,8 +298,9 @@ namespace app
 			{
 				&shader->mRayGenShader,
 				&shader->mRayMissShader,
-                & shadowMissShader->mRayMissShader,
-				&shader->mRayClosestHitShader
+                &shadowMissShader->mRayMissShader,
+				&shader->mRayClosestHitShader,
+				&shader->mRayAnyHitShader
 			};
 		}
 		else

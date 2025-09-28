@@ -249,7 +249,7 @@ namespace fre
 
 		// Copy the pipeline's shader handles into a host buffer
 		const uint32_t group_count = static_cast<uint32_t>(rgen_index.size() + miss_index.size() + hit_index.size());
-		const auto sbt_size = group_count * handle_size_aligned;
+		const auto sbt_size = static_cast<uint32_t>(rgen_index.size() + miss_index.size() + hit_index.size()) * handle_size_aligned;
 		std::vector<uint8_t> shader_handle_storage(sbt_size);
 		VK_CHECK(vkGetRayTracingShaderGroupHandlesKHR(mainDevice.logicalDevice, mPipeline, 0, group_count, sbt_size, shader_handle_storage.data()));
 
@@ -276,12 +276,14 @@ namespace fre
 			mappedData += handle_size_aligned;
 			data += handle_size;
 		}
+		bufferManager.unmap(mainDevice.logicalDevice, bufferIndex);
         mMissShaderBindingTable = *bufferManager.getBuffer(bufferIndex);
 
 		bufSize = handle_size_aligned * hit_index.size();
 		dataSize = handle_size * hit_index.size();
 		bufferIndex = bufferManager.createBuffer(mainDevice, transferQueue, transferCommandPool,
 			sbt_buffer_usage_flags, sbt_memory_usage, data, bufSize, dataSize);
+		data += dataSize;
 
 		mHhitShaderBindingTable = *bufferManager.getBuffer(bufferIndex);
 	}
@@ -304,8 +306,14 @@ namespace fre
 				shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
 				shaderGroup.generalShader = VK_SHADER_UNUSED_KHR;
 				shaderGroup.closestHitShader = i;
-				shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+				// Here we rely that any hit in shaders is listed after the any hit
+				shaderGroup.anyHitShader = i + 1;
 				shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+			}
+			else if(shaders[i]->mShaderStage == VK_SHADER_STAGE_ANY_HIT_BIT_KHR)
+			{
+				//Already included in .rchit stage
+				continue;
 			}
 			else
 			{

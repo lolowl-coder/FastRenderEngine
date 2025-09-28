@@ -17,6 +17,7 @@ namespace fre
             mRayGenShader.destroy(logicalDevice);
             mRayMissShader.destroy(logicalDevice);
             mRayClosestHitShader.destroy(logicalDevice);
+            mRayAnyHitShader.destroy(logicalDevice);
         }
 
         uint32_t mId = std::numeric_limits<uint32_t>::max();
@@ -28,6 +29,7 @@ namespace fre
         VulkanShader mRayGenShader;
         VulkanShader mRayMissShader;
         VulkanShader mRayClosestHitShader;
+        VulkanShader mRayAnyHitShader;
         //Name for debugging purposes
         std::string mName;
         //Pipeline associated with this shader

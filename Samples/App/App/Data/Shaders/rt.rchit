@@ -6,81 +6,25 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
 
+#include "Common.h"
+#include "Payload.h"
+#include "Rnd.h"
+#include "Transform.h"
+
 #define NUM_EMISSIVE_SAMPLES 6
 #define NUM_GI_SAMPLES 6
-
-struct Payload
-{
-    vec3 radiance;
-    vec3 albedo;
-    vec3 normal;
-    vec3 attenuation;
-    vec3 rayOrigin;
-    vec3 rayDir;
-    uint rngState;
-    int done;
-    int depth;
-};
 
 layout(location = 0) rayPayloadInEXT Payload payload;
 layout(location = 1) rayPayloadEXT bool isShadowed;
 
 hitAttributeEXT vec3 attribs;
 
-struct Material
-{
-	vec4  mBaseColorFactor;      // RGBA
-	float mMetallicFactor;       // [0,1]
-	float mRoughnessFactor;      // [0,1]
-	float mNormalScale;          // normal map scale (1 = as is)
-	float mOcclusionStrength;    // [0,1]
-	vec3  mEmissiveFactor;       // RGB
-	int mBaseColorTex;         // -1 if none
-	int mMetallicRoughnessTex; // -1 if none (G=roughness, B=metallic)
-	int mNormalTex;            // -1 if none (tangent space)
-	int mOcclusionTex;         // -1 if none (R)
-	int mEmissiveTex;          // -1 if none (RGB)
-};
-
-struct Vertex
-{
-	vec3 mPos;
-	vec3 mNormal;
-	vec3 mTangent;
-	vec2 mTC;
-};
-
-struct Mesh
-{
-	uint64_t mVertices;
-	uint64_t mIndices;
-	int mMaterialIndex;
-};
-
-struct EmissiveTriangle
-{
-    vec3 v0;
-    vec3 v1;
-    vec3 v2;
-    vec2 uv0;
-    vec2 uv1;
-    vec2 uv2;
-    float area;
-    int matIndex;
-};
-
 // clang-format off
 layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions of an object
 layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indices
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
-layout(set = 0, binding = 4) uniform DynamicData
-{
-    mat4 viewInverse;
-    mat4 projInverse;
-    float mainLightIntensity;
-    float ambient;
-} dynamicData;
+layout(set = 0, binding = 4) uniform DynamicData { DynamicDataBlock dynamicData; };
 layout(set = 0, binding = 5) buffer SceneDesc { Mesh i[]; } sceneDesc;
 layout(set = 0, binding = 6, scalar) buffer GlobalMaterials { Material i[]; } materials;
 // Scene textures
@@ -92,84 +36,8 @@ layout(set = 0, binding = 8, scalar) buffer EmissiveTriangles {EmissiveTriangle 
 // --------------------------- math helpers -----------------------------------
 const float PI = 3.14159265359;
 
-uint lcg(inout uint s) { s = 1664525u * s + 1013904223u; return s; }
-float rng(inout uint s) { return (lcg(s) >> 8) * (1.0 / 16777216.0); } // [0,1)
-
-float halton(uint index, uint base) {
-    float f = 1.0;
-    float r = 0.0;
-    uint i = index;
-    while(i > 0u) {
-        f = f / float(base);
-        r = r + f * float(i % base);
-        i = i / base;
-    }
-    return r;
-}
-
-// Wang hash (32-bit) - simple scramble for decorrelation
-uint wangHash(uint x) {
-    x = (x ^ 61u) ^ (x >> 16);
-    x *= 9u;
-    x = x ^ (x >> 4);
-    x *= 0x27d4eb2du;
-    x = x ^ (x >> 15);
-    return x;
-}
-
-vec3 cosineHemisphere(int sampleIdx) {
-    uvec2 launchID = gl_LaunchIDEXT.xy;
-    uvec2 launchSize = gl_LaunchSizeEXT.xy;
-    uint pixelIndex = launchID.x + launchID.y * launchSize.x;
-    uint pixHash = wangHash(pixelIndex);
-    uint baseSeq = pixHash * 1664525u + 1013904223u; // mixed base seed
-    // then for each sample, build a small sequence index
-    uint seqForU = baseSeq + uint(sampleIdx) * 4u + 3u; // +0 for tri index
-
-    float u1 = halton(seqForU, 11u);
-    float u2 = halton(seqForU, 15u);
-
-    float r = sqrt(u1);
-    float phi = 2.0 * 3.14159265 * u2;
-
-    float x = r * cos(phi);
-    float y = r * sin(phi);
-    float z = sqrt(max(0.0, 1.0 - u1));
-
-    return vec3(x, y, z);
-}
-
-vec3 toTBNSpace(vec3 local, vec3 n, vec3 t, vec3 b) {
-    return local.x * t + local.y * b + local.z * n;
-}
-
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 vec3  saturate(vec3  v) { return clamp(v, vec3(0.0), vec3(1.0)); }
-
-// Trowbridge-Reitz GGX normal distribution
-float D_GGX(float NdotH, float a) {
-    float a2 = a * a;
-    float d = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
-    return a2 / (PI * d * d);
-}
-
-// Smith masking-shadowing using Schlick-GGX for both terms
-float G_SchlickGGX(float NdotV, float k) {
-    return NdotV / (NdotV * (1.0 - k) + k);
-}
-
-float G_Smith(float NdotV, float NdotL, float roughness) {
-    // k for direct lighting (correlated Smith)
-    float r = roughness + 1.0;
-    float k = (r * r) / 8.0;
-    return G_SchlickGGX(NdotV, k) * G_SchlickGGX(NdotL, k);
-}
-
-// Fresnel-Schlick (with optional roughness variant for grazing)
-vec3 F_Schlick(vec3 F0, float HdotV) {
-    float f = pow(1.0 - HdotV, 5.0);
-    return F0 + (1.0 - F0) * f;
-}
 
 // --------------------------- normal mapping ---------------------------------
 // Inputs: interpolated geometric normal/tangent in OBJECT space and UV
@@ -199,6 +67,31 @@ vec3 getWorldNormal(Material mat, int normalTexIndex,
     vec3 nWorld = normalize(inverse(transpose(mat3(gl_ObjectToWorldEXT))) * nObj);
     //vec3 nWorld = normalize((objectToWorld * vec4(nObj, 0.0)).xyz);
     return nWorld;
+}
+
+// Trowbridge-Reitz GGX normal distribution
+float D_GGX(float NdotH, float a) {
+    float a2 = a * a;
+    float d = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
+    return a2 / (PI * d * d);
+}
+
+// Smith masking-shadowing using Schlick-GGX for both terms
+float G_SchlickGGX(float NdotV, float k) {
+    return NdotV / (NdotV * (1.0 - k) + k);
+}
+
+float G_Smith(float NdotV, float NdotL, float roughness) {
+    // k for direct lighting (correlated Smith)
+    float r = roughness + 1.0;
+    float k = (r * r) / 8.0;
+    return G_SchlickGGX(NdotV, k) * G_SchlickGGX(NdotL, k);
+}
+
+// Fresnel-Schlick (with optional roughness variant for grazing)
+vec3 F_Schlick(vec3 F0, float HdotV) {
+    float f = pow(1.0 - HdotV, 5.0);
+    return F0 + (1.0 - F0) * f;
 }
 
 // --------------------------- texture sampling --------------------------------
@@ -433,8 +326,10 @@ vec3 nee(int sampleIdx, Material objMat, vec2 objUV, vec3 P, vec3 N, vec3 V, vec
         //    Set tMax to dist - eps so we only count blockers strictly before the light
         bool visible = true;
         {
-            const uint flags = gl_RayFlagsTerminateOnFirstHitEXT |
-                gl_RayFlagsOpaqueEXT |
+            const uint flags =
+                gl_RayFlagsTerminateOnFirstHitEXT |
+                //gl_RayFlagsOpaqueEXT |
+                gl_RayFlagsCullBackFacingTrianglesEXT |
                 gl_RayFlagsSkipClosestHitShaderEXT;
 
             // payload at location=1 is a boolean 'isShadowed' as in your code
@@ -505,7 +400,10 @@ void processGI(vec3 P, vec3 T, vec3 B, vec3 N)
         vec3 origin = P;
 
         vec3 rayDir = normalize(mat3(gl_ObjectToWorldEXT) * toTBNSpace(cosineHemisphere(i), N, T, B));
-        uint flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT;
+        uint flags =
+            gl_RayFlagsTerminateOnFirstHitEXT |
+            gl_RayFlagsCullBackFacingTrianglesEXT;
+            //gl_RayFlagsOpaqueEXT;
 
         payload.radiance = vec3(0.0);
 
