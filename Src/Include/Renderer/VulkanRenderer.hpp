@@ -370,7 +370,7 @@ namespace fre
 		};
 
 		//Vulkan components
-		VkInstance mInstance;
+		VkInstance mInstance = VK_NULL_HANDLE;
 
 		//Requested API version
 		uint32_t mApiVersion = VK_API_VERSION_1_0;
