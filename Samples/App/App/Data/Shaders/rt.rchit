@@ -5,82 +5,69 @@
 
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_buffer_reference2 : require
-struct hitPayload
-{
-	vec3 radiance;
-	vec3 attenuation;
-	int  done;
-	vec3 rayOrigin;
-	vec3 rayDir;
-    vec3 lightPos;
-    uint rngState;
-};
 
-layout(location = 0) rayPayloadInEXT hitPayload prd;
+#include "Common.h"
+#include "Payload.h"
+#include "Rnd.h"
+#include "Transform.h"
+
+#define NUM_EMISSIVE_SAMPLES 6
+#define NUM_GI_SAMPLES 6
+
+layout(location = 0) rayPayloadInEXT Payload payload;
 layout(location = 1) rayPayloadEXT bool isShadowed;
 
 hitAttributeEXT vec3 attribs;
-
-struct Material
-{
-	vec4  mBaseColorFactor;      // RGBA
-	float mMetallicFactor;       // [0,1]
-	float mRoughnessFactor;      // [0,1]
-	float mNormalScale;          // normal map scale (1 = as is)
-	float mOcclusionStrength;    // [0,1]
-	vec3  mEmissiveFactor;       // RGB
-	int mBaseColorTex;         // -1 if none
-	int mMetallicRoughnessTex; // -1 if none (G=roughness, B=metallic)
-	int mNormalTex;            // -1 if none (tangent space)
-	int mOcclusionTex;         // -1 if none (R)
-	int mEmissiveTex;          // -1 if none (RGB)
-};
-
-struct Vertex
-{
-	vec3 mPos;
-	vec3 mNormal;
-	vec3 mTangent;
-	vec2 mTC;
-};
-
-struct Mesh
-{
-	uint64_t mVertices;
-	uint64_t mIndices;
-	int mMaterialIndex;
-};
-
-struct EmissiveTriangle
-{
-    vec3 v0;
-    vec3 v1;
-    vec3 v2;
-    float area;
-    int matIndex;
-};
 
 // clang-format off
 layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions of an object
 layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indices
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
-layout(set = 0, binding = 3) buffer SceneDesc { Mesh i[]; } sceneDesc;
-layout(set = 0, binding = 4, scalar) buffer GlobalMaterials { Material i[]; } materials;
+layout(set = 0, binding = 4) uniform DynamicData { DynamicDataBlock dynamicData; };
+layout(set = 0, binding = 5) buffer SceneDesc { Mesh i[]; } sceneDesc;
+layout(set = 0, binding = 6, scalar) buffer GlobalMaterials { Material i[]; } materials;
 // Scene textures
-layout(set = 0, binding = 5) uniform sampler2D textures[];
+layout(set = 0, binding = 7) uniform sampler2D textures[];
 // Emissive objects triangles
-layout(set = 0, binding = 6, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
+layout(set = 0, binding = 8, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
 // clang-format on
 
 // --------------------------- math helpers -----------------------------------
 const float PI = 3.14159265359;
 
-uint lcg(inout uint s) { s = 1664525u * s + 1013904223u; return s; }
-float rng(inout uint s) { return (lcg(s) >> 8) * (1.0 / 16777216.0); } // [0,1)
-
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 vec3  saturate(vec3  v) { return clamp(v, vec3(0.0), vec3(1.0)); }
+
+// --------------------------- normal mapping ---------------------------------
+// Inputs: interpolated geometric normal/tangent in OBJECT space and UV
+// Tangent.w is expected to be the handedness (+1 / -1). If you don't have it, use +1.
+vec3 getWorldNormal(Material mat, int normalTexIndex,
+    vec3 objN, vec4 objT, vec2 uv,
+    mat4x3 objectToWorld, out vec3 T, out vec3 B, out vec3 N)
+{
+    // Orthonormalize T against N
+    N = normalize(objN);
+    T = normalize(objT.xyz - N * dot(objT.xyz, N));
+    B = normalize(cross(N, T)) * (objT.w >= 0.0 ? 1.0 : -1.0);
+
+    mat3 TBN = mat3(T, B, N);
+
+    vec3 n = vec3(0.0, 0.0, 1.0);
+    if(normalTexIndex >= 0) {
+        // Tangent-space normal in [0,1] -> [-1,1]
+        n = texture(textures[normalTexIndex], uv).xyz * 2.0 - 1.0;
+        n.xy *= mat.mNormalScale;
+        n = normalize(n);
+    }
+
+    // To OBJECT space
+    vec3 nObj = normalize(TBN * n);
+    // To WORLD space (w = 0 for direction)
+    vec3 nWorld = normalize(inverse(transpose(mat3(gl_ObjectToWorldEXT))) * nObj);
+    //vec3 nWorld = normalize((objectToWorld * vec4(nObj, 0.0)).xyz);
+    return nWorld;
+}
 
 // Trowbridge-Reitz GGX normal distribution
 float D_GGX(float NdotH, float a) {
@@ -105,35 +92,6 @@ float G_Smith(float NdotV, float NdotL, float roughness) {
 vec3 F_Schlick(vec3 F0, float HdotV) {
     float f = pow(1.0 - HdotV, 5.0);
     return F0 + (1.0 - F0) * f;
-}
-
-// --------------------------- normal mapping ---------------------------------
-// Inputs: interpolated geometric normal/tangent in OBJECT space and UV
-// Tangent.w is expected to be the handedness (+1 / -1). If you don't have it, use +1.
-vec3 getWorldNormal(Material mat, int normalTexIndex,
-    vec3 objN, vec4 objT, vec2 uv,
-    mat4x3 objectToWorld)
-{
-    // Orthonormalize T against N
-    vec3 N = normalize(objN);
-    vec3 T = normalize(objT.xyz - N * dot(objT.xyz, N));
-    vec3 B = normalize(cross(N, T)) * (objT.w >= 0.0 ? 1.0 : -1.0);
-
-    mat3 TBN = mat3(T, B, N);
-
-    vec3 n = vec3(0.0, 0.0, 1.0);
-    if(normalTexIndex >= 0) {
-        // Tangent-space normal in [0,1] -> [-1,1]
-        n = texture(textures[normalTexIndex], uv).xyz * 2.0 - 1.0;
-        n.xy *= mat.mNormalScale;
-        n = normalize(n);
-    }
-
-    // To OBJECT space
-    vec3 nObj = normalize(TBN * n);
-    // To WORLD space (w = 0 for direction)
-    vec3 nWorld = normalize((objectToWorld * vec4(nObj, 0.0)).xyz);
-    return nWorld;
 }
 
 // --------------------------- texture sampling --------------------------------
@@ -220,7 +178,7 @@ vec3 BRDF_PBR(const PBRInputs I) {
 // Example directional light. For point/spot, compute L and radiance accordingly.
 vec3 shadeGLTF(
     Material m,
-    vec2 uv,
+    vec2 objUV,
     vec3 P_world,
     vec3 V_world,                 // from P toward camera, normalized
     mat4x3 objectToWorld,
@@ -237,7 +195,7 @@ vec3 shadeGLTF(
     float roughness = mr.y;
 
     // Optional AO (texture * screen-space AO)
-    float aoTex = sampleAO(m, uv);
+    float aoTex = sampleAO(m, objUV);
     float ao = clamp(ambientOcclusion * aoTex, 0.0, 1.0);
 
     // Build BRDF inputs
@@ -252,6 +210,7 @@ vec3 shadeGLTF(
 
     vec3 Lo = BRDF_PBR(I);
     
+    //TODO: Transparency disable for now
     /*float alpha = base.a;
     // Alpha handling
     if(material.alphaMode == ALPHA_MASK){
@@ -266,49 +225,97 @@ vec3 shadeGLTF(
         Lo *= alpha;
     }*/
 
-
     // Ambient factor
-    float af = 0.7; //0.03 by default
+    float af = dynamicData.ambient; //0.03 by default. Increased because of dark result
     // Simple ambient term (you can replace with IBL)
     vec3 ambient = I.baseColor * (1.0 - I.metallic) * af * ao;
 
     // Alpha (if you need it for blending/masking)
     // float alpha = base.a;
 
-    //return emissive;
     return Lo + ambient + emissive;
 }
 
+// Get a random emissive triangle that faces the view direction V
+// V - reversed ray direction (origin - hit position)
+// e1, e2 - triangle edges (v1-v0, v2-v0)
+EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 lightUV, out vec3 n, out vec3 e1, out vec3 e2, out vec3 xL)
+{
+    EmissiveTriangle result;
+    //for(int i = 0; i < 10; i++)
+    {
+        // Pick a random emissive triangle (uniform over triangles for now)
+
+#if 1
+        uvec2 launchID = gl_LaunchIDEXT.xy;
+        uvec2 launchSize = gl_LaunchSizeEXT.xy;
+        uint pixelIndex = launchID.x + launchID.y * launchSize.x;
+
+        uint pixHash = wangHash(pixelIndex);
+        uint baseSeq = pixHash * 1664525u + 1013904223u; // mixed base seed
+
+        // then for each sample, build a small sequence index
+        uint seqForTri = baseSeq + uint(sampleIdx) * 4u + 0u; // +0 for tri index
+        uint seqForBary1 = baseSeq + uint(sampleIdx) * 4u + 1u; // +1 for bary u
+        uint seqForBary2 = baseSeq + uint(sampleIdx) * 4u + 2u; // +2 for bary v
+
+        float u_tri = halton(seqForTri, 7u);   // choose base 7 (avoid 2/3 correlation)
+        lightUV.x = halton(seqForBary1, 2u); // base 2
+        lightUV.y = halton(seqForBary2, 3u); // base 3
+
+        // Pick emissive triangle index using u
+        uint triIdx = uint(u_tri * float(emissiveTriangles.L.length()));
+#else
+        lightUV = vec2(rng(payload.rngState), rng(payload.rngState));
+        uint triIdx = uint(floor(rng(payload.rngState) * float(emissiveTriangles.L.length())));
+#endif
+        triIdx = clamp(triIdx, 0u, uint(emissiveTriangles.L.length() - 1));
+        //triIdx = 10;
+        //lightUV = vec2(0.5);
+        // Barycentric coords inside triangle using (u,v)
+        float su = sqrt(lightUV.y);
+        float b0 = 1.0 - su;
+        float b1 = lightUV.x * su;
+        float b2 = 1.0 - b0 - b1;
+
+        result = emissiveTriangles.L[triIdx];
+
+        lightUV = result.uv0 * b0 + result.uv1 * b1 + result.uv2 * b2;
+        xL = result.v0 * b0 + result.v1 * b1 + result.v2 * b2;
+        //xL = result.v0;
+        vec3 v0 = result.v0;
+        vec3 v1 = result.v1;
+        vec3 v2 = result.v2;
+        e1 = v1 - v0;
+        e2 = v2 - v0;
+
+        n = normalize(cross(e1, e2));
+        /*if(dot(normalize(P - xL), n) > 0.0)
+        {
+            break;
+        }*/
+    }
+
+    return result;
+}
+
 //Next event estimation for emissive triangles
-vec3 nee(vec3 P, vec3 N, vec3 V, vec4 base, vec2 mr, vec3 lightRadiance, float shadowVisibility)
+vec3 nee(int sampleIdx, Material objMat, vec2 objUV, vec3 P, vec3 N, vec3 V, vec4 base, vec3 emissive, vec2 mr)
 {
     vec3 Lo_direct = vec3(0.0);
 
     // --- NEXT-EVENT ESTIMATION (single sample) ---
     if(emissiveTriangles.L.length() > 0)
     {
-        // 1) Pick a random emissive triangle (uniform over triangles for now)
-        uint triIdx = uint(floor(rng(prd.rngState) * float(emissiveTriangles.L.length())));
-        triIdx = clamp(triIdx, 0u, uint(emissiveTriangles.L.length() - 1));
-        EmissiveTriangle tri = emissiveTriangles.L[triIdx];
-
-        // 2) Sample a random point on that triangle (uniform in area)
-        float u = rng(prd.rngState);
-        float v = rng(prd.rngState);
+        vec3 e1;
+        vec3 e2;
+        vec3 xL;
+        vec2 lightUV;
+        vec3 nTri;
+        EmissiveTriangle tri = getEmissiveTriangle(sampleIdx, P, lightUV, nTri, e1, e2, xL);
 
         Material emissiveTriMat = materials.i[tri.matIndex];
-        vec3 lightEmissive = sampleEmissive(emissiveTriMat, vec2(u, v));
-        // Warp to barycentric with u+v<=1
-        float su = sqrt(u);
-        float b1 = 1.0 - su;
-        float b2 = v * su;
-        vec3 v0 = tri.v0;
-        vec3 v1 = tri.v1;
-        vec3 v2 = tri.v2;
-        vec3 e1 = v1 - v0;
-        vec3 e2 = v2 - v0;
-        vec3 xL = v0 + e1 * b1 + e2 * b2;
-        xL = v0;
+        vec3 lightEmissive = sampleEmissive(emissiveTriMat, lightUV)/* * 3.5*/;
 
         // direction to light sample
         vec3 wi = normalize(xL - P);
@@ -319,54 +326,113 @@ vec3 nee(vec3 P, vec3 N, vec3 V, vec4 base, vec2 mr, vec3 lightRadiance, float s
         //    Set tMax to dist - eps so we only count blockers strictly before the light
         bool visible = true;
         {
-            const uint flags = gl_RayFlagsTerminateOnFirstHitEXT |
-                gl_RayFlagsOpaqueEXT |
+            const uint flags =
+                gl_RayFlagsTerminateOnFirstHitEXT |
+                //gl_RayFlagsOpaqueEXT |
+                gl_RayFlagsCullBackFacingTrianglesEXT |
                 gl_RayFlagsSkipClosestHitShaderEXT;
 
             // payload at location=1 is a boolean 'isShadowed' as in your code
             isShadowed = true; // assume blocked
+
             traceRayEXT(topLevelAS, flags, 0xFF, 0, 0, 1,
-                P, 0.001, wi, dist - 0.002, 1);
+                P, 0.002, wi, dist * 0.93, 1);
             visible = !isShadowed;
         }
 
-        if(visible)
+        //if(visible)
         {
             // 4) Geometry term (need light normal; approximate from triangle)
-            vec3 nL = normalize(cross(e1, e2));
             float cosLo = max(dot(N, wi), 0.0);
-            float cosLi = max(dot(nL, -wi), 0.0);
+            float cosLi = max(dot(nTri, -wi), 0.0);
 
             // 5) BRDF at the hit point toward the light
-            //    Use your existing eval for GGX/Lambert:
-            PBRInputs I;
-            I.N = normalize(N);
-            I.V = normalize(V);
-            I.L = normalize(wi);
-            I.radiance = lightRadiance * shadowVisibility; // shadow term here
-            I.baseColor = base.rgb;
-            I.metallic = mr.x;
-            I.roughness = mr.y;
-            vec3 f = BRDF_PBR(I);
+
+            vec3 f = shadeGLTF(
+                objMat, objUV, P, V, gl_ObjectToWorldEXT,
+                wi, lightEmissive, // light direction & radiance
+                float(!isShadowed), // shadow visibility (1 = unshadowed)
+                1.0, // ambient occlusion
+                N,
+                base,
+                mr,
+                emissive
+            );
 
             // 6) PDF for this sampling strategy:
             //    uniform over triangles + uniform over area of chosen tri
             //    pdf_A = (1 / numTris) * (1 / area)
             float numTris = float(emissiveTriangles.L.length());
             float pdfA = (1.0 / numTris) * (1.0 / max(tri.area, 1e-8));
-            //pdfA = 1.0;
 
             // Convert area-PDF to solid-angle factor via geometry term
-            // Contribution = Le * f * cosLo * cosLi / (dist2 * pdfA)
-            Lo_direct += lightEmissive * f * (cosLo * cosLi) / (max(dist2 * pdfA, 1e-6));
+            //Lo_direct += lightEmissive * f * (cosLo * cosLi) / (max(dist2 * pdfA, 1e-6));
+            vec3 contrib = f * cosLi/* / max(dist2 * pdfA, 1e-6)*/;
+
+            Lo_direct += contrib;
         }
     }
 
     return Lo_direct;
 }
 
+void processEmissives(Material objMat, vec2 objUV, vec3 P, vec3 N_world, vec3 V_world, vec4 base, vec3 emissive, vec2 mr)
+{
+    vec3 neeEmissiveContrib = vec3(0.0);
+    for(int i = 0; i < NUM_EMISSIVE_SAMPLES; i++)
+    {
+        neeEmissiveContrib += nee(i, objMat, objUV, P, N_world, V_world, base, emissive, mr);
+    }
+    neeEmissiveContrib /= float(NUM_EMISSIVE_SAMPLES);
+    payload.radiance += neeEmissiveContrib;
+}
+
+void processGI(vec3 P, vec3 T, vec3 B, vec3 N)
+{
+    vec3 giContrib = vec3(0.0);
+    Payload old = payload;
+    payload.depth++;
+    for(int i = 0; i < NUM_GI_SAMPLES; i++)
+    {
+        float tMin = 0.001;
+        // infinite
+        float tMax = 1e32;
+        vec3 origin = P;
+
+        vec3 rayDir = normalize(mat3(gl_ObjectToWorldEXT) * toTBNSpace(cosineHemisphere(i), N, T, B));
+        uint flags =
+            gl_RayFlagsTerminateOnFirstHitEXT |
+            gl_RayFlagsCullBackFacingTrianglesEXT;
+            //gl_RayFlagsOpaqueEXT;
+
+        payload.radiance = vec3(0.0);
+
+        traceRayEXT(topLevelAS,        // acceleration structure
+            flags,             // rayFlags
+            0xFF,              // cullMask
+            0,                 // sbtRecordOffset
+            0,                 // sbtRecordStride
+            0,                 // missIndex
+            origin,            // ray origin
+            tMin,              // ray min range
+            rayDir,            // ray direction
+            tMax,              // ray max range
+            0                  // payload (location = 0, 1)
+        );
+        giContrib += payload.radiance;
+    }
+    giContrib /= float(NUM_GI_SAMPLES);
+    payload = old;
+    payload.radiance += giContrib;
+}
+
 void main()
 {
+    if(payload.depth > 1)
+    {
+        return;
+    }
+
 	// When contructing the TLAS, we stored the model id in InstanceCustomIndexEXT, so the
 	// the instance can quickly have access to the data
 
@@ -376,7 +442,7 @@ void main()
 	Vertices vertices = Vertices(mesh.mVertices);
 
 	//Mesh material
-	Material mat = materials.i[mesh.mMaterialIndex];
+	Material objMat = materials.i[mesh.mMaterialIndex];
 
 	// Indices of the triangle
 	uvec3 ind = indices.i[gl_PrimitiveID];
@@ -394,32 +460,33 @@ void main()
 	vec2 uv1 = v1.mTC;
 	vec2 uv2 = v2.mTC;
 
-	vec2 uv = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
+	vec2 objUV = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
 
 	// Computing the normal at hit position
 	vec3 vNormal = v0.mNormal.xyz * barycentrics.x + v1.mNormal.xyz * barycentrics.y + v2.mNormal.xyz * barycentrics.z;
 	vec3 vTangent = v0.mTangent.xyz * barycentrics.x + v1.mTangent.xyz * barycentrics.y + v2.mTangent.xyz * barycentrics.z;
-    vec3 N_world = getWorldNormal(mat, mat.mNormalTex, vNormal, vec4(vTangent, 1.0), uv, gl_ObjectToWorldEXT);
+    vec3 T;
+    vec3 B;
+    vec3 N;
+    vec3 N_world = getWorldNormal(objMat, objMat.mNormalTex, vNormal, vec4(vTangent, 1.0), objUV, gl_ObjectToWorldEXT, T, B, N);
 
 	// Computing the coordinates of the hit position
 	vec3 P = v0.mPos.xyz * barycentrics.x + v1.mPos.xyz * barycentrics.y + v2.mPos.xyz * barycentrics.z;
 	P = vec3(gl_ObjectToWorldEXT * vec4(P, 1.0));        // Transforming the position to world space
 
 	// Hardocded light position
-	//vec3 lightPos = vec3(1.5, 0.8, 0.5);
 	vec3 lightPos = vec3(1.5, 0.8, 0.5);
 	// To light direction
 	vec3 L = normalize(lightPos - P);
 
 	float NdotL = dot(N_world, L);
 
-	//vec3 materialDiffuse = texture(textures[mat.mBaseColorTex], uv).rgb;
-	//vec3 diffuse = materialDiffuse * max(NdotL, 0.5);
-	//vec3 specular = vec3(0.0);
-
-	float metallness = sampleMetallicRoughness(mat, uv).x;
+	vec2 mr = sampleMetallicRoughness(objMat, objUV);
+    float metallness = mr.x;
+    float roughness = mr.y;
 	// Tracing shadow ray only if the light is visible from the surface
-	//if(NdotL > 0.0)
+    // TODO: learn more about back fack check. Not shure if we need it here
+	if(NdotL > 0.0)
 	{
 		float tMin = 0.001;
 		float tMax = 1e32;        // infinite
@@ -443,52 +510,35 @@ void main()
 	}
 
     vec3 V_world = normalize(gl_WorldRayOriginEXT - P);
-    vec4 base = sampleBaseColor(mat, uv);
-    vec2 mr = sampleMetallicRoughness(mat, uv);
-    vec3 emissive = sampleEmissive(mat, uv);
-    float shadowVisibility = 1.0 - (isShadowed ? 1.0 : 0.0);
-    vec3 lightRadiance = vec3(1.0, 1.0, 0.9) * 2.5; // light radiance at P (includes intensity & attenuation)
-    prd.radiance = shadeGLTF(
-        mat, uv, P, V_world, gl_ObjectToWorldEXT,
+    vec4 base = sampleBaseColor(objMat, objUV);
+    payload.albedo = base.rgb;
+    vec3 emissive = sampleEmissive(objMat, objUV);
+    vec3 lightRadiance = vec3(1.0, 1.0, 0.9) * dynamicData.mainLightIntensity; // light radiance at P (includes intensity & attenuation)
+    vec3 directLightContrib = shadeGLTF(
+        objMat, objUV, P, V_world, gl_ObjectToWorldEXT,
         L, lightRadiance, // light direction & radiance
-        shadowVisibility, // shadow visibility (1 = unshadowed)
+        float(!isShadowed), // shadow visibility (1 = unshadowed)
         1.0, // ambient occlusion
         N_world,
         base,
         mr,
         emissive
     );
+    payload.radiance += directLightContrib;
 
-    vec3 emissiveExt = vec3(0.0);
-    const int emissiveSamplesCount = 32;
-    for(int i = 0; i < emissiveSamplesCount; i++)
-    {
-        emissiveExt += nee(P, N_world, V_world, base, mr, lightRadiance, shadowVisibility);
-    }
-    prd.radiance += emissiveExt;
-    /*for(int i = 0; i < emissiveTriangles.L.length(); i++)
-    {
-        EmissiveTriangle tri = emissiveTriangles.L[i];
-        if(length(tri.v0 - P) < 0.001 || length(tri.v1 - P) < 0.001 || length(tri.v2 - P) < 0.001)
-        {
-            prd.radiance = vec3(1.0, 0.0, 0.0);
-            return;
-        }
-    }*/
+    processEmissives(objMat, objUV, P, N_world, V_world, base, emissive, mr);
 
-    //prd.radiance = vec3(emissiveTriangles.L.length() / 100.0);
-    //int mBaseColorTex;         // -1 if none
-    //int mMetallicRoughnessTex; // -1 if none (G=roughness, B=metallic)
-    //int mNormalTex;            // -1 if none (tangent space)
-    //int mOcclusionTex;         // -1 if none (R)
-    //int mEmissiveTex;          // -1 if none (RGB)*/
-    //prd.radiance = N_world;
+    processGI(P, T, B, N);
+
+    payload.radiance *= payload.attenuation;
 
 	// Reflect
-    //prd.radiance = vec3(isEmissive);
 	vec3 rayDir = reflect(gl_WorldRayDirectionEXT, N_world);
-    prd.attenuation *= 0.8 * metallness;
-	prd.rayOrigin = P;
-	prd.rayDir = rayDir;
+    if(payload.depth == 0)
+    {
+        payload.attenuation *= 0.8 * (metallness);
+    }
+    payload.rayOrigin = P;
+    payload.rayDir = rayDir;
+    payload.normal = N_world;
 }
-

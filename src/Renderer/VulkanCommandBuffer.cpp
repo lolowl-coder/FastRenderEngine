@@ -22,6 +22,11 @@ namespace fre
 		VK_CHECK(vkAllocateCommandBuffers(logicalDevice, &cbAllocInfo, &mCommandBuffer));
 	}
 
+    void VulkanCommandBuffer::reset() const
+	{
+		VK_CHECK(vkResetCommandBuffer(mCommandBuffer, 0));
+	}
+
     void VulkanCommandBuffer::begin() const
     {
         //Information about how to begin each command buffer

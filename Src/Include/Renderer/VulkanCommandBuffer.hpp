@@ -10,6 +10,7 @@ namespace fre
     struct VulkanCommandBuffer
     {
         void allocate(VkCommandPool graphicsCommandPool, VkDevice logicalDevice);
+        void reset() const;
         void begin() const;
         void end() const;
         void flush(VkDevice device, VkQueue queue, const VkFence fence, const std::vector<VkSemaphore>& signalSemaphores) const;

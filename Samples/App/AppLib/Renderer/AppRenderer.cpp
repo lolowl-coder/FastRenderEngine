@@ -1,3 +1,4 @@
+#include "Interop/Interop.hpp"
 #include "Renderer/AppRenderer.hpp"
 #include "Renderer/FeatureMacro.hpp"
 #include "Renderer/FeatureStorage.hpp"
@@ -9,6 +10,7 @@
 #include "Renderer/VulkanTexture.hpp"
 #include "UI/UIUtilities.hpp"
 #include "Camera.hpp"
+#include "CudaUtilities.hpp"
 #include "Utilities.hpp"
 
 #include<memory>
@@ -20,7 +22,14 @@ namespace app
 {
 	AppRenderer::AppRenderer(ThreadPool& threadPool)
 		: VulkanRenderer(threadPool)
+		, mCudaBufferManager("CudaBufferManager")
 	{
+	}
+
+	void AppRenderer::destroy()
+	{
+		VulkanRenderer::destroy();
+		mDenoiser.finish();
 	}
 
 	void AppRenderer::initUI()
@@ -31,42 +40,85 @@ namespace app
 			{
 				if(!mRTMeshes.empty() && mRTMeshes[0] != nullptr)
 				{
-					ImGui::Begin("Materials");
+					ImGui::Begin("Options");
                     ImGui::PushItemWidth(150.0f);
 					bool changed = false;
 					static int selectedIndex = -1;
-					for(int i = 0; i < mMaterials.size(); i++)
+					if(ImGui::TreeNodeEx("Materials", ImGuiTreeNodeFlags_DefaultOpen, "Materials"))
 					{
-						Material& mat = mMaterials[i];
-						if(!mat.mName.empty())
+						for(int i = 0; i < mMaterials.size(); i++)
 						{
-							ImGuiTreeNodeFlags_ selected = i == selectedIndex ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None;
-							if(ImGui::TreeNodeEx(mat.mName.c_str(), ImGuiTreeNodeFlags_Leaf | selected, mat.mName.c_str()))
+							Material& mat = mMaterials[i];
+							if(!mat.mName.empty())
 							{
-								if(ImGui::IsItemClicked())
+								ImGuiTreeNodeFlags_ selected = i == selectedIndex ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None;
+								if(ImGui::TreeNodeEx(mat.mName.c_str(), ImGuiTreeNodeFlags_Leaf | selected, mat.mName.c_str()))
 								{
-									if(selectedIndex > -1)
+									if(ImGui::IsItemClicked())
 									{
-										mMaterials[selectedIndex].mBaseColorFactor = vec4(1.0f);
-									}
-									if(selected == ImGuiTreeNodeFlags_Selected)
-									{
-										selectedIndex = -1;
-										selected = ImGuiTreeNodeFlags_None;
-									}
-									else
-									{
-										selectedIndex = i;
-										selected = ImGuiTreeNodeFlags_Selected;
-									}
-									changed = true;
-									mat.mBaseColorFactor = selected == ImGuiTreeNodeFlags_Selected ? vec4(1.0f, 0.0f, 0.0f, 1.0f) : vec4(1.0f);
-								}
+										if(selectedIndex > -1)
+										{
+											// Restore previously selected material properties
+											if(mMaterials[selectedIndex].mName == "light_mat")
+											{
+												mMaterials[selectedIndex].mEmissiveFactor = vec3(6.154f);
+											}
+											else
+											{
+												mMaterials[selectedIndex].mBaseColorFactor = vec4(1.0f);
+											}
+										}
+										if(selected == ImGuiTreeNodeFlags_Selected)
+										{
+											selectedIndex = -1;
+											selected = ImGuiTreeNodeFlags_None;
+										}
+										else
+										{
+											selectedIndex = i;
+											selected = ImGuiTreeNodeFlags_Selected;
+										}
+										changed = true;
+										if(mat.mName == "light_mat")
+										{
+											mat.mEmissiveFactor = selected == ImGuiTreeNodeFlags_Selected ? vec3(6.154f, 0.0f, 0.0f) : vec3(6.154, 6.154f, 6.154f);
+										}
+										else
+										{
+											mat.mBaseColorFactor = selected == ImGuiTreeNodeFlags_Selected ? vec4(1.0f, 0.0f, 0.0f, 1.0f) : vec4(1.0f);
+										}
 
-								ImGui::TreePop();
+									}
+
+									ImGui::TreePop();
+								}
 							}
 						}
+
+						ImGui::TreePop();
 					}
+					ImGui::Checkbox("Denoise", &mIsDenoiserEnabled);
+					sliderFloat(0.0f, 10.0f, "Main ligth intensity", mDynamicData.mLightIntensity, "%.2f");
+					sliderFloat(0.0f, 1.0f, "Ambient intensity", mDynamicData.mAmbient, "%.2f");
+                    auto& itr = std::find_if(mMaterials.begin(), mMaterials.end(), [](const Material& mat) { return mat.mName == "light_mat"; });
+                    if(itr != mMaterials.end())
+					{
+                        float intensity = itr->mEmissiveFactor.x;
+						if(sliderFloat(0.0f, 100.0f, "Lamp light intensity", intensity, "%.2f"))
+						{
+							itr->mEmissiveFactor = vec3(intensity);
+							changed = true;
+						}
+					}
+					if(ImGui::Button("Restore defaults"))
+					{
+						selectedIndex = -1;
+						mDynamicData = DynamicData();
+						mMaterials = mDefaultMaterials;
+                        changed = true;
+					}
+                    ImGui::Separator();
+                    ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
 
 					if(changed)
 					{
@@ -172,12 +224,67 @@ namespace app
             }
         }
 
-		mRTCamera.mViewInverse = glm::inverse(camera.mView);
-		mRTCamera.mProjInverse = glm::inverse(camera.mProjection);
+		mDynamicData.mViewInverse = glm::inverse(camera.mView);
+		mDynamicData.mProjInverse = glm::inverse(camera.mProjection);
 
-        mBufferManager.udpateBuffer(mainDevice.logicalDevice, mRTCameraBufferIndex, &mRTCamera, sizeof(mRTCamera));
+        mBufferManager.udpateBuffer(mainDevice.logicalDevice, mDynamicDataBufferIndex, &mDynamicData, sizeof(mDynamicData));
 
         VulkanRenderer::update(camera, light);
+	}
+
+	void AppRenderer::onRaytracingCommandsSubmitted()
+	{
+		VulkanRenderer::onRaytracingCommandsSubmitted();
+		if(
+			mCUDAExternalColorBuffer.mData != nullptr &&
+			mCUDAExternalAlbedoBuffer.mData != nullptr &&
+			mCUDAExternalNormalBuffer.mData != nullptr &&
+			mIsDenoiserEnabled)
+		{
+			cudaExternalSemaphoreWaitParams waitParams = {};
+			waitParams.flags = 0;
+			waitParams.params.fence.value = 0;
+			// Wait for vulkan to complete it's work
+			CUDA_CHECK(cudaWaitExternalSemaphoresAsync(&mCudaWaitSemaphore, &waitParams, 1, 0));
+
+			Denoiser::Data data;
+			auto maxViewSize = getViewport().getSize();
+			data.width = maxViewSize.x;
+			data.height = maxViewSize.y;
+			data.color = reinterpret_cast<float*>(mCUDAExternalColorBuffer.mData);
+			data.albedo = reinterpret_cast<float*>(mCUDAExternalAlbedoBuffer.mData);
+			data.normal = reinterpret_cast<float*>(mCUDAExternalNormalBuffer.mData);
+			//data.flow = reinterpret_cast<float*>(flow.data);
+			//data.flowtrust = reinterpret_cast<float*>(flowtrust.data);
+
+			if(!mDenoiserInitialized)
+			{
+				const int tileWidth = 0;
+				const int tileHeight = 0;
+				const bool kpMode = true;
+				const bool temporalMode = false;
+				const bool applyFlow = false;
+				const bool upscale2x = false;
+				const OptixDenoiserAlphaMode alphaMode = OPTIX_DENOISER_ALPHA_MODE_COPY;
+				const bool specularMode = false;
+				mDenoiser.init(data, tileWidth, tileHeight, kpMode, temporalMode, applyFlow,
+					upscale2x, alphaMode, specularMode);
+				mDenoiserInitialized = true;
+			}
+			else
+			{
+				mDenoiser.update(data);
+			}
+            mDenoiser.exec();
+			mDenoiser.copyResultDevice(mCUDAExternalColorBuffer.mData);
+
+			cudaExternalSemaphoreSignalParams signalParams = {};
+			signalParams.flags = 0;
+			signalParams.params.fence.value = 0;
+
+			// Signal vulkan to continue with the updated buffers
+			CUDA_CHECK(cudaSignalExternalSemaphoresAsync(&mCudaSignalSemaphore, &signalParams, 1, 0));
+		}
 	}
 
 	std::vector<const VulkanShader*> AppRenderer::getRTShaders(const uint32_t shaderId)
@@ -191,8 +298,9 @@ namespace app
 			{
 				&shader->mRayGenShader,
 				&shader->mRayMissShader,
-                & shadowMissShader->mRayMissShader,
-				&shader->mRayClosestHitShader
+                &shadowMissShader->mRayMissShader,
+				&shader->mRayClosestHitShader,
+				&shader->mRayAnyHitShader
 			};
 		}
 		else
@@ -230,19 +338,22 @@ namespace app
 		return result;
 	}
 
-    void AppRenderer::createStorageImage()
+    AppRenderer::StorageImage AppRenderer::createStorageImage(bool external, VkFormat format,VkImageTiling tiling, const std::string& name)
     {
+		StorageImage result;
+
 		auto maxViewSize = getViewport().getSize();
 		Image image;
 		image.mDimension = maxViewSize;
-		image.mFormat = VK_FORMAT_R8G8B8A8_UNORM;
+		image.mFormat = format;
+		image.mFileName = name;
+		image.mIsExternal = external;
 		auto textureInfoId = mTextureManager.createTextureInfo(
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-			VK_IMAGE_TILING_OPTIMAL,
+			tiling,
 			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			VK_IMAGE_LAYOUT_GENERAL,
-			false,
 			image);
 		auto textureInfo = getTextureInfo(textureInfoId);
 		auto textureId = mTextureManager.createTexture(
@@ -252,17 +363,19 @@ namespace app
 			mGraphicsQueue,
 			mGraphicsCommandPool,
             textureInfo);
-		mStorageImage = getTexture(textureId);
+		result.texture = getTexture(textureId);
 
 		auto samplerId = createSampler({});
 		auto sampler = getSampler(samplerId);
 
-        std::vector<VkImageView> imageViews = { mStorageImage->mImageView };
+        std::vector<VkImageView> imageViews = { result.texture->mImageView };
         std::vector<VkSampler> samplers = { sampler };
 
-		mStorageImageDescriptor = std::make_shared<DescriptorImage>(
+		result.descriptor = std::make_shared<DescriptorImage>(
 			VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_LAYOUT_GENERAL,
 			imageViews, samplers);
+
+		return result;
     }
 
 	int AppRenderer::createDynamicGPUResources()
@@ -271,7 +384,10 @@ namespace app
 
 		if(result == 0)
 		{
-			createStorageImage();
+			//Create G-buffer
+			mColorStorage = createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, "#colorStorage");
+			mAlbedoStorage = createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, "#albedoStorage");
+			mNormalStorage = createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, "#normalStorage");
 		}
 
 		return result;
@@ -330,7 +446,10 @@ namespace app
 					const vec3 p0 = modelMatrix * vec4(vertex0.pos, 1.0);
 					const vec3 p1 = modelMatrix * vec4(vertex1.pos, 1.0);
 					const vec3 p2 = modelMatrix * vec4(vertex2.pos, 1.0);
-					EmissiveTri emissiveTri = {p0, p1, p2, length(cross(p1 - p0, p2 - p0)), material.mId};
+					const vec2 uv0 = vertex0.tex;
+					const vec2 uv1 = vertex1.tex;
+					const vec2 uv2 = vertex2.tex;
+					EmissiveTri emissiveTri = {p0, p1, p2, uv0, uv1, uv2, length(cross(p1 - p0, p2 - p0)), material.mId};
                     emissives.push_back(emissiveTri);
 				}
 			}
@@ -355,7 +474,7 @@ namespace app
 		addMaterial(material);
 		mResultMesh = std::make_shared<Mesh>(material.mId);
 		mResultMesh->setGeneratedVerticesCount(3);
-        mResultMesh->setDescriptors({ { mStorageImageDescriptor } });
+        mResultMesh->setDescriptors({ { mColorStorage.descriptor } });
 		mResultMesh->setVisible(false);
 		addMeshModel({ mResultMesh });
 	}
@@ -498,8 +617,8 @@ namespace app
         uint32_t bufferIndex = createBuffer(bufferUsageFlags, memoryFlags, rtMeshesGPU.data(), rtMeshesGPU.size() * sizeof(RTMeshGPU));
         mRTMeshesGPUBuffer = *mBufferManager.getBuffer(bufferIndex);
 		updateMaterials();
-		mRTCameraBufferIndex = createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memoryFlags, &mRTCamera, sizeof(RTCamera));
-        mRTCameraBuffer = *mBufferManager.getBuffer(mRTCameraBufferIndex);
+		mDynamicDataBufferIndex = createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memoryFlags, &mDynamicData, sizeof(DynamicData));
+        mDynamicDataBuffer = *mBufferManager.getBuffer(mDynamicDataBufferIndex);
 	}
 
 	void AppRenderer::createAS()
@@ -519,20 +638,44 @@ namespace app
 		mTLAS = getAS(tlasIndex);
 	}
 
+	void AppRenderer::initInterop()
+	{
+        mCUDAExternalColorBuffer = mCudaBufferManager.createExternalBuffer<float4>(mColorStorage.texture->mId, this);
+        mCUDAExternalAlbedoBuffer = mCudaBufferManager.createExternalBuffer<float4>(mAlbedoStorage.texture->mId, this);
+        mCUDAExternalNormalBuffer = mCudaBufferManager.createExternalBuffer<float4>(mNormalStorage.texture->mId, this);
+        assert(mExternalWaitSemaphore != VK_NULL_HANDLE);
+        assert(mExternalSignalSemaphore != VK_NULL_HANDLE);
+
+		//Vulkan will wait for cuda's signal
+		importCudaExternalSemaphore(mCudaSignalSemaphore, mExternalWaitSemaphore,
+			getDefaultSemaphoreHandleType(), this);
+
+		//Cuda will wait for Vulkan's signal
+		importCudaExternalSemaphore(mCudaWaitSemaphore, mExternalSignalSemaphore,
+			getDefaultSemaphoreHandleType(), this);
+	}
+
 	void AppRenderer::createScene()
 	{
 		createAS();
 
 		mTLASDescriptor = std::make_shared<DescriptorAccelerationStructure>(mTLAS.mHandle);
-		mRTCameraDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, mRTCameraBuffer.mBuffer);
+		mDynamicDataDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, mDynamicDataBuffer.mBuffer);
 		mRTMeshesGPUDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mRTMeshesGPUBuffer.mBuffer);
 		mRTMaterialsGPUDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mRTMaterialsGPUBuffer.mBuffer);
  		mRTTexturesDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mTextureViews, mTextureSamplers);
 		mEmissiveTrianglesDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mEmissiveTrianglesBuffer.mBuffer);
 
-		mMeshModel->getMesh(0)->setDescriptors({ {mTLASDescriptor, mStorageImageDescriptor, mRTCameraDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor, mRTTexturesDescriptor, mEmissiveTrianglesDescriptor} });
+		mMeshModel->getMesh(0)->setDescriptors({ {
+                mTLASDescriptor, mColorStorage.descriptor, mAlbedoStorage.descriptor, mNormalStorage.descriptor,
+				mDynamicDataDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor,
+				mRTTexturesDescriptor, mEmissiveTrianglesDescriptor} });
 		mMeshModel->setVisible(true);
 
 		mResultMesh->setVisible(true);
+        
+		initInterop();
+		setHasExternalResources(true);
+		mDefaultMaterials = mMaterials;
 	}
 }

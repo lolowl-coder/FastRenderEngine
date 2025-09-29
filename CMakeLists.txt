@@ -3,13 +3,17 @@ cmake_minimum_required(VERSION 3.26.0)
 project(
     "FRE"
     VERSION 1.0.0
-    LANGUAGES C CXX)
+    LANGUAGES C CXX CUDA)
 	
 # Global CMake variables are set here
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON) #Generate json for each translation unit
+
+if (MSVC)
+	add_compile_definitions(NOMINMAX)
+endif()
 
 # External libraries integration tool
 option(USE_CPM "Whether to use CPM." ON)
@@ -182,6 +186,13 @@ FetchContent_MakeAvailable(volk)
 
 find_package(Vulkan REQUIRED)
 
+#CUDA
+find_package(CUDA REQUIRED)
+enable_language(CUDA)
+#
+message(STATUS "CUDA Toolkit Root Directory: ${CUDA_TOOLKIT_ROOT_DIR}")
+add_definitions(-DCUDA_TOOLKIT_ROOT_DIR="${CUDA_TOOLKIT_ROOT_DIR}")
+
 # Enable testing
 include(CTest)
 
@@ -202,10 +213,14 @@ add_subdirectory(configured)
 
 function(buildApp appName sources headers libs includes)
     add_executable(${appName} ${sources} ${headers} ${shaders})
+	
+	set_target_properties(${appName} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+	set_target_properties(${appName} PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+	
 	# Shaders
 	set (SHADERS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Data/Shaders)
 	# Get a list of all shaders in the shaders directory
-	file(GLOB_RECURSE SHADER_SOURCES "${SHADERS_DIR}/*.vert" "${SHADERS_DIR}/*.frag" "${SHADERS_DIR}/*.comp" "${SHADERS_DIR}/*.rgen" "${SHADERS_DIR}/*.rchit" "${SHADERS_DIR}/*.rmiss")
+	file(GLOB_RECURSE SHADER_SOURCES "${SHADERS_DIR}/*.vert" "${SHADERS_DIR}/*.frag" "${SHADERS_DIR}/*.comp" "${SHADERS_DIR}/*.rgen" "${SHADERS_DIR}/*.rchit" "${SHADERS_DIR}/*.rahit" "${SHADERS_DIR}/*.rmiss")
 
 	# Create a source group for the shaders
 	source_group("Shaders" FILES ${SHADER_SOURCES})
@@ -247,6 +262,16 @@ function(buildApp appName sources headers libs includes)
         PRIVATE
 		${libs}
 		)
+		
+	target_compile_options(${appName} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+        --use_fast_math
+        --ftz=true
+        --prec-div=false
+        --prec-sqrt=false
+        --std=c++17
+        >)
+		
+	set_target_properties(${appName} PROPERTIES CUDA_ARCHITECTURES "52;86")
 
     if (MSVC)
         target_compile_options(${appName} PRIVATE $<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/MP>)

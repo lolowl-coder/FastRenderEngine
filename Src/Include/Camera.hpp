@@ -47,6 +47,7 @@ namespace fre
         void setEye(const glm::vec3& eye);
 
         float mFov = 45.0f;
+        float mAspectRatio = 1.0f;
 		float mNear = 0.1f;
 		float mFar = 100.0f;
 

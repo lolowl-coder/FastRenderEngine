@@ -5,6 +5,7 @@
 	#include <VersionHelpers.h>
 	#include <dxgi1_2.h>
 	#include <aclapi.h>
+	#define NOMINMAX
 	#include <windows.h>
 #endif /* _WIN64 */
 

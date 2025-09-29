@@ -3,6 +3,7 @@
 
 #include <filesystem>
 
+#define NOMINMAX
 #include <windows.h>
 #include <shlobj.h>
 

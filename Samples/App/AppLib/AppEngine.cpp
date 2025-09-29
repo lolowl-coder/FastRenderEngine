@@ -30,7 +30,7 @@ namespace app
         : Engine()
     {
         mCameraPanSpeed = 0.01f;
-        mCameraZoomSpeed = 0.1f;
+        mCameraZoomSpeed = 1.1f;
 
         FS;
         //Add search path

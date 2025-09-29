@@ -1,8 +1,16 @@
 set(LIB "fre")
 
+set(OptiX_INSTALL_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 9.0.0")
+set(OptiX_INCLUDE ${OptiX_INSTALL_DIR}/include)
+list(APPEND CMAKE_MODULE_PATH "${OptiX_INSTALL_DIR}/SDK/CMake")
+
+find_package(OptiX REQUIRED)
+
 # Sources and Headers
 set(SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Data/CommonData.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Interop/Interop.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/Denoiser.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanAttachment.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanBufferManager.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Renderer/VulkanCommandBuffer.cpp"
@@ -32,8 +40,13 @@ set(SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/../External/implot/implot.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../External/implot/implot_items.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Camera.cpp"
+    #"${CMAKE_CURRENT_SOURCE_DIR}/Cuda.cu"
+    "${CMAKE_CURRENT_SOURCE_DIR}/CudaBuffer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/CudaBufferManager.cu"
+    "${CMAKE_CURRENT_SOURCE_DIR}/CudaUtilities.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Engine.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Image.cpp"
+    #"${CMAKE_CURRENT_SOURCE_DIR}/Kernels.cu"
     "${CMAKE_CURRENT_SOURCE_DIR}/Log.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/MathUtilities.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Mesh.cpp"
@@ -41,7 +54,6 @@ set(SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/Statistics.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Utilities.cpp"
     "${spirv-reflect_SOURCE_DIR}/spirv_reflect.c"
-
 )
 
 if(WIN32)
@@ -56,7 +68,9 @@ endif()
 
 set(HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Data/CommonData.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Interop/Interop.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/FileSystem/FileSystem.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/Denoiser.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/FeatureMacro.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/FeatureStorage.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Renderer/VulkanAccelerationStructure.hpp"
@@ -83,9 +97,15 @@ set(HEADERS
 	"${CMAKE_CURRENT_SOURCE_DIR}/Include/Serialization/BaseTypesSerialization.hpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/Include/Serialization/MathSerialization.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Camera.hpp"
+    #"${CMAKE_CURRENT_SOURCE_DIR}/Include/Cuda.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/CudaBuffer.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/CudaBufferManager.hpp"
+    #"${CMAKE_CURRENT_SOURCE_DIR}/Include/CudaKernelManager.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Include/CudaUtilities.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Defines.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Engine.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Image.hpp"
+    #"${CMAKE_CURRENT_SOURCE_DIR}/Include/Kernels.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Log.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/MathUtilities.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/Mesh.hpp"
@@ -113,6 +133,7 @@ set(HEADERS
     "${CMAKE_CURRENT_SOURCE_DIR}/../External/implot/implot_internal.h"
     "${spirv-reflect_SOURCE_DIR}/spirv_reflect.h"
 )
+
 set(INCLUDES_PUBLIC
     "./"
     "${CMAKE_BINARY_DIR}/configured_files/include"
@@ -132,6 +153,7 @@ set(INCLUDES_PUBLIC
 	"${spdlog_SOURCE_DIR}/include"
     "${VOLK_INCLUDES}"
     "${spirv-reflect_SOURCE_DIR}"
+	"${OptiX_INCLUDE}"
     )
 set(INCLUDES_PRIVATE
 	)
@@ -143,7 +165,7 @@ set(LIBS_PRIVATE
     tiff
     volk
 	)
-	
+
 set(LIBS_PUBLIC
 	glfw
     #${Vulkan_LIBRARIES}

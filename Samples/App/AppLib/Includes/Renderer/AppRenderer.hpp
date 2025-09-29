@@ -2,6 +2,8 @@
 
 #include "Renderer/VulkanAccelerationStructure.hpp"
 #include "Renderer/VulkanRenderer.hpp"
+#include "Renderer/Denoiser.hpp"
+#include "CudaBufferManager.hpp"
 #include "ThreadPool.hpp"
 #include "Pointers.hpp"
 
@@ -17,6 +19,7 @@ namespace app
 		virtual void initUI() override;
 		virtual int createDynamicGPUResources() override;
 		virtual int createMeshGPUResources() override;
+		virtual void destroy() override;
 
 	protected:
 		virtual void requestExtensions() override;
@@ -25,31 +28,31 @@ namespace app
         virtual void cleanupSwapChain() override;
         virtual void createSwapChain() override;
 		virtual void update(const fre::Camera& camera, const fre::Light& light) override;
+		virtual void onRaytracingCommandsSubmitted() override;
 
 		virtual std::vector<const fre::VulkanShader*> getRTShaders(const uint32_t shaderId) override;
 		virtual fre::ShaderMetaDatum getShaderMetaData(const std::string& shaderFileName) override;
 
 	private:
-		void createStorageImage();
+		struct StorageImage
+		{
+			fre::VulkanTexturePtr texture;
+            fre::VulkanDescriptorPtr descriptor;
+		};
+		StorageImage createStorageImage(bool external, VkFormat format, VkImageTiling tiling, const std::string& name);
 		void loadMeshModel();
 		void createResultMesh();
 		void createAS();
 		uint32_t createRTTexture(uint32_t textureId);
 		void createSceneGPU();
+		void initInterop();
 		void createScene();
 		void updateMaterials();
 
 	private:
-        fre::VulkanTexturePtr mStorageImage;
-		fre::VulkanDescriptorPoolPtr mStorageImageDP;
-		fre::VulkanDescriptorSetLayoutPtr mStorageImageDSL;
-		fre::VulkanDescriptorSetPtr mStorageImageDS;
-		fre::VulkanDescriptorPoolPtr mASDescriptorPool;
-		fre::VulkanDescriptorSetLayoutPtr mASDescriptorSetLayout;
-		fre::VulkanDescriptorSetPtr mASDescriptorSet;
-		fre::VulkanDescriptorPool mResultDP;
-		fre::VulkanDescriptorSetLayout mResultDSL;
-		fre::VulkanDescriptorSet mResultDS;
+        StorageImage mColorStorage;
+        StorageImage mAlbedoStorage;
+        StorageImage mNormalStorage;
 		fre::MeshPtr mResultMesh;
 
         uint32_t mRTShaderId = MAX(uint32_t);
@@ -62,10 +65,9 @@ namespace app
 		fre::AccelerationStructure mTLAS;
 		fre::VulkanBuffer mSceneGPU;
 		fre::VulkanDescriptorPtr mTLASDescriptor;
-		fre::VulkanDescriptorPtr mStorageImageDescriptor;
 		fre::VulkanDescriptorPtr mRTMeshesGPUDescriptor;
 		fre::VulkanDescriptorPtr mRTMaterialsGPUDescriptor;
-		fre::VulkanDescriptorPtr mRTCameraDescriptor;
+		fre::VulkanDescriptorPtr mDynamicDataDescriptor;
 		fre::VulkanDescriptorPtr mRTTexturesDescriptor;
 		fre::VulkanDescriptorPtr mEmissiveTrianglesDescriptor;
 
@@ -73,15 +75,39 @@ namespace app
 		fre::VulkanBuffer mRTMeshesGPUBuffer;
 		uint32_t mRTMaterialsGPUBufferIndex = MAX(uint32_t);
 		fre::VulkanBuffer mRTMaterialsGPUBuffer;
-        uint32_t mRTCameraBufferIndex = MAX(uint32_t);
+        uint32_t mDynamicDataBufferIndex = MAX(uint32_t);
         fre::VulkanBuffer mRTMeshesBuffer;
         fre::VulkanBuffer mRTMaterialsBuffer;
-		fre::VulkanBuffer mRTCameraBuffer;
+		fre::VulkanBuffer mDynamicDataBuffer;
 		fre::VulkanBuffer mEmissiveTrianglesBuffer;
         std::vector<VkImageView> mTextureViews;
         std::vector<VkSampler> mTextureSamplers;
 		uint32_t mShadowMissShaderId = MAX(uint32_t);
 
-        fre::RTCamera mRTCamera;
+		//Interop
+
+		//Cuda-Vulkan synchronization primitives
+		cudaExternalSemaphore_t mCudaWaitSemaphore = nullptr;
+		cudaExternalSemaphore_t mCudaSignalSemaphore = nullptr;
+
+		cudaExternalMemory_t mCUDAExternalColorMem = nullptr;
+		cudaExternalMemory_t mCUDAExternalAlbedoMem = nullptr;
+		cudaExternalMemory_t mCUDAExternalNormalMem = nullptr;
+        fre::CudaBuffer<float4> mCUDAExternalColorBuffer;
+        fre::CudaBuffer<float4> mCUDAExternalAlbedoBuffer;
+        fre::CudaBuffer<float4> mCUDAExternalNormalBuffer;
+
+        fre::DynamicData mDynamicData;
+		uint32_t mColorTextureId = MAX(uint32_t);
+		uint32_t mAlbedoTextureId = MAX(uint32_t);
+		uint32_t mNormalTextureId = MAX(uint32_t);
+		fre::Denoiser mDenoiser;
+		fre::CudaBufferManager mCudaBufferManager;
+		VkSemaphore mExternalVulkanWaitSemaphore = VK_NULL_HANDLE;
+		VkSemaphore mExternalVulkanSignalSemaphore = VK_NULL_HANDLE;
+		bool mDenoiserInitialized = false;
+		bool mIsDenoiserEnabled = true;
+		uint32_t mLampMaterialIndex = MAX(uint32_t);
+        std::vector<fre::Material> mDefaultMaterials;
 	};
 }

@@ -76,10 +76,12 @@ namespace fre
 		int mEmissiveMap = -1;          // -1 if none (RGB)
 	};
 
-	struct RTCamera
+	struct DynamicData
 	{
 		glm::mat4 mViewInverse = glm::mat4(1.0f);
 		glm::mat4 mProjInverse = glm::mat4(1.0f);
+		float mLightIntensity = 4.5f;
+		float mAmbient = 0.03f;
 	};
 
 	struct RTMeshCPU
@@ -101,6 +103,7 @@ namespace fre
 	struct EmissiveTri
 	{
 		glm::vec3 v0, v1, v2;   // v0, and edges (v1-v0), (v2-v0)
+		glm::vec2 uv0, uv1, uv2;// tex coords
 		float area;             // 0.5 * length(cross(e1, e2))
         int matIndex;
 	};

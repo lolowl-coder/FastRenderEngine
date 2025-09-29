@@ -11,6 +11,7 @@
 #include "Shader.hpp"
 #include "Statistics.hpp"
 #include "Utilities.hpp"
+#include "Renderer/Denoiser.hpp"
 #include "Renderer/VulkanBufferManager.hpp"
 #include "Renderer/VulkanResourceCache.hpp"
 #include "Renderer/VulkanCommandBuffer.hpp"
@@ -82,7 +83,6 @@ namespace fre
 			const VkImageUsageFlags usageFlags,
 			const VkMemoryPropertyFlags memoryFlags,
 			const VkImageLayout layout,
-			const bool isExternal,
 			Image& image);
 		VulkanTextureInfoPtr getTextureInfo(const uint32_t id);
 
@@ -118,9 +118,18 @@ namespace fre
 
 		//Update
 		virtual void update(const Camera& camera, const Light& light);
-		
+        //Called after raytracing commands were submitted
+		virtual void onRaytracingCommandsSubmitted();
+        //Submit command buffer to graphics queue
+        virtual void submitCommandBuffer(
+			VkCommandBuffer commandBuffer,
+			std::vector<VkSemaphore> waitSemaphores,
+			std::vector<VkPipelineStageFlags> waitStages,
+			std::vector<VkSemaphore> signalSemaphores,
+			VkFence fence);
 		//Draw all models and UI
 		virtual void draw(const Camera& camera, const Light& light);
+		virtual void onFrameEnd();
 		void preprocessUI();
 		void drawUI();
 
