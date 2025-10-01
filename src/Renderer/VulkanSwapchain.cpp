@@ -111,7 +111,7 @@ namespace fre
 			swapChainImage.image = image;
 			swapChainImage.imageView = createImageView(
                 mainDevice.logicalDevice, image, mSwapChainImageFormat,
-                VK_IMAGE_ASPECT_COLOR_BIT);
+                VK_IMAGE_ASPECT_COLOR_BIT, 1u);
 
 			//Add to swapchain image list
 			mSwapChainImages.push_back(swapChainImage);

@@ -45,19 +45,18 @@ namespace fre
     {
         updateMovement(timeDelta);
         updateViewMatrix();
-        mat4 scaling = scale(mat4(1.0f), vec3(mZoom));
+        /*mat4 scaling = scale(mat4(1.0f), vec3(mZoom));
         mProjection = scaling * perspective(
             radians(mFov),
             mAspectRatio,
             mNear, mFar);
         //In Vulkan Up direction points down
-        mProjection[1][1] *= -1.0f;
+        mProjection[1][1] *= -1.0f;*/
         updateVectors();
     }
 
     void Camera::updateMovement(float timeDelta)
     {
-        //std::cout << "movement: " << mMovement[0] << " " << mMovement[1] << " " << mMovement[2] << " " << mMovement[3] << std::endl;
         if(mMovement[static_cast<int>(EMovement::M_FORWARD)])
         {
             translateBy(normalize(vec3(mForward.x, 0.0f, mForward.z)) * mMovementSpeed * timeDelta);
@@ -157,6 +156,5 @@ namespace fre
     void Camera::setEye(const vec3& eye)
     {
         mEye = eye;
-        //std::cout << "Camera eye: " << mEye.x << ", " << mEye.y << ", " << mEye.z << std::endl;
     }
 }

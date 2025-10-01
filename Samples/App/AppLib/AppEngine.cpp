@@ -29,8 +29,8 @@ namespace app
     AppEngine::AppEngine()
         : Engine()
     {
-        mCameraPanSpeed = 0.01f;
-        mCameraZoomSpeed = 1.1f;
+        mCameraPanSpeed = 0.002f;
+        mCameraZoomSpeed = 0.25f;
 
         FS;
         //Add search path

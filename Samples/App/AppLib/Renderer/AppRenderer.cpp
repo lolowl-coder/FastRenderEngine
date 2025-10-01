@@ -87,7 +87,6 @@ namespace app
 										{
 											mat.mBaseColorFactor = selected == ImGuiTreeNodeFlags_Selected ? vec4(1.0f, 0.0f, 0.0f, 1.0f) : vec4(1.0f);
 										}
-
 									}
 
 									ImGui::TreePop();
@@ -500,7 +499,7 @@ namespace app
 		}
 		mTextureViews[textureId] = texture->mImageView;
 		auto& textureInfo = getTextureInfo(textureId);
-		auto samplerIndex = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE });
+		auto samplerIndex = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE, getMipLevelCount(textureInfo->mImage.mDimension) });
 		auto sampler = getSampler(samplerIndex);
 		if(textureId >= mTextureSamplers.size())
 		{

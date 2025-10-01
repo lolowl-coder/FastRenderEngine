@@ -96,7 +96,7 @@ namespace fre
         mImage = createImage(
             mainDevice,
             swapChainExtent.width, swapChainExtent.height,
-            imageFormat, VK_IMAGE_TILING_OPTIMAL,
+            imageFormat, VK_IMAGE_TILING_OPTIMAL, 1u,
             getImageUsageFlags(attachmentKind),
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             &mImageMemory, actualImageSize);
@@ -104,7 +104,7 @@ namespace fre
         //Create Color Image View
         mImageView = createImageView(
             mainDevice.logicalDevice, mImage, imageFormat,
-            getImageAspectFlags(attachmentKind, imageFormat));
+            getImageAspectFlags(attachmentKind, imageFormat), 1u);
 		
 		LOG_INFO("Attachment created");
 	}

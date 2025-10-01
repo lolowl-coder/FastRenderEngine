@@ -11,8 +11,8 @@
 #include "Rnd.h"
 #include "Transform.h"
 
-#define NUM_EMISSIVE_SAMPLES 6
-#define NUM_GI_SAMPLES 6
+#define NUM_EMISSIVE_SAMPLES 8
+#define NUM_GI_SAMPLES 8
 
 layout(location = 0) rayPayloadInEXT Payload payload;
 layout(location = 1) rayPayloadEXT bool isShadowed;
@@ -39,6 +39,15 @@ const float PI = 3.14159265359;
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 vec3  saturate(vec3  v) { return clamp(v, vec3(0.0), vec3(1.0)); }
 
+float getLod(int texId)
+{
+    // Compute mip level
+    const float distanceRatio = 3.0;
+    float lod = clamp(log2(gl_HitTEXT * distanceRatio), 0.0, float(textureQueryLevels(textures[texId]) - 1));
+
+    return lod;
+}
+
 // --------------------------- normal mapping ---------------------------------
 // Inputs: interpolated geometric normal/tangent in OBJECT space and UV
 // Tangent.w is expected to be the handedness (+1 / -1). If you don't have it, use +1.
@@ -56,7 +65,8 @@ vec3 getWorldNormal(Material mat, int normalTexIndex,
     vec3 n = vec3(0.0, 0.0, 1.0);
     if(normalTexIndex >= 0) {
         // Tangent-space normal in [0,1] -> [-1,1]
-        n = texture(textures[normalTexIndex], uv).xyz * 2.0 - 1.0;
+		float lod = getLod(normalTexIndex);
+        n = textureLod(textures[normalTexIndex], uv, lod).xyz * 2.0 - 1.0;
         n.xy *= mat.mNormalScale;
         n = normalize(n);
     }
@@ -99,7 +109,8 @@ vec4 sampleBaseColor(const Material m, vec2 uv) {
     vec4 base = m.mBaseColorFactor;
     if(m.mBaseColorTex >= 0) {
         // Base color is typically authored in sRGB; ensure your sampler/format handles sRGB -> linear
-        base *= texture(textures[m.mBaseColorTex], uv);
+        float lod = getLod(m.mBaseColorTex);
+        base *= textureLod(textures[m.mBaseColorTex], uv, lod);
     }
     return base;
 }
@@ -107,8 +118,10 @@ vec4 sampleBaseColor(const Material m, vec2 uv) {
 vec2 sampleMetallicRoughness(const Material m, vec2 uv) {
     float metallic = m.mMetallicFactor;
     float roughness = m.mRoughnessFactor;
-    if(m.mMetallicRoughnessTex >= 0) {
-        vec4 mr = texture(textures[m.mMetallicRoughnessTex], uv);
+    if(m.mMetallicRoughnessTex >= 0)
+    {
+		float lod = getLod(m.mMetallicRoughnessTex);
+        vec4 mr = textureLod(textures[m.mMetallicRoughnessTex], uv, lod);
         roughness *= mr.g;
         metallic *= mr.b;
     }
@@ -119,8 +132,10 @@ vec2 sampleMetallicRoughness(const Material m, vec2 uv) {
 }
 
 float sampleAO(const Material m, vec2 uv) {
-    if(m.mOcclusionTex >= 0) {
-        float ao = texture(textures[m.mOcclusionTex], uv).r;
+    if(m.mOcclusionTex >= 0)
+    {
+		float lod = getLod(m.mOcclusionTex);
+        float ao = textureLod(textures[m.mOcclusionTex], uv, lod).r;
         return mix(1.0, ao, m.mOcclusionStrength);
     }
     return 1.0;
@@ -130,7 +145,8 @@ vec3 sampleEmissive(const Material m, vec2 uv) {
     vec3 e = m.mEmissiveFactor;
     if(m.mEmissiveTex >= 0) {
         // Emissive is authored in sRGB; ensure your sampler/format linearizes
-        e *= texture(textures[m.mEmissiveTex], uv).rgb;
+		float lod = getLod(m.mEmissiveTex);
+        e *= textureLod(textures[m.mEmissiveTex], uv, lod).rgb;
     }
     return e;
 }
@@ -300,7 +316,9 @@ EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 lightUV, ou
 }
 
 //Next event estimation for emissive triangles
-vec3 nee(int sampleIdx, Material objMat, vec2 objUV, vec3 P, vec3 N, vec3 V, vec4 base, vec3 emissive, vec2 mr)
+vec3 nee(
+    int sampleIdx, Material objMat, vec2 objUV, vec3 P, vec3 N, vec3 V, vec4 base,
+    vec3 emissive, vec2 mr)
 {
     vec3 Lo_direct = vec3(0.0);
 
@@ -480,12 +498,11 @@ void main()
 	vec3 L = normalize(lightPos - P);
 
 	float NdotL = dot(N_world, L);
-
 	vec2 mr = sampleMetallicRoughness(objMat, objUV);
     float metallness = mr.x;
     float roughness = mr.y;
 	// Tracing shadow ray only if the light is visible from the surface
-    // TODO: learn more about back fack check. Not shure if we need it here
+    // TODO: learn more about back face check. Not shure if we need it here
 	if(NdotL > 0.0)
 	{
 		float tMin = 0.001;

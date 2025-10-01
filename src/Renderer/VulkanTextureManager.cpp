@@ -130,6 +130,7 @@ namespace fre
 
 		if(info->mImage.mDimension.x > 0 && info->mImage.mDimension.y > 0)
 		{
+			uint32_t mipLevelCount = getMipLevelCount(info->mImage.mDimension);
 			//Create image to hold final texture
 			if(info->mImage.mIsExternal)
 			{
@@ -143,7 +144,7 @@ namespace fre
 			else
 			{
 				result->mImage = fre::createImage(mainDevice, info->mImage.mDimension.x, info->mImage.mDimension.y,
-					info->mImage.mFormat, info->mTiling,
+					info->mImage.mFormat, info->mTiling, mipLevelCount,
 					info->mUsageFlags,
 					info->mMemoryFlags,
 					&result->mImageMemory,
@@ -151,18 +152,18 @@ namespace fre
 			}
 			result->mImageView = createImageView(mainDevice.logicalDevice,
 				result->mImage, info->mImage.mFormat,
-				VK_IMAGE_ASPECT_COLOR_BIT);
+				VK_IMAGE_ASPECT_COLOR_BIT, mipLevelCount);
 
 			//Is texture data passed?
 			if(info->mImage.mData != nullptr)
 			{
 				uploadData(mainDevice, transferQueueFamilyId, graphicsQueueFamilyId,
-					queue, commandPool, result, info);
+					queue, commandPool, result, info, mipLevelCount);
 			}
 			else
 			{
 				transitionImageLayout(mainDevice.logicalDevice, queue, commandPool, result->mImage, VK_IMAGE_ASPECT_COLOR_BIT,
-					VK_IMAGE_LAYOUT_UNDEFINED, info->mLayout);
+					VK_IMAGE_LAYOUT_UNDEFINED, info->mLayout, 0u, 1u);
 			}
 		}
 
@@ -226,7 +227,8 @@ namespace fre
 		const VkQueue queue,
 		const VkCommandPool commandPool,
 		VulkanTexturePtr& texture,
-		const VulkanTextureInfoPtr& info)
+		const VulkanTextureInfoPtr& info,
+		const uint32_t mipLevels)
 	{
 		//Create staging buffer to hold loaded data, ready to copy to device
 		VulkanBuffer imageStagingBuffer;
@@ -253,18 +255,29 @@ namespace fre
 		//Copy data to image
 		//Transition image to be DST for copy operation
 		transitionImageLayout(mainDevice.logicalDevice, queue, commandPool, texture->mImage, VK_IMAGE_ASPECT_COLOR_BIT,
-			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0u, mipLevels);
 
 		copyImageBuffer(mainDevice.logicalDevice, transferQueueFamilyId, graphicsQueueFamilyId, queue, commandPool,
 			imageStagingBuffer.mBuffer, texture->mImage, info->mImage.mDimension.x, info->mImage.mDimension.y);
 
 		//Transition image to be shader readable for shader usage
-		transitionImageLayout(mainDevice.logicalDevice, queue, commandPool, texture->mImage, VK_IMAGE_ASPECT_COLOR_BIT,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, /*VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL*/info->mLayout);
+		//transitionImageLayout(mainDevice.logicalDevice, queue, commandPool, texture->mImage, VK_IMAGE_ASPECT_COLOR_BIT,
+		//	VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		//	/*info->mLayout*/VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 0u);
+		//transitionImageLayout(mainDevice.logicalDevice, queue, commandPool, texture->mImage, VK_IMAGE_ASPECT_COLOR_BIT,
+		//	VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+		//	/*info->mLayout*/VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0u);
 
 		//Destroy staging buffers
 		vkDestroyBuffer(mainDevice.logicalDevice, imageStagingBuffer.mBuffer, nullptr);
 		vkFreeMemory(mainDevice.logicalDevice, imageStagingBuffer.mBufferMemory, nullptr);
+
+		if(mipLevels > 0)
+		{
+			generateMipmaps(mainDevice.logicalDevice, commandPool, queue,
+				texture->mImage, info->mImage.mDimension.x, info->mImage.mDimension.y,
+				mipLevels, info->mLayout);
+		}
 
 		info->mImage.destroy();
 	}
@@ -285,7 +298,7 @@ namespace fre
 		else
 		{
             uploadData(mainDevice, transferQueueFamilyId, graphicsQueueFamilyId,
-                queue, commandPool, mTextures[info->mId], info);
+                queue, commandPool, mTextures[info->mId], info, 1u);
 		}
 	}
 

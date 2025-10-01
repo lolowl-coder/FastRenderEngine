@@ -523,7 +523,7 @@ namespace fre
             }
             else if(isKeyPressed(GLFW_MOUSE_BUTTON_MIDDLE) && !io.WantCaptureMouse)
             {
-                mCamera.translateBy(glm::vec3(delta.x * mCameraPanSpeed / mCamera.mZoom, -delta.y * mCameraPanSpeed / mCamera.mZoom, 0.0f));
+                mCamera.translateBy(glm::vec3(delta.x * mCameraPanSpeed, -delta.y * mCameraPanSpeed, 0.0f));
             }
         }
         mTouchPosition = position;
@@ -558,7 +558,7 @@ namespace fre
         if(!io.WantCaptureMouse)
         {
             //const vec3 forward = mCamera.getForward();
-		    //mCamera.translateBy(getCameraZoomSpeed() * forward * static_cast<float>(yOffset));
+		    mCamera.translateBy(getCameraZoomSpeed() * vec3(0.0, 0.0, 1) * static_cast<float>(yOffset));
             //mCamera.translateBy(vec3(0.0f, 0.0f, engine->getCameraZoomSpeed() * static_cast<float>(yOffset)));
             //mCamera.mZoom = std::max(0.05f, mCamera.mZoom + getCameraZoomSpeed() * static_cast<float>(yOffset));
             if(yOffset < 0)
@@ -567,7 +567,7 @@ namespace fre
             }
             else if(yOffset > 0)
             {
-                mCamera.mZoom = std::min(100.0f, mCamera.mZoom * getCameraZoomSpeed());
+                mCamera.mZoom = std::min(30.0f, mCamera.mZoom * getCameraZoomSpeed());
             }
         }
 

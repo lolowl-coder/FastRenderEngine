@@ -11,6 +11,8 @@
 
 #include <stdexcept>
 
+using namespace glm;
+
 namespace fre
 {
 	VkFormat chooseSupportedImageFormat(VkPhysicalDevice physicalDevice, const std::vector<VkFormat>& formats, VkImageTiling tiling, VkFormatFeatureFlags featureFlags)
@@ -89,10 +91,10 @@ namespace fre
 			vulkanExportMemoryWin32HandleInfoKHR.dwAccess =
 				DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE;
 			vulkanExportMemoryWin32HandleInfoKHR.name = (LPCWSTR)NULL;
-			#endif /* _WIN64 */
-			VkExportMemoryAllocateInfoKHR vulkanExportMemoryAllocateInfoKHR = {};
-			vulkanExportMemoryAllocateInfoKHR.sType =
-				VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_KHR;
+		#endif /* _WIN64 */
+		VkExportMemoryAllocateInfoKHR vulkanExportMemoryAllocateInfoKHR = {};
+		vulkanExportMemoryAllocateInfoKHR.sType =
+			VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_KHR;
 		#ifdef _WIN64
 			vulkanExportMemoryAllocateInfoKHR.pNext =
 				extMemHandleType & VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR
@@ -121,7 +123,7 @@ namespace fre
 	}
 
 	VkImage createImage(const MainDevice& mainDevice,
-		uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
+		uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, const uint32_t mipLevels,
 		VkImageUsageFlags useFlags, VkMemoryPropertyFlags propFlags,
 		VkDeviceMemory* imageMemory, uint32_t& actualSize)
 	{
@@ -132,7 +134,7 @@ namespace fre
 		imageCreateInfo.extent.width = width;
 		imageCreateInfo.extent.height = height;
 		imageCreateInfo.extent.depth = 1;
-		imageCreateInfo.mipLevels = 1;
+		imageCreateInfo.mipLevels = mipLevels;
 		imageCreateInfo.arrayLayers = 1;
 		imageCreateInfo.format = format;
 		imageCreateInfo.tiling = tiling;
@@ -165,7 +167,7 @@ namespace fre
 	}
 
 	VkImageView createImageView(VkDevice logicalDevice,
-		VkImage image, VkFormat format, VkImageAspectFlags aspectFlags)
+		VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, const uint32_t mipLevelCount)
 	{
 		VkImageViewCreateInfo viewCreateInfo = {};
 		viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -195,7 +197,7 @@ namespace fre
 		//Subresource allow the view to view only a part of an image
 		viewCreateInfo.subresourceRange.aspectMask = aspectFlags;		//Which aspect of image to view (COLOR_BIT, etc.)
 		viewCreateInfo.subresourceRange.baseMipLevel = 0;				//Starting mip-level to view image from
-		viewCreateInfo.subresourceRange.levelCount = 1;
+		viewCreateInfo.subresourceRange.levelCount = mipLevelCount;
 		viewCreateInfo.subresourceRange.baseArrayLayer = 0;				//Starting array layer to view from
 		viewCreateInfo.subresourceRange.layerCount = 1;
 
@@ -267,13 +269,18 @@ namespace fre
 		endAndSubmitCommitBuffer(device, transferCommandPool, queue, transferCommandBuffer);
 	}
 
-	void transitionImageLayout(VkDevice device, VkQueue queue,
-		VkCommandPool commandPool, VkImage image, VkImageAspectFlags aspectMask,
-		VkImageLayout oldLayout, VkImageLayout newLayout)
+	void transitionImageLayout(
+		const VkDevice device,
+		const VkQueue queue,
+		const VkCommandPool commandPool,
+		const VkCommandBuffer commandBuffer,
+		const VkImage image,
+		const VkImageAspectFlags aspectMask,
+		const VkImageLayout oldLayout,
+		const VkImageLayout newLayout,
+		const uint32_t mipLevel,
+		const uint32_t mipLevelCount)
 	{
-		//Create buffer
-		VkCommandBuffer commandBuffer = beginCommandBuffer(device, commandPool);
-
 		VkImageMemoryBarrier imageMemoryBarrier = {};
 		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		imageMemoryBarrier.oldLayout = oldLayout;	//Lyaout to transition from
@@ -282,14 +289,13 @@ namespace fre
 		imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;	//Family to transition to
 		imageMemoryBarrier.image = image;	//Image being accessed and modified as part of barrier
 		imageMemoryBarrier.subresourceRange.aspectMask = aspectMask;
-		imageMemoryBarrier.subresourceRange.baseMipLevel = 0;	//Mip level to start alternation on
-		imageMemoryBarrier.subresourceRange.levelCount = 1;	//First mip level to start alternation on
+		imageMemoryBarrier.subresourceRange.baseMipLevel = mipLevel;	//Mip level to start alternation on
+		imageMemoryBarrier.subresourceRange.levelCount = mipLevelCount;	//First mip level to start alternation on
 		imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;	//First layer to start alternation on
 		imageMemoryBarrier.subresourceRange.layerCount = 1;	//Number of layers to start alternation on
 
 		VkPipelineStageFlags srcStage = VK_PIPELINE_STAGE_NONE;
 		VkPipelineStageFlags dstStage = VK_PIPELINE_STAGE_NONE;
-
 		if(oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
 		{
 			imageMemoryBarrier.srcAccessMask = 0;	//Memory access stage transition must happen after ...
@@ -298,7 +304,23 @@ namespace fre
 			srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 			dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 		}
-		if(oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_GENERAL)
+		else if(oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+		{
+			imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;	//Memory access stage transition must happen after ...
+			imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;	//Memory access stage transition must happen before ...
+
+			srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		}
+		else if(oldLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+		{
+			imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;	//Memory access stage transition must happen after ...
+			imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;	//Memory access stage transition must happen before ...
+
+			srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		}
+		else if(oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_GENERAL)
 		{
 			imageMemoryBarrier.srcAccessMask = 0;	//Memory access stage transition must happen after ...
 			imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;	//Memory access stage transition must happen before ...
@@ -310,6 +332,14 @@ namespace fre
 		else if(oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 		{
 			imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+			srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		}
+		else if(oldLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+		{
+			imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 			imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
 			srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -346,7 +376,104 @@ namespace fre
 		{
 			LOG_ERROR("Can't transition image layout from {} to {}", oldLayout, newLayout);
 		}
+	}
+
+	void transitionImageLayout(
+		const VkDevice device,
+		const VkQueue queue,
+		const VkCommandPool commandPool,
+		const VkImage image,
+		const VkImageAspectFlags aspectMask,
+		const VkImageLayout oldLayout,
+		const VkImageLayout newLayout,
+		const uint32_t mipLevel,
+		const uint32_t mipLevelCount)
+	{
+		//Create buffer
+		VkCommandBuffer commandBuffer = beginCommandBuffer(device, commandPool);
+
+        transitionImageLayout(device, queue, commandPool, commandBuffer, image, aspectMask, oldLayout, newLayout,
+			mipLevel, mipLevelCount);
 
 		endAndSubmitCommitBuffer(device, commandPool, queue, commandBuffer);
+	}
+
+	uint32_t getMipLevelCount(const ivec2& dimensions)
+	{
+		return static_cast<uint32_t>(std::floor(std::log2(std::max(dimensions.x, dimensions.y)))) + 1;
+	}
+
+	void generateMipmaps(
+		const VkDevice logicalDevice,
+		const VkCommandPool cmdPool,
+		const VkQueue queue,
+		const VkImage image,
+		const int32_t texWidth,
+		const int32_t texHeight,
+		const uint32_t mipLevels,
+		const VkImageLayout dstLayout)
+	{
+		int32_t mipWidth = texWidth;
+		int32_t mipHeight = texHeight;
+
+		//Create buffer
+		VkCommandBuffer commandBuffer = beginCommandBuffer(logicalDevice, cmdPool);
+
+		for(uint32_t i = 1; i < mipLevels; i++)
+		{
+			// Transition i-1 level to SRC_OPTIMAL
+			transitionImageLayout(
+				logicalDevice, queue, cmdPool, commandBuffer, image,
+				VK_IMAGE_ASPECT_COLOR_BIT,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				i - 1u, 1u);
+
+			VkImageBlit blit{};
+			blit.srcOffsets[0] = { 0, 0, 0 };
+			blit.srcOffsets[1] = { mipWidth, mipHeight, 1 };
+			blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			blit.srcSubresource.mipLevel = i - 1;
+			blit.srcSubresource.baseArrayLayer = 0;
+			blit.srcSubresource.layerCount = 1;
+
+			blit.dstOffsets[0] = { 0, 0, 0 };
+			blit.dstOffsets[1] = {
+				mipWidth > 1 ? mipWidth / 2 : 1,
+				mipHeight > 1 ? mipHeight / 2 : 1,
+				1
+			};
+			blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			blit.dstSubresource.mipLevel = i;
+			blit.dstSubresource.baseArrayLayer = 0;
+			blit.dstSubresource.layerCount = 1;
+
+			vkCmdBlitImage(
+				commandBuffer,
+				image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				1, &blit,
+				VK_FILTER_LINEAR);
+
+			// After blit, previous mip can be transitioned for shader read
+			transitionImageLayout(
+				logicalDevice, queue, cmdPool, commandBuffer, image,
+				VK_IMAGE_ASPECT_COLOR_BIT,
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				dstLayout,
+				i - 1u, 1u);
+			
+			mipWidth = mipWidth > 1 ? mipWidth / 2 : 1;
+			mipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
+		}
+
+		transitionImageLayout(
+			logicalDevice, queue, cmdPool, commandBuffer, image,
+			VK_IMAGE_ASPECT_COLOR_BIT,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			dstLayout,
+			mipLevels - 1u, 1u);
+
+		endAndSubmitCommitBuffer(logicalDevice, cmdPool, queue, commandBuffer);
 	}
 }

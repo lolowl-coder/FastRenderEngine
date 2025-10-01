@@ -53,7 +53,8 @@ namespace fre
 			const VkQueue queue,
 			const VkCommandPool commandPool,
 			VulkanTexturePtr& texture,
-			const VulkanTextureInfoPtr& info);
+			const VulkanTextureInfoPtr& info,
+			const uint32_t mipLevels);
 		void updateTextureImage(
 			const MainDevice& mainDevice,
 			int8_t transferFamilyId,

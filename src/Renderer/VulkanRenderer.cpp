@@ -62,7 +62,7 @@ namespace fre
         createTextureInfo(
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			image);
@@ -140,7 +140,7 @@ namespace fre
 		for(uint32_t i = 0; i < mColorAttacmentDescriptors.size(); i++)
 		{
 			std::vector<VkImageView> colorImageViews = { mFrameBuffers[i].mColorAttachments[0].mImageView };
-			auto samplerId = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE });
+			auto samplerId = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE, 1u });
 			std::vector<VkSampler> samplers = { getSampler(samplerId) };
 			mColorAttacmentDescriptors[i] = std::make_shared<DescriptorImage>(
 				VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -373,7 +373,7 @@ namespace fre
 				//Level of details bias for mip level
 				samplerCreateInfo.mipLodBias = 0.0f;
 				samplerCreateInfo.minLod = 0.0f;
-				samplerCreateInfo.maxLod = 0.0f;
+				samplerCreateInfo.maxLod = static_cast<float>(key.mMipLevelCount);
 				samplerCreateInfo.anisotropyEnable = VK_TRUE;
 				//Anisotropy sample level
 				samplerCreateInfo.maxAnisotropy = 16.0f;
@@ -1121,7 +1121,7 @@ namespace fre
 			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeCommandPool : mGraphicsCommandPool,
 			mFrameBuffers[mImageIndex].mDepthAttachment.mImage,
 			VK_IMAGE_ASPECT_DEPTH_BIT,
-			from, to);
+			from, to, 0u, 1u);
 	}
 
 	Material& VulkanRenderer::getMaterial(uint32_t id)
