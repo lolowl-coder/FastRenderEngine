@@ -30,6 +30,14 @@ namespace app
 	{
 		VulkanRenderer::destroy();
 		mDenoiser.finish();
+		for(int i = 0; i < mCudaWaitSemaphores.size(); i++)
+		{
+			cudaDestroyExternalSemaphore(mCudaWaitSemaphores[i]);
+		}
+		for(int i = 0; i < mCudaSignalSemaphores.size(); i++)
+		{
+			cudaDestroyExternalSemaphore(mCudaSignalSemaphores[i]);
+		}
 	}
 
 	void AppRenderer::initUI()
@@ -228,6 +236,13 @@ namespace app
 
         mBufferManager.udpateBuffer(mainDevice.logicalDevice, mDynamicDataBufferIndex, &mDynamicData, sizeof(mDynamicData));
 
+		
+        mResultMesh->setDescriptors({ { mColorStorage[mCurrentFrame].descriptor } });
+		mMeshModel->getMesh(0)->setDescriptors({ {
+                mTLASDescriptor, mColorStorage[mCurrentFrame].descriptor, mAlbedoStorage[mCurrentFrame].descriptor, mNormalStorage[mCurrentFrame].descriptor,
+				mDynamicDataDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor,
+				mRTTexturesDescriptor, mEmissiveTrianglesDescriptor} });
+
         VulkanRenderer::update(camera, light);
 	}
 
@@ -235,24 +250,24 @@ namespace app
 	{
 		VulkanRenderer::onRaytracingCommandsSubmitted();
 		if(
-			mCUDAExternalColorBuffer.mData != nullptr &&
-			mCUDAExternalAlbedoBuffer.mData != nullptr &&
-			mCUDAExternalNormalBuffer.mData != nullptr &&
+			!mCUDAExternalColorBuffer.empty() &&
+			!mCUDAExternalAlbedoBuffer.empty() &&
+			!mCUDAExternalNormalBuffer.empty() &&
 			mIsDenoiserEnabled)
 		{
 			cudaExternalSemaphoreWaitParams waitParams = {};
 			waitParams.flags = 0;
 			waitParams.params.fence.value = 0;
 			// Wait for vulkan to complete it's work
-			CUDA_CHECK(cudaWaitExternalSemaphoresAsync(&mCudaWaitSemaphore, &waitParams, 1, 0));
+			CUDA_CHECK(cudaWaitExternalSemaphoresAsync(&mCudaWaitSemaphores[mCurrentFrame], &waitParams, 1, 0));
 
 			Denoiser::Data data;
 			auto maxViewSize = getViewport().getSize();
 			data.width = maxViewSize.x;
 			data.height = maxViewSize.y;
-			data.color = reinterpret_cast<float*>(mCUDAExternalColorBuffer.mData);
-			data.albedo = reinterpret_cast<float*>(mCUDAExternalAlbedoBuffer.mData);
-			data.normal = reinterpret_cast<float*>(mCUDAExternalNormalBuffer.mData);
+			data.color = reinterpret_cast<float*>(mCUDAExternalColorBuffer[mCurrentFrame].mData);
+			data.albedo = reinterpret_cast<float*>(mCUDAExternalAlbedoBuffer[mCurrentFrame].mData);
+			data.normal = reinterpret_cast<float*>(mCUDAExternalNormalBuffer[mCurrentFrame].mData);
 			//data.flow = reinterpret_cast<float*>(flow.data);
 			//data.flowtrust = reinterpret_cast<float*>(flowtrust.data);
 
@@ -275,14 +290,14 @@ namespace app
 				mDenoiser.update(data);
 			}
             mDenoiser.exec();
-			mDenoiser.copyResultDevice(mCUDAExternalColorBuffer.mData);
+			mDenoiser.copyResultDevice(mCUDAExternalColorBuffer[mCurrentFrame].mData);
 
 			cudaExternalSemaphoreSignalParams signalParams = {};
 			signalParams.flags = 0;
 			signalParams.params.fence.value = 0;
 
 			// Signal vulkan to continue with the updated buffers
-			CUDA_CHECK(cudaSignalExternalSemaphoresAsync(&mCudaSignalSemaphore, &signalParams, 1, 0));
+			CUDA_CHECK(cudaSignalExternalSemaphoresAsync(&mCudaSignalSemaphores[mCurrentFrame], &signalParams, 1, 0));
 		}
 	}
 
@@ -384,9 +399,12 @@ namespace app
 		if(result == 0)
 		{
 			//Create G-buffer
-			mColorStorage = createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, "#colorStorage");
-			mAlbedoStorage = createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, "#albedoStorage");
-			mNormalStorage = createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, "#normalStorage");
+			for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+			{
+				mColorStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#colorStorage%i", i)));
+				mAlbedoStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#albedoStorage%i", i)));
+				mNormalStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#normalStorage%i", i)));
+			}
 		}
 
 		return result;
@@ -473,7 +491,6 @@ namespace app
 		addMaterial(material);
 		mResultMesh = std::make_shared<Mesh>(material.mId);
 		mResultMesh->setGeneratedVerticesCount(3);
-        mResultMesh->setDescriptors({ { mColorStorage.descriptor } });
 		mResultMesh->setVisible(false);
 		addMeshModel({ mResultMesh });
 	}
@@ -639,19 +656,27 @@ namespace app
 
 	void AppRenderer::initInterop()
 	{
-        mCUDAExternalColorBuffer = mCudaBufferManager.createExternalBuffer<float4>(mColorStorage.texture->mId, this);
-        mCUDAExternalAlbedoBuffer = mCudaBufferManager.createExternalBuffer<float4>(mAlbedoStorage.texture->mId, this);
-        mCUDAExternalNormalBuffer = mCudaBufferManager.createExternalBuffer<float4>(mNormalStorage.texture->mId, this);
-        assert(mExternalWaitSemaphore != VK_NULL_HANDLE);
-        assert(mExternalSignalSemaphore != VK_NULL_HANDLE);
+		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			mCUDAExternalColorBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mColorStorage[i].texture->mId, this));
+			mCUDAExternalAlbedoBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mAlbedoStorage[i].texture->mId, this));
+			mCUDAExternalNormalBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mNormalStorage[i].texture->mId, this));
+		}
+        assert(!mExternalWaitSemaphores.empty());
+        assert(!mExternalSignalSemaphores.empty());
 
-		//Vulkan will wait for cuda's signal
-		importCudaExternalSemaphore(mCudaSignalSemaphore, mExternalWaitSemaphore,
-			getDefaultSemaphoreHandleType(), this);
+		mCudaSignalSemaphores.resize(MAX_FRAMES_IN_FLIGHT, nullptr);
+		mCudaWaitSemaphores.resize(MAX_FRAMES_IN_FLIGHT, nullptr);
+		for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			//Vulkan will wait for cuda's signal
+			importCudaExternalSemaphore(mCudaSignalSemaphores[i], mExternalWaitSemaphores[i],
+				getDefaultSemaphoreHandleType(), this);
 
-		//Cuda will wait for Vulkan's signal
-		importCudaExternalSemaphore(mCudaWaitSemaphore, mExternalSignalSemaphore,
-			getDefaultSemaphoreHandleType(), this);
+			//Cuda will wait for Vulkan's signal
+			importCudaExternalSemaphore(mCudaWaitSemaphores[i], mExternalSignalSemaphores[i],
+				getDefaultSemaphoreHandleType(), this);
+		}
 	}
 
 	void AppRenderer::createScene()
@@ -664,11 +689,6 @@ namespace app
 		mRTMaterialsGPUDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mRTMaterialsGPUBuffer.mBuffer);
  		mRTTexturesDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mTextureViews, mTextureSamplers);
 		mEmissiveTrianglesDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mEmissiveTrianglesBuffer.mBuffer);
-
-		mMeshModel->getMesh(0)->setDescriptors({ {
-                mTLASDescriptor, mColorStorage.descriptor, mAlbedoStorage.descriptor, mNormalStorage.descriptor,
-				mDynamicDataDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor,
-				mRTTexturesDescriptor, mEmissiveTrianglesDescriptor} });
 		mMeshModel->setVisible(true);
 
 		mResultMesh->setVisible(true);

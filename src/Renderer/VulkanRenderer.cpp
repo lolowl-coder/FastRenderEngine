@@ -135,8 +135,8 @@ namespace fre
 		mFullscreenTriangleMesh->setGeneratedVerticesCount(3);
 		std::vector<VulkanDescriptorPtr> colorAttacmentDescriptors;
 		//std::vector<VulkanDescriptorPtr> depthAttacmentDescriptors;
-		mColorAttacmentDescriptors.resize(MAX_FRAME_DRAWS);
-		mDepthAttacmentDescriptors.resize(MAX_FRAME_DRAWS);
+		mColorAttacmentDescriptors.resize(MAX_FRAMES_IN_FLIGHT);
+		mDepthAttacmentDescriptors.resize(MAX_FRAMES_IN_FLIGHT);
 		for(uint32_t i = 0; i < mColorAttacmentDescriptors.size(); i++)
 		{
 			std::vector<VkImageView> colorImageViews = { mFrameBuffers[i].mColorAttachments[0].mImageView };
@@ -634,9 +634,9 @@ namespace fre
 					// then compute, then image available
 					std::vector<VkSemaphore> waitSemaphores;
 					std::vector<VkPipelineStageFlags> waitStages;
-					if(mExternalWaitSemaphore != VK_NULL_HANDLE && mHasExternalResources)
+					if(mExternalWaitSemaphores[mCurrentFrame] != VK_NULL_HANDLE && mHasExternalResources)
 					{
-						waitSemaphores.push_back(mExternalWaitSemaphore);
+						waitSemaphores.push_back(mExternalWaitSemaphores[mCurrentFrame]);
 						waitStages.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 					}
 					if(mHasComputeTasks)
@@ -648,20 +648,15 @@ namespace fre
 					waitStages.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 					std::vector<VkSemaphore> signalSemaphores;
                     // Signal ray tracing finished semaphore to ensure subsequent stages wait on it
-					if(mExternalSignalSemaphore != VK_NULL_HANDLE && mHasExternalResources)
+					if(mExternalSignalSemaphores[mCurrentFrame] != VK_NULL_HANDLE && mHasExternalResources)
 					{
-						signalSemaphores.push_back(mExternalSignalSemaphore);
+						signalSemaphores.push_back(mExternalSignalSemaphores[mCurrentFrame]);
 					}
 					submitCommandBuffer(commandBuffer.mCommandBuffer,
 						waitSemaphores, waitStages, signalSemaphores, mDrawFences[mCurrentFrame]);
 				}
-
 				// Do post ray tracing processing e. g. denoising
 				onRaytracingCommandsSubmitted();
-
-                // Ensure ray tracing and post-processing complete before rendering result to screen
-				VK_CHECK(vkWaitForFences(mainDevice.logicalDevice, 1, &mDrawFences[mCurrentFrame], VK_TRUE, UINT64_MAX));
-				VK_CHECK(vkResetFences(mainDevice.logicalDevice, 1, &mDrawFences[mCurrentFrame]));
 
                 // Reuse command buffer (assuming onRaytracingCommandsSubmitted() waits for semaphore)
 				commandBuffer.reset();
@@ -674,17 +669,17 @@ namespace fre
 				{
 					std::vector<VkSemaphore> waitSemaphores;
 					std::vector<VkPipelineStageFlags> waitStages;
-					if(mExternalSignalSemaphore != VK_NULL_HANDLE && mHasExternalResources)
+					if(mExternalWaitSemaphores[mCurrentFrame] != VK_NULL_HANDLE && mHasExternalResources)
 					{
 						// We wait on external semaphore to ensure interoperation completed
-						waitSemaphores.push_back(mExternalSignalSemaphore);
+						waitSemaphores.push_back(mExternalWaitSemaphores[mCurrentFrame]);
 						waitStages.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 					}
 					std::vector<VkSemaphore> signalSemaphores;
-					if(mExternalWaitSemaphore != VK_NULL_HANDLE && mHasExternalResources)
+					if(mExternalSignalSemaphores[mCurrentFrame] != VK_NULL_HANDLE && mHasExternalResources)
 					{
                         // Signal rendering of fullscreen rectangle with result texture is finished
-						signalSemaphores.push_back(mExternalWaitSemaphore);
+						signalSemaphores.push_back(mExternalWaitSemaphores[mCurrentFrame]);
 					}
 					signalSemaphores.push_back(mRenderFinished[mCurrentFrame]);
 					submitCommandBuffer(
@@ -721,7 +716,7 @@ namespace fre
 					LOG_ERROR("Vulkan error {}", vulkanResult);
 				}*/
 				//Get next frame
-				mCurrentFrame = (mCurrentFrame + 1) % MAX_FRAME_DRAWS;
+				mCurrentFrame = (mCurrentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 
 				onFrameEnd();
 			}
@@ -784,7 +779,7 @@ namespace fre
 
     void VulkanRenderer::cleanupSwapchainImagesSemaphores()
     {
-		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			vkDestroySemaphore(mainDevice.logicalDevice, mImageAvailable[i], nullptr);
 		}
@@ -792,7 +787,7 @@ namespace fre
 
     void VulkanRenderer::cleanupRenderFinishedSemaphores()
     {
-		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			vkDestroySemaphore(mainDevice.logicalDevice, mRenderFinished[i], nullptr);
 		}
@@ -800,7 +795,7 @@ namespace fre
 
     void VulkanRenderer::cleanupComputeFinishedSemaphores()
     {
-		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			vkDestroySemaphore(mainDevice.logicalDevice, mComputeFinished[i], nullptr);
 		}
@@ -808,7 +803,7 @@ namespace fre
     
 	void VulkanRenderer::cleanupDrawFences()
     {
-		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			vkDestroyFence(mainDevice.logicalDevice, mDrawFences[i], nullptr);
 		}
@@ -816,7 +811,7 @@ namespace fre
     
 	void VulkanRenderer::cleanupComputeFences()
     {
-		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			vkDestroyFence(mainDevice.logicalDevice, mComputeFences[i], nullptr);
 		}
@@ -1416,7 +1411,7 @@ namespace fre
 	void VulkanRenderer::createUIDescriptorPool()
 	{
 		//pool for color and depth attachments
-		auto uiDPId = createDescriptorPool( { { { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_FRAME_DRAWS } }, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT } );
+		auto uiDPId = createDescriptorPool( { { { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_FRAMES_IN_FLIGHT } }, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT } );
 		mUIDescriptorPool = getDescriptorPool(uiDPId);
 	}
 
@@ -1619,8 +1614,8 @@ namespace fre
 		init_info.DescriptorPool = mUIDescriptorPool->mDescriptorPool;
 		init_info.RenderPass = mRenderPass.mRenderPass;
 		init_info.Subpass = 1;
-		init_info.MinImageCount = MAX_FRAME_DRAWS;
-		init_info.ImageCount = MAX_FRAME_DRAWS;
+		init_info.MinImageCount = MAX_FRAMES_IN_FLIGHT;
+		init_info.ImageCount = MAX_FRAMES_IN_FLIGHT;
 		init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 		init_info.Allocator = nullptr;
 		init_info.CheckVkResultFn = nullptr;
@@ -2298,11 +2293,11 @@ namespace fre
 
 	void VulkanRenderer::createSwapchainImagesSemaphores()
 	{
-		mImageAvailable.resize(MAX_FRAME_DRAWS);
+		mImageAvailable.resize(MAX_FRAMES_IN_FLIGHT);
 		//Semaphore creation information
 		VkSemaphoreCreateInfo semaphoreCreateInfo = {};
 		semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			VK_CHECK(vkCreateSemaphore(mainDevice.logicalDevice, &semaphoreCreateInfo, nullptr, &mImageAvailable[i]));
 		}
@@ -2310,11 +2305,11 @@ namespace fre
 
 	void VulkanRenderer::createRenderFinishedSemaphores()
 	{
-		mRenderFinished.resize(MAX_FRAME_DRAWS);
+		mRenderFinished.resize(MAX_FRAMES_IN_FLIGHT);
 		//Semaphore creation information
 		VkSemaphoreCreateInfo semaphoreCreateInfo = {};
 		semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			VK_CHECK(vkCreateSemaphore(mainDevice.logicalDevice, &semaphoreCreateInfo, nullptr, &mRenderFinished[i]));
 		}
@@ -2322,11 +2317,11 @@ namespace fre
 
 	void VulkanRenderer::createComputeFinishedSemaphores()
 	{
-		mComputeFinished.resize(MAX_FRAME_DRAWS);
+		mComputeFinished.resize(MAX_FRAMES_IN_FLIGHT);
 		//Semaphore creation information
 		VkSemaphoreCreateInfo semaphoreCreateInfo = {};
 		semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			VK_CHECK(vkCreateSemaphore(mainDevice.logicalDevice, &semaphoreCreateInfo, nullptr, &mComputeFinished[i]));
 		}
@@ -2395,19 +2390,22 @@ namespace fre
 
 	void VulkanRenderer::createExternalSemaphores()
 	{
-		mExternalWaitSemaphore = createExternalSemaphore(getDefaultSemaphoreHandleType());
-		mExternalSignalSemaphore = createExternalSemaphore(getDefaultSemaphoreHandleType());
+		for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			mExternalWaitSemaphores.push_back(createExternalSemaphore(getDefaultSemaphoreHandleType()));
+			mExternalSignalSemaphores.push_back(createExternalSemaphore(getDefaultSemaphoreHandleType()));
+		}
 	}
 
 	void VulkanRenderer::createDrawFences()
 	{
-		mDrawFences.resize(MAX_FRAME_DRAWS);
+		mDrawFences.resize(MAX_FRAMES_IN_FLIGHT);
 		//Fence creation information
 		VkFenceCreateInfo fenceCreateInfo = {};
 		fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 		fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			VK_CHECK(vkCreateFence(mainDevice.logicalDevice, &fenceCreateInfo, nullptr, &mDrawFences[i]));
 		}
@@ -2415,13 +2413,13 @@ namespace fre
 
 	void VulkanRenderer::createComputeFences()
 	{
-		mComputeFences.resize(MAX_FRAME_DRAWS);
+		mComputeFences.resize(MAX_FRAMES_IN_FLIGHT);
 		//Fence creation information
 		VkFenceCreateInfo fenceCreateInfo = {};
 		fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 		fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-		for (size_t i = 0; i < MAX_FRAME_DRAWS; i++)
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			VK_CHECK(vkCreateFence(mainDevice.logicalDevice, &fenceCreateInfo, nullptr, &mComputeFences[i]));
 		}

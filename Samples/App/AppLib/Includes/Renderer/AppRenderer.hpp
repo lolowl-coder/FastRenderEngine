@@ -50,9 +50,9 @@ namespace app
 		void updateMaterials();
 
 	private:
-        StorageImage mColorStorage;
-        StorageImage mAlbedoStorage;
-        StorageImage mNormalStorage;
+        std::vector<StorageImage> mColorStorage;
+        std::vector<StorageImage> mAlbedoStorage;
+        std::vector<StorageImage> mNormalStorage;
 		fre::MeshPtr mResultMesh;
 
         uint32_t mRTShaderId = MAX(uint32_t);
@@ -87,15 +87,15 @@ namespace app
 		//Interop
 
 		//Cuda-Vulkan synchronization primitives
-		cudaExternalSemaphore_t mCudaWaitSemaphore = nullptr;
-		cudaExternalSemaphore_t mCudaSignalSemaphore = nullptr;
+		std::vector<cudaExternalSemaphore_t> mCudaWaitSemaphores;
+		std::vector<cudaExternalSemaphore_t> mCudaSignalSemaphores;
 
 		cudaExternalMemory_t mCUDAExternalColorMem = nullptr;
 		cudaExternalMemory_t mCUDAExternalAlbedoMem = nullptr;
 		cudaExternalMemory_t mCUDAExternalNormalMem = nullptr;
-        fre::CudaBuffer<float4> mCUDAExternalColorBuffer;
-        fre::CudaBuffer<float4> mCUDAExternalAlbedoBuffer;
-        fre::CudaBuffer<float4> mCUDAExternalNormalBuffer;
+        std::vector<fre::CudaBuffer<float4>> mCUDAExternalColorBuffer;
+        std::vector<fre::CudaBuffer<float4>> mCUDAExternalAlbedoBuffer;
+        std::vector<fre::CudaBuffer<float4>> mCUDAExternalNormalBuffer;
 
         fre::DynamicData mDynamicData;
 		uint32_t mColorTextureId = MAX(uint32_t);

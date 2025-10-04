@@ -1,3 +1,3 @@
 #pragma once
 
-#define MAX_TEXTURES_ARRAY_SIZE 20
+#define MAX_TEXTURES_ARRAY_SIZE 30

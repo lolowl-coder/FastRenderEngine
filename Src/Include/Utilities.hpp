@@ -29,7 +29,7 @@ constexpr double PI = 3.14159265358979323846;
 
 namespace fre
 {
-	const int MAX_FRAME_DRAWS = 3;
+	const int MAX_FRAMES_IN_FLIGHT = 3;
 	const int MAX_OBJECTS = 40;
 	const int MAX_POOL_CAPACITY = 256;
 	const EAttachmentKind COLOR_ATTACHMENT = EAttachmentKind::Color;

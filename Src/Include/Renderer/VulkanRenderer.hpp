@@ -159,8 +159,8 @@ namespace fre
 
 		VulkanTextureManager& getTextureManager() { return mTextureManager; }
 
-		VkSemaphore getExternalWaitSemaphore() { return mExternalWaitSemaphore; }
-		VkSemaphore getExternalSignalSemaphore() { return mExternalSignalSemaphore; }
+		VkSemaphore getExternalWaitSemaphore() { return mExternalWaitSemaphores[mCurrentFrame]; }
+		VkSemaphore getExternalSignalSemaphore() { return mExternalSignalSemaphores[mCurrentFrame]; }
 
 		void readFromGPUMemory(VkDeviceMemory memory, void* dstBuffer, size_t size);
 
@@ -440,8 +440,10 @@ namespace fre
 		std::vector<VkFence> mComputeFences;
 		VkSemaphore mTransferCompleteSemaphore = VK_NULL_HANDLE;
 		std::vector<VkSemaphore> mSemaphores;
-		VkSemaphore mExternalWaitSemaphore = VK_NULL_HANDLE;
-		VkSemaphore mExternalSignalSemaphore = VK_NULL_HANDLE;
+		//Semaphores Vulkan waits on
+		std::vector<VkSemaphore> mExternalWaitSemaphores;
+		//Semaphores Vulkan signals
+		std::vector<VkSemaphore> mExternalSignalSemaphores;
 		bool mHasExternalResources = false;
 		VkFence mTransferFence = VK_NULL_HANDLE;
 
