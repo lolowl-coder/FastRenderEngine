@@ -52,7 +52,7 @@ namespace app
                     ImGui::PushItemWidth(150.0f);
 					bool changed = false;
 					static int selectedIndex = -1;
-					if(ImGui::TreeNodeEx("Materials", ImGuiTreeNodeFlags_DefaultOpen, "Materials"))
+					if(ImGui::TreeNodeEx("Materials", 0, "Materials"))
 					{
 						for(int i = 0; i < mMaterials.size(); i++)
 						{
@@ -104,9 +104,19 @@ namespace app
 
 						ImGui::TreePop();
 					}
+					{
+						bool tmp = mDynamicData.mLightingSettins.z;
+						ImGui::Checkbox("Enable GI", &tmp);
+						mDynamicData.mLightingSettins.z = tmp ? 1.0f : 0.0f;
+					}
+					{
+						bool tmp = mDynamicData.mLightingSettins.w;
+						ImGui::Checkbox("Enable Area lights", &tmp);
+						mDynamicData.mLightingSettins.w = tmp ? 1.0f : 0.0f;
+					}
 					ImGui::Checkbox("Denoise", &mIsDenoiserEnabled);
-					sliderFloat(0.0f, 10.0f, "Main ligth intensity", mDynamicData.mLightIntensity, "%.2f");
-					sliderFloat(0.0f, 1.0f, "Ambient intensity", mDynamicData.mAmbient, "%.2f");
+					sliderFloat(0.0f, 10.0f, "Main ligth intensity", mDynamicData.mLightingSettins.x, "%.2f");
+					sliderFloat(0.0f, 1.0f, "Ambient intensity", mDynamicData.mLightingSettins.y, "%.2f");
                     auto& itr = std::find_if(mMaterials.begin(), mMaterials.end(), [](const Material& mat) { return mat.mName == "light_mat"; });
                     if(itr != mMaterials.end())
 					{
@@ -368,7 +378,7 @@ namespace app
 			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			VK_IMAGE_LAYOUT_GENERAL,
-			image);
+			image, 1u);
 		auto textureInfo = getTextureInfo(textureInfoId);
 		auto textureId = mTextureManager.createTexture(
 			mainDevice,
@@ -516,7 +526,7 @@ namespace app
 		}
 		mTextureViews[textureId] = texture->mImageView;
 		auto& textureInfo = getTextureInfo(textureId);
-		auto samplerIndex = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE, getMipLevelCount(textureInfo->mImage.mDimension) });
+		auto samplerIndex = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE, textureInfo->mMipLevelCount });
 		auto sampler = getSampler(samplerIndex);
 		if(textureId >= mTextureSamplers.size())
 		{

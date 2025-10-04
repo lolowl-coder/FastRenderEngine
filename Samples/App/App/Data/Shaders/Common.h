@@ -47,8 +47,32 @@ struct DynamicDataBlock
 {
 	mat4 viewInverse;
 	mat4 projInverse;
-	float mainLightIntensity;
-	float ambient;
+	//x - main light intensity
+	//y - lamp light intensity
+	//z - enable GI
+	//w - enable Area lights
+	vec4 lightingSettings;
 };
+
+// DynamicDataBlock getters
+float getMainLightIntensity(in DynamicDataBlock data)
+{
+    return data.lightingSettings.x;
+}
+
+float getAmbientLightIntensity(in DynamicDataBlock data)
+{
+    return data.lightingSettings.y;
+}
+
+bool getGIEnabled(in DynamicDataBlock data)
+{
+    return abs(data.lightingSettings.z) > 0.01;
+}
+
+bool getAreaLightsEnabled(in DynamicDataBlock data)
+{
+    return abs(data.lightingSettings.w) > 0.01;
+}
 
 #endif

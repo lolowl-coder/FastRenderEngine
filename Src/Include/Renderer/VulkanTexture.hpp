@@ -16,6 +16,7 @@ namespace fre
 		VkImageLayout mLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		VkFlags mStageFlags = VK_SHADER_STAGE_FLAG_BITS_MAX_ENUM;
 		Image mImage;
+		uint32_t mMipLevelCount = 1;
 
         bool operator ==(const VulkanTextureInfo& other) const
         {
@@ -27,7 +28,8 @@ namespace fre
                 mMemoryFlags == other.mMemoryFlags &&
                 mLayout == other.mLayout &&
                 mStageFlags == other.mStageFlags &&
-                mImage == other.mImage;
+                mImage == other.mImage &&
+                mMipLevelCount == other.mMipLevelCount;
         }
 	};
 

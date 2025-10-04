@@ -242,7 +242,7 @@ vec3 shadeGLTF(
     }*/
 
     // Ambient factor
-    float af = dynamicData.ambient; //0.03 by default. Increased because of dark result
+    float af = getAmbientLightIntensity(dynamicData); //0.03 by default. Increased because of dark result
     // Simple ambient term (you can replace with IBL)
     vec3 ambient = I.baseColor * (1.0 - I.metallic) * af * ao;
 
@@ -530,7 +530,7 @@ void main()
     vec4 base = sampleBaseColor(objMat, objUV);
     payload.albedo = base.rgb;
     vec3 emissive = sampleEmissive(objMat, objUV);
-    vec3 lightRadiance = vec3(1.0, 1.0, 0.9) * dynamicData.mainLightIntensity; // light radiance at P (includes intensity & attenuation)
+    vec3 lightRadiance = vec3(1.0, 1.0, 0.9) * getMainLightIntensity(dynamicData); // light radiance at P (includes intensity & attenuation)
     vec3 directLightContrib = shadeGLTF(
         objMat, objUV, P, V_world, gl_ObjectToWorldEXT,
         L, lightRadiance, // light direction & radiance
@@ -543,9 +543,15 @@ void main()
     );
     payload.radiance += directLightContrib;
 
-    processEmissives(objMat, objUV, P, N_world, V_world, base, emissive, mr);
+    if(getAreaLightsEnabled(dynamicData))
+    {
+        processEmissives(objMat, objUV, P, N_world, V_world, base, emissive, mr);
+    }
 
-    processGI(P, T, B, N);
+    if(getGIEnabled(dynamicData))
+    {
+        processGI(P, T, B, N);
+    }
 
     payload.radiance *= payload.attenuation;
 

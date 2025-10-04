@@ -66,7 +66,8 @@ namespace fre
         const VkImageUsageFlags usageFlags,
         const VkMemoryPropertyFlags memoryFlags,
 		const VkImageLayout layout,
-		Image& image)
+		Image& image,
+		const uint32_t mipLevelCount)
 	{
 		uint32_t result = MAX(uint32_t);
 		for(auto& ti : mTextureInfos)
@@ -79,7 +80,9 @@ namespace fre
 				ti.second->mLayout == layout &&
 				ti.second->mImage.mFileName == image.mFileName &&
 				ti.second->mImage.mFormat == image.mFormat &&
-				ti.second->mImage.mIsExternal == image.mIsExternal)
+				ti.second->mImage.mIsExternal == image.mIsExternal &&
+				ti.second->mMipLevelCount == mipLevelCount
+				)
 			{
 				result = ti.second->mId;
 				break;
@@ -97,6 +100,7 @@ namespace fre
 			ti->mMemoryFlags = memoryFlags;
 			ti->mLayout = layout;
 			ti->mImage = image;
+			ti->mMipLevelCount = mipLevelCount;
 
             mTextureInfos[result] = ti;
 		}
@@ -130,7 +134,6 @@ namespace fre
 
 		if(info->mImage.mDimension.x > 0 && info->mImage.mDimension.y > 0)
 		{
-			uint32_t mipLevelCount = getMipLevelCount(info->mImage.mDimension);
 			//Create image to hold final texture
 			if(info->mImage.mIsExternal)
 			{
@@ -144,7 +147,7 @@ namespace fre
 			else
 			{
 				result->mImage = fre::createImage(mainDevice, info->mImage.mDimension.x, info->mImage.mDimension.y,
-					info->mImage.mFormat, info->mTiling, mipLevelCount,
+					info->mImage.mFormat, info->mTiling, info->mMipLevelCount,
 					info->mUsageFlags,
 					info->mMemoryFlags,
 					&result->mImageMemory,
@@ -152,13 +155,13 @@ namespace fre
 			}
 			result->mImageView = createImageView(mainDevice.logicalDevice,
 				result->mImage, info->mImage.mFormat,
-				VK_IMAGE_ASPECT_COLOR_BIT, mipLevelCount);
+				VK_IMAGE_ASPECT_COLOR_BIT, info->mMipLevelCount);
 
 			//Is texture data passed?
 			if(info->mImage.mData != nullptr)
 			{
 				uploadData(mainDevice, transferQueueFamilyId, graphicsQueueFamilyId,
-					queue, commandPool, result, info, mipLevelCount);
+					queue, commandPool, result, info, info->mMipLevelCount);
 			}
 			else
 			{

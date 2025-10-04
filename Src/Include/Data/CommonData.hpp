@@ -80,8 +80,7 @@ namespace fre
 	{
 		glm::mat4 mViewInverse = glm::mat4(1.0f);
 		glm::mat4 mProjInverse = glm::mat4(1.0f);
-		float mLightIntensity = 4.5f;
-		float mAmbient = 0.03f;
+		glm::vec4 mLightingSettins = glm::vec4(4.5f, 0.03f, 1.0f, 1.0f);
 	};
 
 	struct RTMeshCPU

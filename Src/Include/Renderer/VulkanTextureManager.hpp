@@ -36,7 +36,8 @@ namespace fre
 			const VkImageUsageFlags usageFlags,
 			const VkMemoryPropertyFlags memoryFlags,
 			const VkImageLayout layout,
-			Image& image);
+			Image& image,
+			const uint32_t mipLevelCount);
 		VulkanTextureInfoPtr getTextureInfo(const uint32_t id);
 		uint32_t createTexture(
 			const MainDevice& mainDevice,

@@ -65,7 +65,7 @@ namespace fre
 			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			image);
+			image, 1u);
 	}
 
 	VulkanRenderer::~VulkanRenderer()
@@ -402,7 +402,8 @@ namespace fre
 		const VkImageUsageFlags usageFlags,
 		const VkMemoryPropertyFlags memoryFlags,
 		const VkImageLayout layout,
-		Image& image)
+		Image& image,
+		const uint32_t mipLevelCount)
 	{
 		return mTextureManager.createTextureInfo(
 			addressMode,
@@ -410,7 +411,8 @@ namespace fre
 			usageFlags,
 			memoryFlags,
 			layout,
-			image);
+			image,
+			mipLevelCount);
 	}
 
 	VulkanTextureInfoPtr VulkanRenderer::getTextureInfo(const uint32_t id)
@@ -657,6 +659,10 @@ namespace fre
 				}
 				// Do post ray tracing processing e. g. denoising
 				onRaytracingCommandsSubmitted();
+
+				VK_CHECK(vkWaitForFences(mainDevice.logicalDevice, 1, &mDrawFences[mCurrentFrame],
+					VK_TRUE, std::numeric_limits<uint32_t>::max()));
+				VK_CHECK(vkResetFences(mainDevice.logicalDevice, 1, &mDrawFences[mCurrentFrame]));
 
                 // Reuse command buffer (assuming onRaytracingCommandsSubmitted() waits for semaphore)
 				commandBuffer.reset();
@@ -2875,10 +2881,15 @@ namespace fre
 					{
 						Image image;
 						image.mFileName = path.C_Str();
+						ivec2 imageDimensions;
+						VkFormat format;
+						int numChannels;
+						Image::getInfo(image.mFileName, imageDimensions, format, numChannels);
 						auto textureInfoId = createTextureInfo(
 							VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_IMAGE_TILING_OPTIMAL,
 							VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-							VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, image);
+							VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, image,
+							getMipLevelCount(imageDimensions));
 
 						material.mTextureIds[textureType] = textureInfoId;
                         LOG_INFO("Material {} texture {}: {}", material.mName, aiTextureTypeToString(textureType), path.C_Str());
