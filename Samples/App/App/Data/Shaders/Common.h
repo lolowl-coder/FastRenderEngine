@@ -52,6 +52,7 @@ struct DynamicDataBlock
 	//z - enable GI
 	//w - enable Area lights
 	vec4 lightingSettings;
+	int maxRayDepth;
 };
 
 // DynamicDataBlock getters

@@ -7,6 +7,6 @@ layout(location = 0) rayPayloadInEXT Payload payload;
 
 void main()
 {
-	payload.radiance = vec3(0.1) * payload.attenuation;
+	payload.radiance = vec3(0.01, 0.01, 0.03) * payload.attenuation;
 	payload.done = 1;
 }

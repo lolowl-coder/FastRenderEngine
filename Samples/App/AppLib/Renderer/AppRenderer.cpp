@@ -114,7 +114,10 @@ namespace app
 						ImGui::Checkbox("Enable Area lights", &tmp);
 						mDynamicData.mLightingSettins.w = tmp ? 1.0f : 0.0f;
 					}
-					ImGui::Checkbox("Denoise", &mIsDenoiserEnabled);
+					if(ImGui::Checkbox("Denoise", &mIsDenoiserEnabled))
+					{
+						setHasExternalResources(mIsDenoiserEnabled);
+					}
 					sliderFloat(0.0f, 10.0f, "Main ligth intensity", mDynamicData.mLightingSettins.x, "%.2f");
 					sliderFloat(0.0f, 1.0f, "Ambient intensity", mDynamicData.mLightingSettins.y, "%.2f");
                     auto& itr = std::find_if(mMaterials.begin(), mMaterials.end(), [](const Material& mat) { return mat.mName == "light_mat"; });
@@ -127,6 +130,7 @@ namespace app
 							changed = true;
 						}
 					}
+					sliderInt(1, 64, "Max ray depth", mDynamicData.mMaxRayDepth);
 					if(ImGui::Button("Restore defaults"))
 					{
 						selectedIndex = -1;

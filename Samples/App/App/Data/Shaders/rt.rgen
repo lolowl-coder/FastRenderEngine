@@ -39,7 +39,7 @@ void main()
 
     vec3 color = vec3(0.0);
 
-	for(int depth = 0; depth < 64; depth++)
+	for(int depth = 0; depth < dynamicData.maxRayDepth; depth++)
 	{
 		traceRayEXT(
 			topLevelAS,

@@ -424,6 +424,7 @@ void processGI(vec3 P, vec3 T, vec3 B, vec3 N)
             //gl_RayFlagsOpaqueEXT;
 
         payload.radiance = vec3(0.0);
+        payload.attenuation = vec3(1.0);
 
         traceRayEXT(topLevelAS,        // acceleration structure
             flags,             // rayFlags
@@ -451,80 +452,80 @@ void main()
         return;
     }
 
-	// When contructing the TLAS, we stored the model id in InstanceCustomIndexEXT, so the
-	// the instance can quickly have access to the data
+    // When contructing the TLAS, we stored the model id in InstanceCustomIndexEXT, so the
+    // the instance can quickly have access to the data
 
-	// Object data
-	Mesh mesh = sceneDesc.i[gl_InstanceCustomIndexEXT];
-	Indices indices = Indices(mesh.mIndices);
-	Vertices vertices = Vertices(mesh.mVertices);
+    // Object data
+    Mesh mesh = sceneDesc.i[gl_InstanceCustomIndexEXT];
+    Indices indices = Indices(mesh.mIndices);
+    Vertices vertices = Vertices(mesh.mVertices);
 
-	//Mesh material
-	Material objMat = materials.i[mesh.mMaterialIndex];
+    //Mesh material
+    Material objMat = materials.i[mesh.mMaterialIndex];
 
-	// Indices of the triangle
-	uvec3 ind = indices.i[gl_PrimitiveID];
+    // Indices of the triangle
+    uvec3 ind = indices.i[gl_PrimitiveID];
 
-	// Vertex of the triangle
-	Vertex v0 = vertices.v[ind.x];
-	Vertex v1 = vertices.v[ind.y];
-	Vertex v2 = vertices.v[ind.z];
+    // Vertex of the triangle
+    Vertex v0 = vertices.v[ind.x];
+    Vertex v1 = vertices.v[ind.y];
+    Vertex v2 = vertices.v[ind.z];
 
-	// Barycentric coordinates of the triangle
-	const vec3 barycentrics = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
+    // Barycentric coordinates of the triangle
+    const vec3 barycentrics = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
 
     // Texture coordinates at hit position
-	vec2 uv0 = v0.mTC;
-	vec2 uv1 = v1.mTC;
-	vec2 uv2 = v2.mTC;
+    vec2 uv0 = v0.mTC;
+    vec2 uv1 = v1.mTC;
+    vec2 uv2 = v2.mTC;
 
-	vec2 objUV = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
+    vec2 objUV = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
 
-	// Computing the normal at hit position
-	vec3 vNormal = v0.mNormal.xyz * barycentrics.x + v1.mNormal.xyz * barycentrics.y + v2.mNormal.xyz * barycentrics.z;
-	vec3 vTangent = v0.mTangent.xyz * barycentrics.x + v1.mTangent.xyz * barycentrics.y + v2.mTangent.xyz * barycentrics.z;
+    // Computing the normal at hit position
+    vec3 vNormal = v0.mNormal.xyz * barycentrics.x + v1.mNormal.xyz * barycentrics.y + v2.mNormal.xyz * barycentrics.z;
+    vec3 vTangent = v0.mTangent.xyz * barycentrics.x + v1.mTangent.xyz * barycentrics.y + v2.mTangent.xyz * barycentrics.z;
     vec3 T;
     vec3 B;
     vec3 N;
     vec3 N_world = getWorldNormal(objMat, objMat.mNormalTex, vNormal, vec4(vTangent, 1.0), objUV, gl_ObjectToWorldEXT, T, B, N);
 
-	// Computing the coordinates of the hit position
-	vec3 P = v0.mPos.xyz * barycentrics.x + v1.mPos.xyz * barycentrics.y + v2.mPos.xyz * barycentrics.z;
-	P = vec3(gl_ObjectToWorldEXT * vec4(P, 1.0));        // Transforming the position to world space
+    // Computing the coordinates of the hit position
+    vec3 P = v0.mPos.xyz * barycentrics.x + v1.mPos.xyz * barycentrics.y + v2.mPos.xyz * barycentrics.z;
+    P = vec3(gl_ObjectToWorldEXT * vec4(P, 1.0));        // Transforming the position to world space
 
-	// Hardocded light position
-	vec3 lightPos = vec3(1.5, 0.8, 0.5);
-	// To light direction
-	vec3 L = normalize(lightPos - P);
+    // Hardocded light position
+    vec3 lightPos = vec3(1.5, 0.8, 0.5);
+    // To light direction
+    vec3 L = normalize(lightPos - P);
 
-	float NdotL = dot(N_world, L);
-	vec2 mr = sampleMetallicRoughness(objMat, objUV);
+    float NdotL = dot(N_world, L);
+    vec2 mr = sampleMetallicRoughness(objMat, objUV);
     float metallness = mr.x;
     float roughness = mr.y;
-	// Tracing shadow ray only if the light is visible from the surface
+    // Tracing shadow ray only if the light is visible from the surface
     // TODO: learn more about back face check. Not shure if we need it here
-	if(NdotL > 0.0)
-	{
-		float tMin = 0.001;
-		float tMax = 1e32;        // infinite
-		vec3  origin = P;
-		vec3  rayDir = L;
-		uint  flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
-		isShadowed = true;
+    if(NdotL > 0.0)
+    {
+        float tMin = 0.001;
+        float tMax = 1e32;        // infinite
+        vec3  origin = P;
+        vec3  rayDir = L;
+        uint  flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+        isShadowed = true;
 
-		traceRayEXT(topLevelAS,        // acceleration structure
-			flags,             // rayFlags
-			0xFF,              // cullMask
-			0,                 // sbtRecordOffset
-			0,                 // sbtRecordStride
-			1,                 // missIndex
-			origin,            // ray origin
-			tMin,              // ray min range
-			rayDir,            // ray direction
-			tMax,              // ray max range
-			1                  // payload (location = 1)
-		);
-	}
+        traceRayEXT(topLevelAS,        // acceleration structure
+            flags,             // rayFlags
+            0xFF,              // cullMask
+            0,                 // sbtRecordOffset
+            0,                 // sbtRecordStride
+            1,                 // missIndex
+            origin,            // ray origin
+            tMin,              // ray min range
+            rayDir,            // ray direction
+            tMax,              // ray max range
+            1                  // payload (location = 1)
+        );
+    }
 
     vec3 V_world = normalize(gl_WorldRayOriginEXT - P);
     vec4 base = sampleBaseColor(objMat, objUV);
@@ -541,14 +542,15 @@ void main()
         mr,
         emissive
     );
-    payload.radiance += directLightContrib;
 
-    if(getAreaLightsEnabled(dynamicData))
+    payload.radiance += directLightContrib;
+    
+    if(getAreaLightsEnabled(dynamicData) && payload.depth == 0)
     {
         processEmissives(objMat, objUV, P, N_world, V_world, base, emissive, mr);
     }
 
-    if(getGIEnabled(dynamicData))
+    if(getGIEnabled(dynamicData) && payload.depth == 0)
     {
         processGI(P, T, B, N);
     }
@@ -559,7 +561,7 @@ void main()
 	vec3 rayDir = reflect(gl_WorldRayDirectionEXT, N_world);
     if(payload.depth == 0)
     {
-        payload.attenuation *= 0.8 * (metallness);
+        payload.attenuation *= metallness;
     }
     payload.rayOrigin = P;
     payload.rayDir = rayDir;
