@@ -11,9 +11,6 @@
 #include "Rnd.h"
 #include "Transform.h"
 
-#define NUM_EMISSIVE_SAMPLES 8
-#define NUM_GI_SAMPLES 8
-
 layout(location = 0) rayPayloadInEXT Payload payload;
 layout(location = 1) rayPayloadEXT bool isShadowed;
 
@@ -24,13 +21,13 @@ layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions o
 layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indices
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
-layout(set = 0, binding = 4) uniform DynamicData { DynamicDataBlock dynamicData; };
-layout(set = 0, binding = 5) buffer SceneDesc { Mesh i[]; } sceneDesc;
-layout(set = 0, binding = 6, scalar) buffer GlobalMaterials { Material i[]; } materials;
+layout(set = 0, binding = 5) uniform DynamicData { DynamicDataBlock dynamicData; };
+layout(set = 0, binding = 6) buffer SceneDesc { Mesh i[]; } sceneDesc;
+layout(set = 0, binding = 7, scalar) buffer GlobalMaterials { Material i[]; } materials;
 // Scene textures
-layout(set = 0, binding = 7) uniform sampler2D textures[];
+layout(set = 0, binding = 8) uniform sampler2D textures[];
 // Emissive objects triangles
-layout(set = 0, binding = 8, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
+layout(set = 0, binding = 9, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
 // clang-format on
 
 // --------------------------- math helpers -----------------------------------
@@ -282,8 +279,8 @@ EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 lightUV, ou
         // Pick emissive triangle index using u
         uint triIdx = uint(u_tri * float(emissiveTriangles.L.length()));
 #else
-        lightUV = vec2(rng(payload.rngState), rng(payload.rngState));
-        uint triIdx = uint(floor(rng(payload.rngState) * float(emissiveTriangles.L.length())));
+        //lightUV = vec2(rng(payload.rngState), rng(payload.rngState));
+        //uint triIdx = uint(floor(rng(payload.rngState) * float(emissiveTriangles.L.length())));
 #endif
         triIdx = clamp(triIdx, 0u, uint(emissiveTriangles.L.length() - 1));
         //triIdx = 10;
@@ -397,11 +394,11 @@ vec3 nee(
 void processEmissives(Material objMat, vec2 objUV, vec3 P, vec3 N_world, vec3 V_world, vec4 base, vec3 emissive, vec2 mr)
 {
     vec3 neeEmissiveContrib = vec3(0.0);
-    for(int i = 0; i < NUM_EMISSIVE_SAMPLES; i++)
+    for(int i = 0; i < dynamicData.emissiveSamples; i++)
     {
         neeEmissiveContrib += nee(i, objMat, objUV, P, N_world, V_world, base, emissive, mr);
     }
-    neeEmissiveContrib /= float(NUM_EMISSIVE_SAMPLES);
+    neeEmissiveContrib /= float(dynamicData.emissiveSamples);
     payload.radiance += neeEmissiveContrib;
 }
 
@@ -410,7 +407,7 @@ void processGI(vec3 P, vec3 T, vec3 B, vec3 N)
     vec3 giContrib = vec3(0.0);
     Payload old = payload;
     payload.depth++;
-    for(int i = 0; i < NUM_GI_SAMPLES; i++)
+    for(int i = 0; i < dynamicData.giSamples; i++)
     {
         float tMin = 0.001;
         // infinite
@@ -438,9 +435,9 @@ void processGI(vec3 P, vec3 T, vec3 B, vec3 N)
             tMax,              // ray max range
             0                  // payload (location = 0, 1)
         );
-        giContrib += payload.radiance;
+        giContrib += min(vec3(2.5), payload.radiance);
     }
-    giContrib /= float(NUM_GI_SAMPLES);
+    giContrib /= float(dynamicData.giSamples);
     payload = old;
     payload.radiance += giContrib;
 }
@@ -494,7 +491,7 @@ void main()
     P = vec3(gl_ObjectToWorldEXT * vec4(P, 1.0));        // Transforming the position to world space
 
     // Hardocded light position
-    vec3 lightPos = vec3(1.5, 0.8, 0.5);
+    vec3 lightPos = dynamicData.lightPos.xyz;
     // To light direction
     vec3 L = normalize(lightPos - P);
 
@@ -510,7 +507,7 @@ void main()
         float tMax = 1e32;        // infinite
         vec3  origin = P;
         vec3  rayDir = L;
-        uint  flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+        uint  flags = gl_RayFlagsTerminateOnFirstHitEXT /*| gl_RayFlagsOpaqueEXT*/ | gl_RayFlagsSkipClosestHitShaderEXT;
         isShadowed = true;
 
         traceRayEXT(topLevelAS,        // acceleration structure

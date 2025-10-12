@@ -50,6 +50,8 @@ namespace fre
         // Update denoiser input data on GPU from host memory.
         void update(const Data& data);
 
+        void setTemporalMode(const bool temporalMode);
+
         // Copy results from GPU to host memory.
         void getResults();
 

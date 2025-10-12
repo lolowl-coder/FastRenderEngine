@@ -80,8 +80,13 @@ namespace fre
 	{
 		glm::mat4 mViewInverse = glm::mat4(1.0f);
 		glm::mat4 mProjInverse = glm::mat4(1.0f);
+		glm::mat4 mPrevPV = glm::mat4(1.0f);
+		glm::mat4 mPV = glm::mat4(1.0f);
 		glm::vec4 mLightingSettins = glm::vec4(4.5f, 0.03f, 1.0f, 1.0f);
+		glm::vec4 mLightPos = glm::vec4(1.5f, 0.8f, 0.5f, 1.0f);
 		int mMaxRayDepth = 64;
+		int mGiSamples = 8;
+		int mEmissiveSamples = 8;
 	};
 
 	struct RTMeshCPU

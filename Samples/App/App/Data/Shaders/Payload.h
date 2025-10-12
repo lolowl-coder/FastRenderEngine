@@ -9,7 +9,7 @@ struct Payload
 	vec3 attenuation;
 	vec3 rayOrigin;
 	vec3 rayDir;
-	uint rngState;
+	//uint rngState;
 	int done;
 	int depth;
 	float weight;

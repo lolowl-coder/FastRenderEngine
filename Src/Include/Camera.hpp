@@ -51,8 +51,10 @@ namespace fre
 		float mNear = 0.1f;
 		float mFar = 100.0f;
 
-        glm::mat4 mProjection;
-        glm::mat4 mView;
+
+        glm::mat4 mProjection = glm::mat4(1.0f);
+        glm::mat4 mPrevView = glm::mat4(1.0f);
+        glm::mat4 mView = glm::mat4(1.0f);
         //yaw, pitch, roll
         glm::vec3 mRotationAngles = glm::vec3(0.0);
         glm::vec3 mForward = glm::vec3(0.0);

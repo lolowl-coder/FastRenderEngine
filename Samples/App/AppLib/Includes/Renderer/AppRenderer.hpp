@@ -53,6 +53,7 @@ namespace app
         std::vector<StorageImage> mColorStorage;
         std::vector<StorageImage> mAlbedoStorage;
         std::vector<StorageImage> mNormalStorage;
+        std::vector<StorageImage> mFlowStorage;
 		fre::MeshPtr mResultMesh;
 
         uint32_t mRTShaderId = MAX(uint32_t);
@@ -96,6 +97,7 @@ namespace app
         std::vector<fre::CudaBuffer<float4>> mCUDAExternalColorBuffer;
         std::vector<fre::CudaBuffer<float4>> mCUDAExternalAlbedoBuffer;
         std::vector<fre::CudaBuffer<float4>> mCUDAExternalNormalBuffer;
+        std::vector<fre::CudaBuffer<float4>> mCUDAExternalFlowBuffer;
 
         fre::DynamicData mDynamicData;
 		uint32_t mColorTextureId = MAX(uint32_t);
@@ -107,6 +109,7 @@ namespace app
 		VkSemaphore mExternalVulkanSignalSemaphore = VK_NULL_HANDLE;
 		bool mDenoiserInitialized = false;
 		bool mIsDenoiserEnabled = true;
+		bool mTemporalMode = false;
 		uint32_t mLampMaterialIndex = MAX(uint32_t);
         std::vector<fre::Material> mDefaultMaterials;
 	};

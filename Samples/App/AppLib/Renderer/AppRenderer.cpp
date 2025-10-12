@@ -52,6 +52,9 @@ namespace app
                     ImGui::PushItemWidth(150.0f);
 					bool changed = false;
 					static int selectedIndex = -1;
+
+					//const std::string lightMatName = "light_mat";
+					const std::string lightMatName = "Lantern";
 					if(ImGui::TreeNodeEx("Materials", 0, "Materials"))
 					{
 						for(int i = 0; i < mMaterials.size(); i++)
@@ -67,7 +70,7 @@ namespace app
 										if(selectedIndex > -1)
 										{
 											// Restore previously selected material properties
-											if(mMaterials[selectedIndex].mName == "light_mat")
+											if(mMaterials[selectedIndex].mName == lightMatName)
 											{
 												mMaterials[selectedIndex].mEmissiveFactor = vec3(6.154f);
 											}
@@ -87,7 +90,8 @@ namespace app
 											selected = ImGuiTreeNodeFlags_Selected;
 										}
 										changed = true;
-										if(mat.mName == "light_mat")
+										//if(mat.mName == "light_mat")
+										if(mat.mName == lightMatName)
 										{
 											mat.mEmissiveFactor = selected == ImGuiTreeNodeFlags_Selected ? vec3(6.154f, 0.0f, 0.0f) : vec3(6.154, 6.154f, 6.154f);
 										}
@@ -118,19 +122,25 @@ namespace app
 					{
 						setHasExternalResources(mIsDenoiserEnabled);
 					}
-					sliderFloat(0.0f, 10.0f, "Main ligth intensity", mDynamicData.mLightingSettins.x, "%.2f");
+					//ImGui::Checkbox("Temporal mode", &mTemporalMode);
+					sliderFloat(0.0f, 100.0f, "Main ligth intensity", mDynamicData.mLightingSettins.x, "%.2f");
 					sliderFloat(0.0f, 1.0f, "Ambient intensity", mDynamicData.mLightingSettins.y, "%.2f");
-                    auto& itr = std::find_if(mMaterials.begin(), mMaterials.end(), [](const Material& mat) { return mat.mName == "light_mat"; });
+                    auto& itr = std::find_if(mMaterials.begin(), mMaterials.end(), [&lightMatName](const Material& mat) { return mat.mName == lightMatName; });
                     if(itr != mMaterials.end())
 					{
                         float intensity = itr->mEmissiveFactor.x;
-						if(sliderFloat(0.0f, 100.0f, "Lamp light intensity", intensity, "%.2f"))
+						if(sliderFloat(0.0f, 1000.0f, "Lamp light intensity", intensity, "%.2f"))
 						{
 							itr->mEmissiveFactor = vec3(intensity);
 							changed = true;
 						}
 					}
+					inputFloat(-1000.0f, 1000.0f, "Main light position: x", mDynamicData.mLightPos.x);
+					inputFloat(-1000.0f, 1000.0f, "y", mDynamicData.mLightPos.y);
+					inputFloat(-1000.0f, 1000.0f, "z", mDynamicData.mLightPos.z);
 					sliderInt(1, 64, "Max ray depth", mDynamicData.mMaxRayDepth);
+					sliderInt(1, 64, "GI samples", mDynamicData.mGiSamples);
+					sliderInt(1, 64, "Emissive samples", mDynamicData.mEmissiveSamples);
 					if(ImGui::Button("Restore defaults"))
 					{
 						selectedIndex = -1;
@@ -247,15 +257,24 @@ namespace app
 
 		mDynamicData.mViewInverse = glm::inverse(camera.mView);
 		mDynamicData.mProjInverse = glm::inverse(camera.mProjection);
+		mDynamicData.mPrevPV = camera.mProjection * camera.mPrevView;
+		mDynamicData.mPV = camera.mProjection * camera.mView;
 
         mBufferManager.udpateBuffer(mainDevice.logicalDevice, mDynamicDataBufferIndex, &mDynamicData, sizeof(mDynamicData));
 
 		
         mResultMesh->setDescriptors({ { mColorStorage[mCurrentFrame].descriptor } });
 		mMeshModel->getMesh(0)->setDescriptors({ {
-                mTLASDescriptor, mColorStorage[mCurrentFrame].descriptor, mAlbedoStorage[mCurrentFrame].descriptor, mNormalStorage[mCurrentFrame].descriptor,
-				mDynamicDataDescriptor, mRTMeshesGPUDescriptor, mRTMaterialsGPUDescriptor,
-				mRTTexturesDescriptor, mEmissiveTrianglesDescriptor} });
+                mTLASDescriptor,
+				mColorStorage[mCurrentFrame].descriptor,
+				mAlbedoStorage[mCurrentFrame].descriptor,
+				mNormalStorage[mCurrentFrame].descriptor,
+				mFlowStorage[mCurrentFrame].descriptor,
+				mDynamicDataDescriptor,
+				mRTMeshesGPUDescriptor,
+				mRTMaterialsGPUDescriptor,
+				mRTTexturesDescriptor,
+				mEmissiveTrianglesDescriptor} });
 
         VulkanRenderer::update(camera, light);
 	}
@@ -282,6 +301,11 @@ namespace app
 			data.color = reinterpret_cast<float*>(mCUDAExternalColorBuffer[mCurrentFrame].mData);
 			data.albedo = reinterpret_cast<float*>(mCUDAExternalAlbedoBuffer[mCurrentFrame].mData);
 			data.normal = reinterpret_cast<float*>(mCUDAExternalNormalBuffer[mCurrentFrame].mData);
+			if(mTemporalMode)
+			{
+				data.flow = reinterpret_cast<float*>(mCUDAExternalFlowBuffer[mCurrentFrame].mData);
+			}
+			data.outputs.push_back(data.color);
 			//data.flow = reinterpret_cast<float*>(flow.data);
 			//data.flowtrust = reinterpret_cast<float*>(flowtrust.data);
 
@@ -289,8 +313,8 @@ namespace app
 			{
 				const int tileWidth = 0;
 				const int tileHeight = 0;
-				const bool kpMode = true;
-				const bool temporalMode = false;
+				const bool kpMode = mTemporalMode;
+				const bool temporalMode = mTemporalMode;
 				const bool applyFlow = false;
 				const bool upscale2x = false;
 				const OptixDenoiserAlphaMode alphaMode = OPTIX_DENOISER_ALPHA_MODE_COPY;
@@ -301,10 +325,11 @@ namespace app
 			}
 			else
 			{
+				mDenoiser.setTemporalMode(mTemporalMode);
 				mDenoiser.update(data);
 			}
             mDenoiser.exec();
-			mDenoiser.copyResultDevice(mCUDAExternalColorBuffer[mCurrentFrame].mData);
+			mDenoiser.getResults();
 
 			cudaExternalSemaphoreSignalParams signalParams = {};
 			signalParams.flags = 0;
@@ -418,6 +443,7 @@ namespace app
 				mColorStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#colorStorage%i", i)));
 				mAlbedoStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#albedoStorage%i", i)));
 				mNormalStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#normalStorage%i", i)));
+				mFlowStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#flowStorage%i", i)));
 			}
 		}
 
@@ -429,11 +455,13 @@ namespace app
 		//mMeshModel = createMeshModel("Models/unitQuad/unitQuad.obj", {});
 		//mMeshModel = createMeshModel("Models/unitCube/unitCube.obj", {});
         //mat4 sceneTransform = rotate(mat4(1.0f), glm::half_pi<float>(), vec3(1.0f, 0.0f, 0.0f));
-		mMeshModel = createMeshModel("Models/pool2/scene.gltf",
+		//mMeshModel = createMeshModel("Models/pool2/scene.gltf",
+		//mMeshModel = createMeshModel("Models/unreal/scene.gltf",
+		mMeshModel = createMeshModel("Models/mobileHome/scene.gltf",
 			{
 				aiTextureType_NORMALS, aiTextureType_BASE_COLOR, aiTextureType_METALNESS,
 				aiTextureType_EMISSIVE, aiTextureType_AMBIENT_OCCLUSION, aiTextureType_LIGHTMAP
-			}, mat4(1.0f));
+			}, mat4(0.1f));
 		mMeshModel->setVisible(false);
         auto shaderId = addShader("rt");
         mShadowMissShaderId = addShader("shadow");
@@ -675,6 +703,7 @@ namespace app
 			mCUDAExternalColorBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mColorStorage[i].texture->mId, this));
 			mCUDAExternalAlbedoBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mAlbedoStorage[i].texture->mId, this));
 			mCUDAExternalNormalBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mNormalStorage[i].texture->mId, this));
+			mCUDAExternalFlowBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mFlowStorage[i].texture->mId, this));
 		}
         assert(!mExternalWaitSemaphores.empty());
         assert(!mExternalSignalSemaphores.empty());

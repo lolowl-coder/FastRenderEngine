@@ -47,12 +47,17 @@ struct DynamicDataBlock
 {
 	mat4 viewInverse;
 	mat4 projInverse;
+	mat4 prevPV;
+	mat4 PV;
 	//x - main light intensity
 	//y - lamp light intensity
 	//z - enable GI
 	//w - enable Area lights
 	vec4 lightingSettings;
+	vec4 lightPos;
 	int maxRayDepth;
+	int giSamples;
+	int emissiveSamples;
 };
 
 // DynamicDataBlock getters

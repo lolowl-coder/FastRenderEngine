@@ -66,7 +66,7 @@ namespace fre
         bool         specularMode)
     {
         assert(data.color);
-        //assert(data.outputs.size() >= 1);
+        assert(data.outputs.size() >= 1);
         assert(data.width);
         assert(data.height);
         assert(!data.normal || data.albedo, "Currently albedo is required if normal input is given");
@@ -277,32 +277,37 @@ namespace fre
         }
     }
 
+    void Denoiser::setTemporalMode(const bool temporalMode)
+    {
+        m_temporalMode = temporalMode;
+    }
+
     void Denoiser::update(const Data& data)
     {
         assert(data.color);
-        //assert(data.outputs.size() >= 1);
+        assert(data.outputs.size() >= 1);
         assert(data.width);
         assert(data.height);
         assert(!data.normal || data.albedo, "Currently albedo is required if normal input is given");
 
         m_host_outputs = data.outputs;
 
-        CUDA_CHECK(cudaMemcpy((void*)m_layers[0].input.data, data.color, data.width * data.height * sizeof(float4), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy((void*)m_layers[0].input.data, data.color, data.width * data.height * sizeof(float4), cudaMemcpyDeviceToDevice));
 
         if(m_temporalMode)
-            CUDA_CHECK(cudaMemcpy((void*)m_guideLayer.flow.data, data.flow, data.width * data.height * sizeof(float4), cudaMemcpyHostToDevice));
+            CUDA_CHECK(cudaMemcpy((void*)m_guideLayer.flow.data, data.flow, data.width * data.height * sizeof(float4), cudaMemcpyDeviceToDevice));
 
         if(data.albedo)
-            CUDA_CHECK(cudaMemcpy((void*)m_guideLayer.albedo.data, data.albedo, data.width * data.height * sizeof(float4), cudaMemcpyHostToDevice));
+            CUDA_CHECK(cudaMemcpy((void*)m_guideLayer.albedo.data, data.albedo, data.width * data.height * sizeof(float4), cudaMemcpyDeviceToDevice));
 
         if(data.normal)
-            CUDA_CHECK(cudaMemcpy((void*)m_guideLayer.normal.data, data.normal, data.width * data.height * sizeof(float4), cudaMemcpyHostToDevice));
+            CUDA_CHECK(cudaMemcpy((void*)m_guideLayer.normal.data, data.normal, data.width * data.height * sizeof(float4), cudaMemcpyDeviceToDevice));
 
         if(data.flowtrust)
-            CUDA_CHECK(cudaMemcpy((void*)m_guideLayer.flowTrustworthiness.data, data.flowtrust, data.width * data.height * sizeof(float4), cudaMemcpyHostToDevice));
+            CUDA_CHECK(cudaMemcpy((void*)m_guideLayer.flowTrustworthiness.data, data.flowtrust, data.width * data.height * sizeof(float4), cudaMemcpyDeviceToDevice));
 
         for(size_t i = 0; i < data.aovs.size(); i++)
-            CUDA_CHECK(cudaMemcpy((void*)m_layers[1 + i].input.data, data.aovs[i], data.width * data.height * sizeof(float4), cudaMemcpyHostToDevice));
+            CUDA_CHECK(cudaMemcpy((void*)m_layers[1 + i].input.data, data.aovs[i], data.width * data.height * sizeof(float4), cudaMemcpyDeviceToDevice));
 
         if(m_temporalMode)
         {
@@ -386,8 +391,7 @@ namespace fre
             ));
     #endif
         }
-        cudaDeviceSynchronize();
-        CUDA_CHECK_ERROR();
+        CUDA_CHECK(cudaDeviceSynchronize());
     }
 
     inline float catmull_rom(
@@ -509,17 +513,6 @@ namespace fre
                     reinterpret_cast<void*>(m_layers[i].input.data),
                     frame_byte_size, cudaMemcpyDeviceToHost));
         }
-    }
-
-    void Denoiser::copyResultDevice(void* data)
-    {
-        const uint64_t frame_byte_size = m_layers[0].output.width * m_layers[0].output.height * sizeof(float4);
-        CUDA_CHECK(cudaMemcpy(
-            data,
-            reinterpret_cast<void*>(m_layers[0].output.data),
-            frame_byte_size,
-            cudaMemcpyDeviceToDevice
-        ));
     }
 
     void Denoiser::getInternalGuideLayerData(unsigned char** data, size_t* sizeInBytes)

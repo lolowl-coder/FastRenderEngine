@@ -162,9 +162,13 @@ namespace fre
 		case VK_FORMAT_R8G8B8A8_UNORM:
 			mStride = 4;
 			break;
+		case VK_FORMAT_R32G32_SFLOAT:
+			mStride = 8;
+			break;
 		case VK_FORMAT_R32G32B32A32_SFLOAT:
 			mStride = 16;
 			break;
+		default: LOG_ERROR("Image::calculateStrideAndDataSize() - unsupported Vulkan format: {}. Image name: {}", mFormat, mFileName);
 		}
 		mDataSize = mDimension.x * mDimension.y * mStride;
 	}
@@ -314,7 +318,10 @@ namespace fre
 		{
 			getInfoFromTiff(fileName, size, format, numChannels);
 		}
-		else if(fileName.find(".png") != std::string::npos || fileName.find(".jpg") != std::string::npos)
+		else if(
+			fileName.find(".png") != std::string::npos ||
+			fileName.find(".jpg") != std::string::npos ||
+			fileName.find(".jpeg") != std::string::npos)
 		{
 			getInfoFromPngOrJpg(fileName, size, format, numChannels);
 		}

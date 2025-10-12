@@ -99,6 +99,7 @@ namespace fre
 
         //mat4 scaling = scale(mat4(1.0f), vec3(mZoom));
 
+		mPrevView = mView;
         if(mIsFirstPerson)
         {
             mView = /*scaling * */rotation * translation;
