@@ -198,14 +198,4 @@ namespace app
 			}
 		}
     }
-
-    ImVec2 toImVec2(const glm::vec2& v)
-    {
-        return ImVec2(v.x, v.y);
-    }
-
-    glm::vec2 toVec2(const ImVec2& v)
-    {
-        return glm::vec2(v.x, v.y);
-    }
 }

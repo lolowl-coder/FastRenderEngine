@@ -12,7 +12,7 @@
 		{
 			"name":"Scene",
 			"nodes":[
-				64
+				63
 			]
 		}
 	],
@@ -868,15 +868,6 @@
 			]
 		},
 		{
-			"mesh":21,
-			"name":"pPlane1_lambert2_0",
-			"scale":[
-				17.21678924560547,
-				99.99999237060547,
-				17.21678924560547
-			]
-		},
-		{
 			"children":[
 				2,
 				5,
@@ -897,14 +888,13 @@
 				51,
 				54,
 				57,
-				60,
-				61
+				60
 			],
 			"name":"RootNode"
 		},
 		{
 			"children":[
-				62
+				61
 			],
 			"name":"8434c7de2c604b75999b6351620c84f8.fbx",
 			"rotation":[
@@ -921,7 +911,7 @@
 		},
 		{
 			"children":[
-				63
+				62
 			],
 			"name":"Sketchfab_model",
 			"rotation":[
@@ -1012,19 +1002,13 @@
 		},
 		{
 			"doubleSided":true,
-			"name":"lambert2.001",
-			"normalTexture":{
-				"index":12
-			},
-			"occlusionTexture":{
-				"index":13
-			},
+			"name":"lamp_mat",
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
-					"index":14
+					"index":3
 				},
 				"metallicRoughnessTexture":{
-					"index":13
+					"index":4
 				}
 			}
 		}
@@ -1264,7 +1248,7 @@
 						"TEXCOORD_0":51
 					},
 					"indices":52,
-					"material":1
+					"material":4
 				}
 			]
 		},
@@ -1323,20 +1307,6 @@
 					"material":3
 				}
 			]
-		},
-		{
-			"name":"pPlane1_lambert2_0.001",
-			"primitives":[
-				{
-					"attributes":{
-						"POSITION":68,
-						"NORMAL":69,
-						"TEXCOORD_0":70
-					},
-					"indices":71,
-					"material":4
-				}
-			]
 		}
 	],
 	"textures":[
@@ -1387,95 +1357,68 @@
 		{
 			"sampler":0,
 			"source":11
-		},
-		{
-			"sampler":0,
-			"source":12
-		},
-		{
-			"sampler":0,
-			"source":13
-		},
-		{
-			"sampler":0,
-			"source":14
 		}
 	],
 	"images":[
 		{
 			"mimeType":"image/png",
 			"name":"billiard_ball_mat_baseColor",
-			"uri":"pool2/billiard_ball_mat_baseColor.png"
+			"uri":"Textures/pool2/billiard_ball_mat_baseColor.png"
 		},
 		{
 			"mimeType":"image/png",
 			"name":"billiard_ball_mat_metallicRoughness",
-			"uri":"pool2/billiard_ball_mat_metallicRoughness.png"
+			"uri":"Textures/pool2/billiard_ball_mat_metallicRoughness.png"
 		},
 		{
 			"mimeType":"image/png",
 			"name":"light_mat_emissive",
-			"uri":"pool2/light_mat_emissive.png"
+			"uri":"Textures/pool2/light_mat_emissive.png"
 		},
 		{
 			"mimeType":"image/png",
 			"name":"light_mat_baseColor",
-			"uri":"pool2/light_mat_baseColor.png"
+			"uri":"Textures/pool2/light_mat_baseColor.png"
 		},
 		{
 			"mimeType":"image/png",
 			"name":"light_mat_metallicRoughness",
-			"uri":"pool2/light_mat_metallicRoughness.png"
+			"uri":"Textures/pool2/light_mat_metallicRoughness.png"
 		},
 		{
 			"mimeType":"image/png",
 			"name":"cue_mat_normal",
-			"uri":"pool2/cue_mat_normal.png"
+			"uri":"Textures/pool2/cue_mat_normal.png"
 		},
 		{
 			"mimeType":"image/png",
 			"name":"cue_mat_baseColor",
-			"uri":"pool2/cue_mat_baseColor.png"
+			"uri":"Textures/pool2/cue_mat_baseColor.png"
 		},
 		{
 			"mimeType":"image/png",
 			"name":"cue_mat_metallicRoughness",
-			"uri":"pool2/cue_mat_metallicRoughness.png"
+			"uri":"Textures/pool2/cue_mat_metallicRoughness.png"
 		},
 		{
 			"mimeType":"image/png",
 			"name":"pool_table_mat_transmission",
-			"uri":"pool2/pool_table_mat_transmission.png"
+			"uri":"Textures/pool2/pool_table_mat_transmission.png"
 		},
 		{
 			"mimeType":"image/png",
 			"name":"pool_table_mat_normal",
-			"uri":"pool2/pool_table_mat_normal.png"
+			"uri":"Textures/pool2/pool_table_mat_normal.png"
 		},
 		{
 			"mimeType":"image/png",
 			"name":"pool_table_mat_baseColor",
-			"uri":"pool2/pool_table_mat_baseColor.png"
+			"uri":"Textures/pool2/pool_table_mat_baseColor.png"
 		},
 		{
 			"mimeType":"image/png",
 			"name":"pool_table_mat_metallicRoughness",
-			"uri":"pool2/pool_table_mat_metallicRoughness.png"
-		},
-		{
-			"mimeType":"image/png",
-			"name":"lambert2_normal",
-			"uri":"pool2/lambert2_normal.png"
-		},
-		{
-			"mimeType":"image/png",
-			"name":"lambert2_metallicRoughness",
-			"uri":"pool2/lambert2_metallicRoughness.png"
-		},
-		{
-			"mimeType":"image/png",
-			"name":"lambert2_baseColor",
-			"uri":"pool2/lambert2_baseColor.png"
+			"uri":"Textures/pool2/pool_table_mat_metallicRoughness.png"
 		}
 	],
 	"accessors":[
@@ -2096,40 +2039,6 @@
 			"componentType":5123,
 			"count":59862,
 			"type":"SCALAR"
-		},
-		{
-			"bufferView":68,
-			"componentType":5126,
-			"count":4,
-			"max":[
-				14.600181579589844,
-				3.2418915506737464e-15,
-				14.600181579589844
-			],
-			"min":[
-				-14.600181579589844,
-				-3.2418915506737464e-15,
-				-14.600181579589844
-			],
-			"type":"VEC3"
-		},
-		{
-			"bufferView":69,
-			"componentType":5126,
-			"count":4,
-			"type":"VEC3"
-		},
-		{
-			"bufferView":70,
-			"componentType":5126,
-			"count":4,
-			"type":"VEC2"
-		},
-		{
-			"bufferView":71,
-			"componentType":5123,
-			"count":6,
-			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
@@ -2540,30 +2449,6 @@
 			"byteLength":119724,
 			"byteOffset":554724,
 			"target":34963
-		},
-		{
-			"buffer":0,
-			"byteLength":48,
-			"byteOffset":674448,
-			"target":34962
-		},
-		{
-			"buffer":0,
-			"byteLength":48,
-			"byteOffset":674496,
-			"target":34962
-		},
-		{
-			"buffer":0,
-			"byteLength":32,
-			"byteOffset":674544,
-			"target":34962
-		},
-		{
-			"buffer":0,
-			"byteLength":12,
-			"byteOffset":674576,
-			"target":34963
 		}
 	],
 	"samplers":[
@@ -2574,7 +2459,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":674588,
+			"byteLength":674448,
 			"uri":"scene.bin"
 		}
 	]

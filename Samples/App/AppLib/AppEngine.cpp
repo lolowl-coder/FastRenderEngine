@@ -174,11 +174,14 @@ namespace app
     {
         STAT_CPU("Main thread");
 
+        OPTIONS;
+        mCameraPanSpeed = options.mCameraPanSpeed;
+        mCameraZoomSpeed = options.mCameraZoomSpeed;
+
         /*auto bgColor = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
         mRenderer->setClearColor(vec4(bgColor.x, bgColor.y, bgColor.z, 0.0f));*/
         mRenderer->setClearColor(vec4(0.0f, 0.0f, 0.0f, 0.0f));
         
-        OPTIONS;
         mLight.mDiffuseColor = vec3(options.mCommon.mDiffuseIntensity);
         mLight.mSpecularColor = vec3(options.mCommon.mSpecularIntensity);
         Engine::update();

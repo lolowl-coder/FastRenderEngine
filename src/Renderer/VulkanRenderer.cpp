@@ -14,6 +14,7 @@
 #include "UI/UIUtilities.hpp"
 #include "VulkanAccelerationStructure.hpp"
 #include "Camera.hpp"
+#include "Defines.hpp"
 #include "Log.hpp"
 #include "ThreadPool.hpp"
 #include "Timer.hpp"
@@ -380,9 +381,9 @@ namespace fre
 				samplerCreateInfo.mipLodBias = 0.0f;
 				samplerCreateInfo.minLod = 0.0f;
 				samplerCreateInfo.maxLod = static_cast<float>(key.mMipLevelCount);
-				samplerCreateInfo.anisotropyEnable = VK_TRUE;
+				samplerCreateInfo.anisotropyEnable = VK_FALSE;
 				//Anisotropy sample level
-				samplerCreateInfo.maxAnisotropy = 16.0f;
+				samplerCreateInfo.maxAnisotropy = 0.0f;
 
 				VkSampler result = VK_NULL_HANDLE;
 				VK_CHECK(vkCreateSampler(mainDevice.logicalDevice, &samplerCreateInfo, nullptr, &result));
@@ -1936,13 +1937,16 @@ namespace fre
 			{
 				uint32_t dslId = createDescriptorSetLayout(layoutInfo);
 				shader.mDSLs.push_back(dslId);
-				for(const auto dt : layoutInfo.mDescriptorTypes)
+				for(int i = 0; i < layoutInfo.mDescriptorTypes.size(); i++)
+				//for(const auto dt : layoutInfo.mDescriptorTypes)
 				{
+					const auto dt = layoutInfo.mDescriptorTypes[i];
+					const auto cnt = layoutInfo.mDescriptorCount[i];
 					if(descriptorTypes.find(dt) == descriptorTypes.end())
 					{
 						descriptorTypes[dt] = 0;
 					}
-					descriptorTypes[dt]++;
+					descriptorTypes[dt] += cnt;
 				}
 			}
 		}
@@ -2864,7 +2868,7 @@ namespace fre
 			ai_real emissiveFactor = 1.0f;
 			AI_CHECK(externalMaterial->Get("$mat.emissiveIntensity", 0, 0, emissiveFactor));
 			material.mEmissiveFactor *= emissiveFactor;
-			LOG_INFO("*****Emissive factor {}, {}, {}", material.mEmissiveFactor.x, material.mEmissiveFactor.y, material.mEmissiveFactor.z);
+			//LOG_INFO("Emissive factor {}, {}, {}", material.mEmissiveFactor.x, material.mEmissiveFactor.y, material.mEmissiveFactor.z);
 
 			//Look at textures we are interested in
 			for(uint32_t i = 1; i < aiTextureType_UNKNOWN; i++)
@@ -2886,7 +2890,7 @@ namespace fre
 						int numChannels;
 						Image::getInfo(image.mFileName, imageDimensions, format, numChannels);
 						auto textureInfoId = createTextureInfo(
-							VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_IMAGE_TILING_OPTIMAL,
+							VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_IMAGE_TILING_OPTIMAL,
 							VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 							VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, image,
 							getMipLevelCount(imageDimensions));

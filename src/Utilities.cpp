@@ -507,8 +507,28 @@ namespace fre
 		}
 	}
 
+    glm::vec2 toVec2(const ImVec2& v)
+    {
+        return glm::vec2(v.x, v.y);
+    }
+
+    glm::vec4 toVec4(const ImVec4& v)
+    {
+        return glm::vec4(v.x, v.y, v.z, v.w);
+    }
+
 	glm::vec4 toVec4(const aiColor4D& aiColor)
 	{
 		return glm::vec4(aiColor.r, aiColor.g, aiColor.b, aiColor.a);
 	}
+
+	ImVec2 toImVec2(const glm::vec2& v)
+    {
+        return ImVec2(v.x, v.y);
+    }
+	
+    ImVec4 toImVec4(const glm::vec4& v)
+    {
+        return ImVec4(v.x, v.y, v.z, v.w);
+    }
 }

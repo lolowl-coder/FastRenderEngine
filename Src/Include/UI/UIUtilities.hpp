@@ -24,7 +24,4 @@ namespace app
 	bool sliderFloat(const float mn, const float mx, const char* text, float& value, const char* format = "%.3f");
 
 	void constrainedWindow(const char* text, glm::vec2& winPos, glm::vec2& winSize, const fre::BoundingBox2D& constraints);
-	
-	ImVec2 toImVec2(const glm::vec2& v);
-	glm::vec2 toVec2(const ImVec2& v);
 }

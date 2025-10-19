@@ -112,7 +112,8 @@ namespace fre
 	
     void getInfoFromPngOrJpg(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
     {
-		stbi_info(fileName.c_str(), &size.x, &size.y, &numChannels);
+		FS;
+		stbi_info(fs.find(fileName.c_str()).c_str(), &size.x, &size.y, &numChannels);
 
 		switch(numChannels)
 		{

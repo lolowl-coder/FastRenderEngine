@@ -45,40 +45,48 @@ struct EmissiveTriangle
 
 struct DynamicDataBlock
 {
-	mat4 viewInverse;
-	mat4 projInverse;
-	mat4 prevPV;
-	mat4 PV;
+	mat4 mViewInverse;
+	mat4 mProjInverse;
+	//mat4 prevPV;
+	//mat4 PV;
 	//x - main light intensity
 	//y - lamp light intensity
 	//z - enable GI
 	//w - enable Area lights
-	vec4 lightingSettings;
-	vec4 lightPos;
-	int maxRayDepth;
-	int giSamples;
-	int emissiveSamples;
+	vec4 mLightingSettings;
+	vec4 mLightPos;
+	vec4 mLightColor;
+	vec4 mBackgroundColor;
+	//RT settings
+	//mMaxRayDepth
+	//mGiSamples
+	//mEmissiveSamples
+	//mLodDistanceRatio
+	vec4 mRTSettings;
+	float mFireflyThreshold;
+	float mUseToksvig;
+	int mDebugMode;
 };
 
 // DynamicDataBlock getters
 float getMainLightIntensity(in DynamicDataBlock data)
 {
-    return data.lightingSettings.x;
+    return data.mLightingSettings.x;
 }
 
 float getAmbientLightIntensity(in DynamicDataBlock data)
 {
-    return data.lightingSettings.y;
+    return data.mLightingSettings.y;
 }
 
 bool getGIEnabled(in DynamicDataBlock data)
 {
-    return abs(data.lightingSettings.z) > 0.01;
+    return abs(data.mLightingSettings.z) > 0.01;
 }
 
 bool getAreaLightsEnabled(in DynamicDataBlock data)
 {
-    return abs(data.lightingSettings.w) > 0.01;
+    return abs(data.mLightingSettings.w) > 0.01;
 }
 
 #endif

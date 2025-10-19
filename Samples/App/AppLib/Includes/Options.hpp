@@ -25,6 +25,8 @@ namespace fre
         } mCommon;
 
         bool mEnableStat = true;
+        float mCameraPanSpeed = 0.002f;
+        float mCameraZoomSpeed = 0.25f;
 		
         void save();
         void load();

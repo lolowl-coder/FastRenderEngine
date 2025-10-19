@@ -11,6 +11,8 @@
 #include "UI/UIUtilities.hpp"
 #include "Camera.hpp"
 #include "CudaUtilities.hpp"
+#include "Defines.hpp"
+#include "Options.hpp"
 #include "Utilities.hpp"
 
 #include<memory>
@@ -54,8 +56,8 @@ namespace app
 					static int selectedIndex = -1;
 
 					//const std::string lightMatName = "light_mat";
-					const std::string lightMatName = "Lantern";
-					if(ImGui::TreeNodeEx("Materials", 0, "Materials"))
+					const std::string lightMatName = "light_mat";
+					/*if(ImGui::TreeNodeEx("Materials", 0, "Materials"))
 					{
 						for(int i = 0; i < mMaterials.size(); i++)
 						{
@@ -107,7 +109,8 @@ namespace app
 						}
 
 						ImGui::TreePop();
-					}
+					}*/
+					ImGui::Text("Ray tracing");
 					{
 						bool tmp = mDynamicData.mLightingSettins.z;
 						ImGui::Checkbox("Enable GI", &tmp);
@@ -123,8 +126,13 @@ namespace app
 						setHasExternalResources(mIsDenoiserEnabled);
 					}
 					//ImGui::Checkbox("Temporal mode", &mTemporalMode);
+					sliderFloat(1.0f, 16.0f, "Max ray depth", mDynamicData.mRTSettings.x);
+					sliderFloat(1.0f, 64.0f, "GI samples", mDynamicData.mRTSettings.y);
+					sliderFloat(1.0f, 64.0f, "Emissive samples", mDynamicData.mRTSettings.z);
+
+					ImGui::Text("Lighting");
 					sliderFloat(0.0f, 100.0f, "Main ligth intensity", mDynamicData.mLightingSettins.x, "%.2f");
-					sliderFloat(0.0f, 1.0f, "Ambient intensity", mDynamicData.mLightingSettins.y, "%.2f");
+					sliderFloat(0.0f, 10.0f, "Ambient intensity", mDynamicData.mLightingSettins.y, "%.2f");
                     auto& itr = std::find_if(mMaterials.begin(), mMaterials.end(), [&lightMatName](const Material& mat) { return mat.mName == lightMatName; });
                     if(itr != mMaterials.end())
 					{
@@ -135,12 +143,22 @@ namespace app
 							changed = true;
 						}
 					}
-					inputFloat(-1000.0f, 1000.0f, "Main light position: x", mDynamicData.mLightPos.x);
+					ImGui::Text("Main light position");
+					inputFloat(-1000.0f, 1000.0f, "x", mDynamicData.mLightPos.x);
 					inputFloat(-1000.0f, 1000.0f, "y", mDynamicData.mLightPos.y);
 					inputFloat(-1000.0f, 1000.0f, "z", mDynamicData.mLightPos.z);
-					sliderInt(1, 64, "Max ray depth", mDynamicData.mMaxRayDepth);
-					sliderInt(1, 64, "GI samples", mDynamicData.mGiSamples);
-					sliderInt(1, 64, "Emissive samples", mDynamicData.mEmissiveSamples);
+					sliderFloat(0.0f, 10.0f, "Lod distance ratio", mDynamicData.mRTSettings.w);
+					ImGui::ColorEdit3("Main Light color", (float*)&mDynamicData.mLightColor.x, ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoAlpha);
+
+					ImGui::Text("Camera");
+					OPTIONS;
+					sliderFloat(0.00001f, 10.0f, "Pan speed", options.mCameraPanSpeed, "%.7f");
+					sliderFloat(0.00001f, 10.0f, "Zoom speed", options.mCameraZoomSpeed, "%.7f");
+					ImGui::ColorEdit3("Background color", (float*)&mDynamicData.mBackgroundColor.x, ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoAlpha);
+					sliderFloat(0.0f, 10.0f, "Firefly threshold", mDynamicData.mFireflyThreshold, "%.2f");
+					ImGui::InputFloat("Use Toksvig", &mDynamicData.mUseToksvig);
+					ImGui::Combo("Debug mode", &mDynamicData.mDebugMode, "Off\0Normals\0Albedo\0Roughness\0Metallic\0Emissive\0Ray distance\0");
+					ImGui::Separator();
 					if(ImGui::Button("Restore defaults"))
 					{
 						selectedIndex = -1;
@@ -257,8 +275,8 @@ namespace app
 
 		mDynamicData.mViewInverse = glm::inverse(camera.mView);
 		mDynamicData.mProjInverse = glm::inverse(camera.mProjection);
-		mDynamicData.mPrevPV = camera.mProjection * camera.mPrevView;
-		mDynamicData.mPV = camera.mProjection * camera.mView;
+		//mDynamicData.mPrevPV = camera.mProjection * camera.mPrevView;
+		//mDynamicData.mPV = camera.mProjection * camera.mView;
 
         mBufferManager.udpateBuffer(mainDevice.logicalDevice, mDynamicDataBufferIndex, &mDynamicData, sizeof(mDynamicData));
 
@@ -455,18 +473,20 @@ namespace app
 		//mMeshModel = createMeshModel("Models/unitQuad/unitQuad.obj", {});
 		//mMeshModel = createMeshModel("Models/unitCube/unitCube.obj", {});
         //mat4 sceneTransform = rotate(mat4(1.0f), glm::half_pi<float>(), vec3(1.0f, 0.0f, 0.0f));
-		//mMeshModel = createMeshModel("Models/pool2/scene.gltf",
+		mMeshModel = createMeshModel("Models/pool2/scene.gltf",
 		//mMeshModel = createMeshModel("Models/unreal/scene.gltf",
-		mMeshModel = createMeshModel("Models/mobileHome/scene.gltf",
+		//mMeshModel = createMeshModel("Models/mobileHome/scene.gltf",
+		//mMeshModel = createMeshModel("Models/dreadroamer/scene.gltf",
 			{
 				aiTextureType_NORMALS, aiTextureType_BASE_COLOR, aiTextureType_METALNESS,
 				aiTextureType_EMISSIVE, aiTextureType_AMBIENT_OCCLUSION, aiTextureType_LIGHTMAP
-			}, mat4(0.1f));
+			}, mat4(1.0f));
 		mMeshModel->setVisible(false);
         auto shaderId = addShader("rt");
         mShadowMissShaderId = addShader("shadow");
 
 		mat4 sceneTransform = rotate(mat4(1.0f), glm::half_pi<float>(), vec3(1.0f, 0.0f, 0.0f));
+		//mat4 sceneTransform = mat4(1.0f);
 		sceneTransform = translate(sceneTransform, vec3(-mSceneBoundingBox.getCenter()));
 		//mat4 sceneTransform = mat4(1.0f);
 
@@ -558,7 +578,7 @@ namespace app
 		}
 		mTextureViews[textureId] = texture->mImageView;
 		auto& textureInfo = getTextureInfo(textureId);
-		auto samplerIndex = createSampler({ VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_FILTER_LINEAR, VK_FALSE, textureInfo->mMipLevelCount });
+		auto samplerIndex = createSampler({ VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_FILTER_LINEAR, VK_FALSE, textureInfo->mMipLevelCount });
 		auto sampler = getSampler(samplerIndex);
 		if(textureId >= mTextureSamplers.size())
 		{

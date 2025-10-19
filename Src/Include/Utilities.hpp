@@ -22,16 +22,12 @@
 
 #include <glm/glm.hpp>
 
-#define SCENE_SCALE 1.0f
 constexpr double PI = 3.14159265358979323846;
 
 #define WM_CUSTOM_MESSAGE (WM_USER + 1)
 
 namespace fre
 {
-	const int MAX_FRAMES_IN_FLIGHT = 3;
-	const int MAX_OBJECTS = 256;
-	const int MAX_POOL_CAPACITY = 256;
 	const EAttachmentKind COLOR_ATTACHMENT = EAttachmentKind::Color;
 	const EAttachmentKind POSITION_ATTACHMENT = EAttachmentKind::Color16;
 	const EAttachmentKind DEPTH_ATTACHMENT = EAttachmentKind::DepthStencil;
@@ -248,5 +244,13 @@ namespace fre
 
 	std::string aiShadingModeToString(aiShadingMode mode);
 
+	glm::vec2 toVec2(const ImVec2& v);
+
 	glm::vec4 toVec4(const aiColor4D& aiColor);
+
+	glm::vec4 toVec4(const ImVec4& v);
+
+	ImVec2 toImVec2(const glm::vec2& v);
+
+	ImVec4 toImVec4(const glm::vec4& v);
 }

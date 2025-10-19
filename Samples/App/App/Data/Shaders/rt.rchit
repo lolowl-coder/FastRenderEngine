@@ -21,8 +21,8 @@ layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions o
 layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indices
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
-layout(set = 0, binding = 5) uniform DynamicData { DynamicDataBlock dynamicData; };
-layout(set = 0, binding = 6) buffer SceneDesc { Mesh i[]; } sceneDesc;
+layout(set = 0, binding = 5, scalar) uniform DynamicData { DynamicDataBlock dynamicData; };
+layout(set = 0, binding = 6, scalar) buffer SceneDesc { Mesh i[]; } sceneDesc;
 layout(set = 0, binding = 7, scalar) buffer GlobalMaterials { Material i[]; } materials;
 // Scene textures
 layout(set = 0, binding = 8) uniform sampler2D textures[];
@@ -39,7 +39,7 @@ vec3  saturate(vec3  v) { return clamp(v, vec3(0.0), vec3(1.0)); }
 float getLod(int texId)
 {
     // Compute mip level
-    const float distanceRatio = 3.0;
+    const float distanceRatio = dynamicData.mRTSettings.w;
     float lod = clamp(log2(gl_HitTEXT * distanceRatio), 0.0, float(textureQueryLevels(textures[texId]) - 1));
 
     return lod;
@@ -50,7 +50,7 @@ float getLod(int texId)
 // Tangent.w is expected to be the handedness (+1 / -1). If you don't have it, use +1.
 vec3 getWorldNormal(Material mat, int normalTexIndex,
     vec3 objN, vec4 objT, vec2 uv,
-    mat4x3 objectToWorld, out vec3 T, out vec3 B, out vec3 N)
+    mat4x3 objectToWorld, out vec3 T, out vec3 B, out vec3 N, out vec3 nTex, out float nLen)
 {
     // Orthonormalize T against N
     N = normalize(objN);
@@ -59,17 +59,18 @@ vec3 getWorldNormal(Material mat, int normalTexIndex,
 
     mat3 TBN = mat3(T, B, N);
 
-    vec3 n = vec3(0.0, 0.0, 1.0);
+    nTex = vec3(0.0, 0.0, 1.0);
     if(normalTexIndex >= 0) {
         // Tangent-space normal in [0,1] -> [-1,1]
 		float lod = getLod(normalTexIndex);
-        n = textureLod(textures[normalTexIndex], uv, lod).xyz * 2.0 - 1.0;
-        n.xy *= mat.mNormalScale;
-        n = normalize(n);
+        nTex = textureLod(textures[normalTexIndex], uv, lod).xyz * 2.0 - 1.0;
+		nLen = length(nTex);
+        nTex.xy *= mat.mNormalScale;
+        nTex = normalize(nTex);
     }
 
     // To OBJECT space
-    vec3 nObj = normalize(TBN * n);
+    vec3 nObj = normalize(TBN * nTex);
     // To WORLD space (w = 0 for direction)
     vec3 nWorld = normalize(inverse(transpose(mat3(gl_ObjectToWorldEXT))) * nObj);
     //vec3 nWorld = normalize((objectToWorld * vec4(nObj, 0.0)).xyz);
@@ -129,6 +130,9 @@ vec2 sampleMetallicRoughness(const Material m, vec2 uv) {
 }
 
 float sampleAO(const Material m, vec2 uv) {
+    //In ray tracing AO is calculated automatically.
+    //Later, we can use this texture to reduce samples count.
+    return 1.0;
     if(m.mOcclusionTex >= 0)
     {
 		float lod = getLod(m.mOcclusionTex);
@@ -187,6 +191,15 @@ vec3 BRDF_PBR(const PBRInputs I) {
     return (diff + spec) * I.radiance * NdotL;
 }
 
+void clampFireflies(inout vec3 color)
+{
+    float lum = dot(color, vec3(1.0F / 3.0F));
+    if(lum > dynamicData.mFireflyThreshold)
+    {
+        color *= dynamicData.mFireflyThreshold / lum;
+    }
+}
+
 // --------------------------- Full shading entry ------------------------------
 // Example directional light. For point/spot, compute L and radiance accordingly.
 vec3 shadeGLTF(
@@ -239,14 +252,16 @@ vec3 shadeGLTF(
     }*/
 
     // Ambient factor
-    float af = getAmbientLightIntensity(dynamicData); //0.03 by default. Increased because of dark result
-    // Simple ambient term (you can replace with IBL)
+    float af = getAmbientLightIntensity(dynamicData);
+    // Simple ambient term (can be replaced with IBL)
     vec3 ambient = I.baseColor * (1.0 - I.metallic) * af * ao;
 
     // Alpha (if you need it for blending/masking)
     // float alpha = base.a;
 
-    return Lo + ambient + emissive;
+    vec3 result = Lo + ambient + emissive;
+    clampFireflies(result);
+    return result;
 }
 
 // Get a random emissive triangle that faces the view direction V
@@ -327,15 +342,12 @@ vec3 nee(
         vec3 xL;
         vec2 lightUV;
         vec3 nTri;
+        // 1) Get random emissive triangle
         EmissiveTriangle tri = getEmissiveTriangle(sampleIdx, P, lightUV, nTri, e1, e2, xL);
 
-        Material emissiveTriMat = materials.i[tri.matIndex];
-        vec3 lightEmissive = sampleEmissive(emissiveTriMat, lightUV)/* * 3.5*/;
-
-        // direction to light sample
+        // 2) Direction to light sample
         vec3 wi = normalize(xL - P);
         float dist = length(xL - P);
-        float dist2 = max(dist * dist, 1e-6);
 
         // 3) Visibility test (shadow ray to xL)
         //    Set tMax to dist - eps so we only count blockers strictly before the light
@@ -355,14 +367,15 @@ vec3 nee(
             visible = !isShadowed;
         }
 
-        //if(visible)
+        if(visible)
         {
             // 4) Geometry term (need light normal; approximate from triangle)
             float cosLo = max(dot(N, wi), 0.0);
             float cosLi = max(dot(nTri, -wi), 0.0);
 
             // 5) BRDF at the hit point toward the light
-
+            Material emissiveTriMat = materials.i[tri.matIndex];
+            vec3 lightEmissive = sampleEmissive(emissiveTriMat, lightUV);
             vec3 f = shadeGLTF(
                 objMat, objUV, P, V, gl_ObjectToWorldEXT,
                 wi, lightEmissive, // light direction & radiance
@@ -381,10 +394,9 @@ vec3 nee(
             float pdfA = (1.0 / numTris) * (1.0 / max(tri.area, 1e-8));
 
             // Convert area-PDF to solid-angle factor via geometry term
-            //Lo_direct += lightEmissive * f * (cosLo * cosLi) / (max(dist2 * pdfA, 1e-6));
-            vec3 contrib = f * cosLi/* / max(dist2 * pdfA, 1e-6)*/;
-
-            Lo_direct += contrib;
+            float dist2 = max(dist * dist, 1e-6);
+            Lo_direct += f * (cosLo * cosLi) / (max(dist2 * pdfA, 1e-6));
+            clampFireflies(Lo_direct);
         }
     }
 
@@ -394,11 +406,11 @@ vec3 nee(
 void processEmissives(Material objMat, vec2 objUV, vec3 P, vec3 N_world, vec3 V_world, vec4 base, vec3 emissive, vec2 mr)
 {
     vec3 neeEmissiveContrib = vec3(0.0);
-    for(int i = 0; i < dynamicData.emissiveSamples; i++)
+    for(int i = 0; i < int(dynamicData.mRTSettings.z); i++)
     {
         neeEmissiveContrib += nee(i, objMat, objUV, P, N_world, V_world, base, emissive, mr);
     }
-    neeEmissiveContrib /= float(dynamicData.emissiveSamples);
+    neeEmissiveContrib /= dynamicData.mRTSettings.z;
     payload.radiance += neeEmissiveContrib;
 }
 
@@ -407,7 +419,7 @@ void processGI(vec3 P, vec3 T, vec3 B, vec3 N)
     vec3 giContrib = vec3(0.0);
     Payload old = payload;
     payload.depth++;
-    for(int i = 0; i < dynamicData.giSamples; i++)
+    for(int i = 0; i < int(dynamicData.mRTSettings.y); i++)
     {
         float tMin = 0.001;
         // infinite
@@ -436,8 +448,9 @@ void processGI(vec3 P, vec3 T, vec3 B, vec3 N)
             0                  // payload (location = 0, 1)
         );
         giContrib += min(vec3(2.5), payload.radiance);
+        clampFireflies(giContrib);
     }
-    giContrib /= float(dynamicData.giSamples);
+    giContrib /= dynamicData.mRTSettings.y;
     payload = old;
     payload.radiance += giContrib;
 }
@@ -484,14 +497,16 @@ void main()
     vec3 T;
     vec3 B;
     vec3 N;
-    vec3 N_world = getWorldNormal(objMat, objMat.mNormalTex, vNormal, vec4(vTangent, 1.0), objUV, gl_ObjectToWorldEXT, T, B, N);
+    vec3 nTex;
+    float nLen;
+    vec3 N_world = getWorldNormal(objMat, objMat.mNormalTex, vNormal, vec4(vTangent, 1.0), objUV, gl_ObjectToWorldEXT, T, B, N, nTex, nLen);
 
     // Computing the coordinates of the hit position
     vec3 P = v0.mPos.xyz * barycentrics.x + v1.mPos.xyz * barycentrics.y + v2.mPos.xyz * barycentrics.z;
     P = vec3(gl_ObjectToWorldEXT * vec4(P, 1.0));        // Transforming the position to world space
 
     // Hardocded light position
-    vec3 lightPos = dynamicData.lightPos.xyz;
+    vec3 lightPos = dynamicData.mLightPos.xyz;
     // To light direction
     vec3 L = normalize(lightPos - P);
 
@@ -499,6 +514,22 @@ void main()
     vec2 mr = sampleMetallicRoughness(objMat, objUV);
     float metallness = mr.x;
     float roughness = mr.y;
+
+    /*if(dynamicData.mUseToksvig > 0)
+    {
+        float variance = dot(nTex, nTex) - 1.0; // local deviation measure
+        float filteredRoughness = sqrt(roughness * roughness + variance);
+        mr.y = filteredRoughness;
+    }
+
+    float toksvigFactor = (1.0 - nLen) / max(nLen, 1e-6);
+    roughness = sqrt(roughness * roughness + dynamicData.useToksvig * toksvigFactor);
+
+    // Clamp to valid range
+    roughness = clamp(roughness, 0.0, 1.0);
+
+    mr.y = roughness;*/
+
     // Tracing shadow ray only if the light is visible from the surface
     // TODO: learn more about back face check. Not shure if we need it here
     if(NdotL > 0.0)
@@ -528,7 +559,7 @@ void main()
     vec4 base = sampleBaseColor(objMat, objUV);
     payload.albedo = base.rgb;
     vec3 emissive = sampleEmissive(objMat, objUV);
-    vec3 lightRadiance = vec3(1.0, 1.0, 0.9) * getMainLightIntensity(dynamicData); // light radiance at P (includes intensity & attenuation)
+    vec3 lightRadiance = dynamicData.mLightColor.rgb * getMainLightIntensity(dynamicData); // light radiance at P (includes intensity & attenuation)
     vec3 directLightContrib = shadeGLTF(
         objMat, objUV, P, V_world, gl_ObjectToWorldEXT,
         L, lightRadiance, // light direction & radiance
@@ -558,9 +589,34 @@ void main()
 	vec3 rayDir = reflect(gl_WorldRayDirectionEXT, N_world);
     if(payload.depth == 0)
     {
-        payload.attenuation *= metallness;
+        payload.attenuation *= 0.5 * metallness;
     }
     payload.rayOrigin = P;
     payload.rayDir = rayDir;
     payload.normal = N_world;
+
+    if(dynamicData.mDebugMode == 1)
+    {
+		payload.radiance = N_world;
+    }
+    else if(dynamicData.mDebugMode == 2)
+    {
+        payload.radiance = payload.albedo;
+    }
+    else if(dynamicData.mDebugMode == 3)
+    {
+        payload.radiance = vec3(mr.y);
+	}
+    else if(dynamicData.mDebugMode == 4)
+    {
+        payload.radiance = vec3(mr.x);
+	}
+    else if(dynamicData.mDebugMode == 5)
+    {
+        payload.radiance = emissive;
+	}
+    else if(dynamicData.mDebugMode == 6)
+    {
+        payload.radiance = vec3(gl_HitTEXT / 10.0);
+	}
 }
