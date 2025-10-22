@@ -21,13 +21,13 @@ layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions o
 layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indices
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
-layout(set = 0, binding = 5, scalar) uniform DynamicData { DynamicDataBlock dynamicData; };
-layout(set = 0, binding = 6, scalar) buffer SceneDesc { Mesh i[]; } sceneDesc;
-layout(set = 0, binding = 7, scalar) buffer GlobalMaterials { Material i[]; } materials;
+layout(set = 0, binding = 4, scalar) uniform DynamicData { DynamicDataBlock dynamicData; };
+layout(set = 0, binding = 5, scalar) buffer SceneDesc { Mesh i[]; } sceneDesc;
+layout(set = 0, binding = 6, scalar) buffer GlobalMaterials { Material i[]; } materials;
 // Scene textures
-layout(set = 0, binding = 8) uniform sampler2D textures[];
+layout(set = 0, binding = 7) uniform sampler2D textures[];
 // Emissive objects triangles
-layout(set = 0, binding = 9, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
+layout(set = 0, binding = 8, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
 // clang-format on
 
 // --------------------------- math helpers -----------------------------------
@@ -50,7 +50,7 @@ float getLod(int texId)
 // Tangent.w is expected to be the handedness (+1 / -1). If you don't have it, use +1.
 vec3 getWorldNormal(Material mat, int normalTexIndex,
     vec3 objN, vec4 objT, vec2 uv,
-    mat4x3 objectToWorld, out vec3 T, out vec3 B, out vec3 N, out vec3 nTex, out float nLen)
+    mat4x3 objectToWorld, out vec3 T, out vec3 B, out vec3 N)
 {
     // Orthonormalize T against N
     N = normalize(objN);
@@ -59,12 +59,11 @@ vec3 getWorldNormal(Material mat, int normalTexIndex,
 
     mat3 TBN = mat3(T, B, N);
 
-    nTex = vec3(0.0, 0.0, 1.0);
+    vec3 nTex = vec3(0.0, 0.0, 1.0);
     if(normalTexIndex >= 0) {
         // Tangent-space normal in [0,1] -> [-1,1]
 		float lod = getLod(normalTexIndex);
         nTex = textureLod(textures[normalTexIndex], uv, lod).xyz * 2.0 - 1.0;
-		nLen = length(nTex);
         nTex.xy *= mat.mNormalScale;
         nTex = normalize(nTex);
     }
@@ -455,6 +454,19 @@ void processGI(vec3 P, vec3 T, vec3 B, vec3 N)
     payload.radiance += giContrib;
 }
 
+vec3 getLightPosJitter()
+{
+    uvec2 launchID = gl_LaunchIDEXT.xy;
+    uvec2 launchSize = gl_LaunchSizeEXT.xy;
+    uint pixelIndex = launchID.x + launchID.y * launchSize.x;
+    uint hashedIdx = wangHash(pixelIndex);
+
+    float x = halton(hashedIdx, 2u);
+    float y = halton(hashedIdx, 3u);
+    float z = halton(hashedIdx, 5u);
+    return vec3(x, y, z) * dynamicData.mLightPos.w;
+}
+
 void main()
 {
     if(payload.depth > 1)
@@ -497,16 +509,13 @@ void main()
     vec3 T;
     vec3 B;
     vec3 N;
-    vec3 nTex;
-    float nLen;
-    vec3 N_world = getWorldNormal(objMat, objMat.mNormalTex, vNormal, vec4(vTangent, 1.0), objUV, gl_ObjectToWorldEXT, T, B, N, nTex, nLen);
+    vec3 N_world = getWorldNormal(objMat, objMat.mNormalTex, vNormal, vec4(vTangent, 1.0), objUV, gl_ObjectToWorldEXT, T, B, N);
 
     // Computing the coordinates of the hit position
     vec3 P = v0.mPos.xyz * barycentrics.x + v1.mPos.xyz * barycentrics.y + v2.mPos.xyz * barycentrics.z;
     P = vec3(gl_ObjectToWorldEXT * vec4(P, 1.0));        // Transforming the position to world space
 
-    // Hardocded light position
-    vec3 lightPos = dynamicData.mLightPos.xyz;
+    vec3 lightPos = dynamicData.mLightPos.xyz + getLightPosJitter();
     // To light direction
     vec3 L = normalize(lightPos - P);
 
@@ -514,21 +523,6 @@ void main()
     vec2 mr = sampleMetallicRoughness(objMat, objUV);
     float metallness = mr.x;
     float roughness = mr.y;
-
-    /*if(dynamicData.mUseToksvig > 0)
-    {
-        float variance = dot(nTex, nTex) - 1.0; // local deviation measure
-        float filteredRoughness = sqrt(roughness * roughness + variance);
-        mr.y = filteredRoughness;
-    }
-
-    float toksvigFactor = (1.0 - nLen) / max(nLen, 1e-6);
-    roughness = sqrt(roughness * roughness + dynamicData.useToksvig * toksvigFactor);
-
-    // Clamp to valid range
-    roughness = clamp(roughness, 0.0, 1.0);
-
-    mr.y = roughness;*/
 
     // Tracing shadow ray only if the light is visible from the surface
     // TODO: learn more about back face check. Not shure if we need it here

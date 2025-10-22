@@ -7,7 +7,7 @@
 #include "Common.h"
 
 layout(location = 0) rayPayloadInEXT Payload payload;
-layout(set = 0, binding = 5, scalar) uniform DynamicData { DynamicDataBlock dynamicData; };
+layout(set = 0, binding = 4, scalar) uniform DynamicData { DynamicDataBlock dynamicData; };
 
 void main()
 {

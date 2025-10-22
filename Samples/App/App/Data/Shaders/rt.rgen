@@ -4,14 +4,18 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 #include "Common.h"
+#include "Constants.h"
+#include "Rnd.h"
 #include "Payload.h"
+
+#define ANTIALIASING_STANDARD_DEVIATION 0.4246609F
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
 layout(set = 0, binding = 1, rgba32f) uniform image2D colorImage;
 layout(set = 0, binding = 2, rgba32f) uniform image2D albedoImage;
 layout(set = 0, binding = 3, rgba32f) uniform image2D normalImage;
-layout(set = 0, binding = 4, rgba32f) uniform image2D flowImage;
-layout(set = 0, binding = 5, scalar) uniform DynamicData { DynamicDataBlock dynamicData; };
+//layout(set = 0, binding = 4, rgba32f) uniform image2D flowImage;
+layout(set = 0, binding = 4, scalar) uniform DynamicData { DynamicDataBlock dynamicData; };
 
 layout(location = 0) rayPayloadEXT Payload payload;
 
@@ -38,51 +42,79 @@ void computeFlow(vec3 worldHitPos, bool done)
 }
 */
 
+vec2 sampleGaussian(vec2 u)
+{
+  const float r     = sqrt(-2.0f * log(max(1e-38f, u.x)));  // Radius
+  const float theta = 2.0f * M_PI * u.y;                    // Angle
+  return r * vec2(cos(theta), sin(theta));
+}
+
+vec2 getSubpixelJitter(const int sampleIndex)
+{
+	const uvec2 launchID = gl_LaunchIDEXT.xy;
+	const uvec2 launchSize = gl_LaunchSizeEXT.xy;
+	const uint pixelIndex = launchID.x + launchID.y * launchSize.x;
+	const uint pixelHash = wangHash(pixelIndex * 1896537 + sampleIndex);
+	const float u = halton(pixelHash, 2u);
+	const float v = halton(pixelHash, 3u);
+	const vec2 subpixelJitter = ANTIALIASING_STANDARD_DEVIATION * sampleGaussian(vec2(u, v));
+
+	return subpixelJitter;
+}
+
 void main() 
 {
-	const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
-	const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
-	vec2 d = inUV * 2.0 - 1.0;
+	vec3 color = vec3(0.0);
+	vec3 albedo = vec3(0.0);
+	vec3 normal = vec3(0.0);
 
-	vec4 origin = dynamicData.mViewInverse * vec4(0,0,0,1);
-	vec4 target = dynamicData.mProjInverse * vec4(d.x, d.y, 1, 1);
-	vec4 direction = dynamicData.mViewInverse*vec4(normalize(target.xyz), 0) ;
-
-	float tmin = 0.001;
-	float tmax = 1e32;
-
-	payload.rayOrigin = origin.xyz;
-	payload.rayDir = direction.xyz;
-	payload.radiance = vec3(0.0);
-	payload.albedo = vec3(0.0);
-	payload.normal = vec3(0.0);
-	payload.attenuation = vec3(1.0);
-	//payload.rngState = uint(gl_LaunchIDEXT.x * 1973u ^ gl_LaunchIDEXT.y * 9277u ^ 89173u);
-	payload.done = 0;
-	payload.depth = 0;
-    payload.weight = 1.0;
-
-    vec3 color = vec3(0.0);
-	vec3 worldHitPos = vec3(0.0);
-
-	for(int depth = 0; depth < int(dynamicData.mRTSettings.x); depth++)
+    for(int i = 0; i < dynamicData.mAASamples; i++)
 	{
-		traceRayEXT(
-			topLevelAS,
-			gl_RayFlagsCullBackFacingTrianglesEXT,
-			0xff, 0, 0, 0,
-			payload.rayOrigin, tmin,
-			payload.rayDir, tmax,
-			0);
-		color += payload.radiance;
-		if(depth == 0)
-		{
-			worldHitPos = payload.rayOrigin;
-		}
-		if(payload.done == 1 || length(payload.attenuation) < 0.001)
-			break;
-	}
+		const vec2 subpixelJitter = (dynamicData.mAASamples > 1) ? getSubpixelJitter(i) : vec2(0.0, 0.0);
+		const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5) + subpixelJitter;
+		const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
+		vec2 d = inUV * 2.0 - 1.0;
 
+		vec4 origin = dynamicData.mViewInverse * vec4(0,0,0,1);
+		payload.rayOrigin = origin.xyz;
+		vec4 target = dynamicData.mProjInverse * vec4(d.x, d.y, 1, 1);
+		vec4 direction = dynamicData.mViewInverse*vec4(normalize(target.xyz), 0) ;
+
+		float tmin = 0.001;
+		float tmax = 1e32;
+
+		payload.rayDir = direction.xyz;
+		payload.radiance = vec3(0.0);
+		payload.albedo = vec3(0.0);
+		payload.normal = vec3(0.0);
+		payload.attenuation = vec3(1.0);
+		//payload.rngState = uint(gl_LaunchIDEXT.x * 1973u ^ gl_LaunchIDEXT.y * 9277u ^ 89173u);
+		payload.done = 0;
+		payload.depth = 0;
+
+		vec3 worldHitPos = vec3(0.0);
+		vec3 sampleColor = vec3(0.0);
+		for(int depth = 0; depth < int(dynamicData.mRTSettings.x); depth++)
+		{
+			traceRayEXT(
+				topLevelAS,
+				gl_RayFlagsCullBackFacingTrianglesEXT,
+				0xff, 0, 0, 0,
+				payload.rayOrigin, tmin,
+				payload.rayDir, tmax,
+				0);
+			sampleColor += payload.radiance;
+			if(depth == 0)
+			{
+				worldHitPos = payload.rayOrigin;
+			}
+			if(payload.done == 1 || length(payload.attenuation) < 0.001)
+				break;
+		}
+		color += sampleColor / float(dynamicData.mAASamples);
+		albedo += payload.albedo / float(dynamicData.mAASamples);
+		normal += payload.normal / float(dynamicData.mAASamples);
+	}
 	imageStore(colorImage, ivec2(gl_LaunchIDEXT.xy), vec4(color, 0.0));
 	imageStore(albedoImage, ivec2(gl_LaunchIDEXT.xy), vec4(payload.albedo, 0.0));
 	imageStore(normalImage, ivec2(gl_LaunchIDEXT.xy), vec4(payload.normal, 0.0));

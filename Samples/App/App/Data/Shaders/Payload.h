@@ -12,7 +12,6 @@ struct Payload
 	//uint rngState;
 	int done;
 	int depth;
-	float weight;
 };
 
 #endif

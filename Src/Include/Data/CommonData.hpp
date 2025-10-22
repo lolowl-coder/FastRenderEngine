@@ -83,7 +83,7 @@ namespace fre
 		//glm::mat4 mPrevPV = glm::mat4(1.0f);
 		//glm::mat4 mPV = glm::mat4(1.0f);
 		glm::vec4 mLightingSettins = glm::vec4(4.5f, 0.03f, 1.0f, 1.0f);
-		glm::vec4 mLightPos = glm::vec4(1.5f, 0.8f, 0.5f, 1.0f);
+		glm::vec4 mLightPos = glm::vec4(3.5f, 1.8f, 0.31f, 0.01f);
 		glm::vec4 mLightColor = glm::vec4(1.0f, 1.0f, 0.9f, 1.0f);
 		glm::vec4 mBackgroundColor = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f);
 		//RT settings
@@ -91,10 +91,10 @@ namespace fre
 		//mGiSamples
 		//mEmissiveSamples
 		//mLodDistanceRatio
-		glm::vec4 mRTSettings = glm::vec4(1.0f, 8.0f, 8.0f, 3.0f);
+		glm::vec4 mRTSettings = glm::vec4(2.0f, 4.0f, 4.0f, 0.0f);
 		float mFireflyThreshold = 10.0f;
-		float mUseToksvig = false;
 		int mDebugMode = 0;
+		int mAASamples = 2;
 	};
 
 	struct RTMeshCPU

@@ -4,6 +4,9 @@
 uint lcg(inout uint s) { s = 1664525u * s + 1013904223u; return s; }
 float rng(inout uint s) { return (lcg(s) >> 8) * (1.0 / 16777216.0); } // [0,1)
 
+// Generates quasi-random value in range [0, 1)
+// index: any int value (usually sample index, frame index, etc.)
+// base: any prime number
 float halton(uint index, uint base) {
     float f = 1.0;
     float r = 0.0;
@@ -16,7 +19,7 @@ float halton(uint index, uint base) {
     return r;
 }
 
-// Wang hash (32-bit) - simple scramble for decorrelation
+// Generates pseudorandom but deterministic scrambled 32-bit integer
 uint wangHash(uint x) {
     x = (x ^ 61u) ^ (x >> 16);
     x *= 9u;
@@ -26,6 +29,7 @@ uint wangHash(uint x) {
     return x;
 }
 
+// Generates random point on upper part of semisphere
 vec3 cosineHemisphere(int sampleIdx) {
     uvec2 launchID = gl_LaunchIDEXT.xy;
     uvec2 launchSize = gl_LaunchSizeEXT.xy;

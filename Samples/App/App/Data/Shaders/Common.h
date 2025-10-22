@@ -54,6 +54,8 @@ struct DynamicDataBlock
 	//z - enable GI
 	//w - enable Area lights
 	vec4 mLightingSettings;
+	//xyz - world light position
+	//w - light radius
 	vec4 mLightPos;
 	vec4 mLightColor;
 	vec4 mBackgroundColor;
@@ -64,8 +66,8 @@ struct DynamicDataBlock
 	//mLodDistanceRatio
 	vec4 mRTSettings;
 	float mFireflyThreshold;
-	float mUseToksvig;
 	int mDebugMode;
+	int mAASamples;
 };
 
 // DynamicDataBlock getters

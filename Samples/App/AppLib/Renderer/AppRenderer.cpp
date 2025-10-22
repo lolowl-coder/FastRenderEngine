@@ -147,6 +147,7 @@ namespace app
 					inputFloat(-1000.0f, 1000.0f, "x", mDynamicData.mLightPos.x);
 					inputFloat(-1000.0f, 1000.0f, "y", mDynamicData.mLightPos.y);
 					inputFloat(-1000.0f, 1000.0f, "z", mDynamicData.mLightPos.z);
+					sliderFloat(0.0f, 5.0f, "Light radius", mDynamicData.mLightPos.w);
 					sliderFloat(0.0f, 10.0f, "Lod distance ratio", mDynamicData.mRTSettings.w);
 					ImGui::ColorEdit3("Main Light color", (float*)&mDynamicData.mLightColor.x, ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoAlpha);
 
@@ -156,7 +157,7 @@ namespace app
 					sliderFloat(0.00001f, 10.0f, "Zoom speed", options.mCameraZoomSpeed, "%.7f");
 					ImGui::ColorEdit3("Background color", (float*)&mDynamicData.mBackgroundColor.x, ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoAlpha);
 					sliderFloat(0.0f, 10.0f, "Firefly threshold", mDynamicData.mFireflyThreshold, "%.2f");
-					ImGui::InputFloat("Use Toksvig", &mDynamicData.mUseToksvig);
+					sliderInt(1, 16, "AA samples", mDynamicData.mAASamples);
 					ImGui::Combo("Debug mode", &mDynamicData.mDebugMode, "Off\0Normals\0Albedo\0Roughness\0Metallic\0Emissive\0Ray distance\0");
 					ImGui::Separator();
 					if(ImGui::Button("Restore defaults"))
@@ -287,7 +288,7 @@ namespace app
 				mColorStorage[mCurrentFrame].descriptor,
 				mAlbedoStorage[mCurrentFrame].descriptor,
 				mNormalStorage[mCurrentFrame].descriptor,
-				mFlowStorage[mCurrentFrame].descriptor,
+				//mFlowStorage[mCurrentFrame].descriptor,
 				mDynamicDataDescriptor,
 				mRTMeshesGPUDescriptor,
 				mRTMaterialsGPUDescriptor,
@@ -461,7 +462,7 @@ namespace app
 				mColorStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#colorStorage%i", i)));
 				mAlbedoStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#albedoStorage%i", i)));
 				mNormalStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#normalStorage%i", i)));
-				mFlowStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#flowStorage%i", i)));
+				//mFlowStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#flowStorage%i", i)));
 			}
 		}
 
@@ -477,6 +478,7 @@ namespace app
 		//mMeshModel = createMeshModel("Models/unreal/scene.gltf",
 		//mMeshModel = createMeshModel("Models/mobileHome/scene.gltf",
 		//mMeshModel = createMeshModel("Models/dreadroamer/scene.gltf",
+		//mMeshModel = createMeshModel("Models/helmet/scene.gltf",
 			{
 				aiTextureType_NORMALS, aiTextureType_BASE_COLOR, aiTextureType_METALNESS,
 				aiTextureType_EMISSIVE, aiTextureType_AMBIENT_OCCLUSION, aiTextureType_LIGHTMAP
@@ -534,11 +536,14 @@ namespace app
 			}
 		}
 
-        auto emissivesBufferIndex = createBuffer(
-			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            emissives.data(), sizeof(EmissiveTri) * emissives.size());
-        mEmissiveTrianglesBuffer = *mBufferManager.getBuffer(emissivesBufferIndex);
+		if(!emissives.empty())
+		{
+			auto emissivesBufferIndex = createBuffer(
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				emissives.data(), sizeof(EmissiveTri) * emissives.size());
+			mEmissiveTrianglesBuffer = *mBufferManager.getBuffer(emissivesBufferIndex);
+		}
 
 		auto worldCenter = sceneTransform * vec4(mSceneBoundingBox.getCenter(), 1.0f);
 		auto worldSize = sceneTransform * vec4(mSceneBoundingBox.getCenter() + mSceneBoundingBox.getSize(), 1.0f) - worldCenter;
@@ -723,7 +728,7 @@ namespace app
 			mCUDAExternalColorBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mColorStorage[i].texture->mId, this));
 			mCUDAExternalAlbedoBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mAlbedoStorage[i].texture->mId, this));
 			mCUDAExternalNormalBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mNormalStorage[i].texture->mId, this));
-			mCUDAExternalFlowBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mFlowStorage[i].texture->mId, this));
+			//mCUDAExternalFlowBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mFlowStorage[i].texture->mId, this));
 		}
         assert(!mExternalWaitSemaphores.empty());
         assert(!mExternalSignalSemaphores.empty());

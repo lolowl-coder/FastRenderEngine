@@ -871,9 +871,9 @@
 			"mesh":21,
 			"name":"pPlane1_lambert2_0",
 			"scale":[
-				17.21678924560547,
+				319.31243896484375,
 				99.99999237060547,
-				17.21678924560547
+				319.3124084472656
 			]
 		},
 		{
@@ -1023,9 +1023,11 @@
 				"baseColorTexture":{
 					"index":14
 				},
+				"metallicFactor":0,
 				"metallicRoughnessTexture":{
 					"index":13
-				}
+				},
+				"roughnessFactor":0.5
 			}
 		}
 	],
