@@ -7,6 +7,7 @@
 #extension GL_EXT_buffer_reference2 : require
 
 #include "Common.h"
+#include "PBR.h"
 #include "Payload.h"
 #include "Rnd.h"
 #include "Transform.h"
@@ -29,12 +30,6 @@ layout(set = 0, binding = 7) uniform sampler2D textures[];
 // Emissive objects triangles
 layout(set = 0, binding = 8, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
 // clang-format on
-
-// --------------------------- math helpers -----------------------------------
-const float PI = 3.14159265359;
-
-float saturate(float x) { return clamp(x, 0.0, 1.0); }
-vec3  saturate(vec3  v) { return clamp(v, vec3(0.0), vec3(1.0)); }
 
 float getLod(int texId)
 {
@@ -74,31 +69,6 @@ vec3 getWorldNormal(Material mat, int normalTexIndex,
     vec3 nWorld = normalize(inverse(transpose(mat3(gl_ObjectToWorldEXT))) * nObj);
     //vec3 nWorld = normalize((objectToWorld * vec4(nObj, 0.0)).xyz);
     return nWorld;
-}
-
-// Trowbridge-Reitz GGX normal distribution
-float D_GGX(float NdotH, float a) {
-    float a2 = a * a;
-    float d = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
-    return a2 / (PI * d * d);
-}
-
-// Smith masking-shadowing using Schlick-GGX for both terms
-float G_SchlickGGX(float NdotV, float k) {
-    return NdotV / (NdotV * (1.0 - k) + k);
-}
-
-float G_Smith(float NdotV, float NdotL, float roughness) {
-    // k for direct lighting (correlated Smith)
-    float r = roughness + 1.0;
-    float k = (r * r) / 8.0;
-    return G_SchlickGGX(NdotV, k) * G_SchlickGGX(NdotL, k);
-}
-
-// Fresnel-Schlick (with optional roughness variant for grazing)
-vec3 F_Schlick(vec3 F0, float HdotV) {
-    float f = pow(1.0 - HdotV, 5.0);
-    return F0 + (1.0 - F0) * f;
 }
 
 // --------------------------- texture sampling --------------------------------
@@ -151,45 +121,6 @@ vec3 sampleEmissive(const Material m, vec2 uv) {
     return e;
 }
 
-// --------------------------- BRDF core ---------------------------------------
-struct PBRInputs {
-    vec3 N;        // world-space normal
-    vec3 V;        // world-space view dir (from P toward camera), normalized
-    vec3 L;        // world-space light dir (from P toward light), normalized
-    vec3 radiance; // light radiance (RGB), already includes attenuation
-    vec3 baseColor;
-    float metallic;
-    float roughness;
-};
-
-vec3 BRDF_PBR(const PBRInputs I) {
-    vec3 H = normalize(I.V + I.L);
-
-    float NdotL = saturate(dot(I.N, I.L));
-    float NdotV = saturate(dot(I.N, I.V));
-    float NdotH = saturate(dot(I.N, H));
-    float HdotV = saturate(dot(H, I.V));
-
-    if(NdotL <= 0.0 || NdotV <= 0.0)
-        return vec3(0.0);
-
-    // Dielectric F0 ~ 0.04; metals use baseColor as F0
-    vec3 F0 = mix(vec3(0.04), I.baseColor, I.metallic);
-
-    float a = I.roughness * I.roughness; // perceptual -> alpha
-    float D = D_GGX(NdotH, a);
-    float G = G_Smith(NdotV, NdotL, I.roughness);
-    vec3  F = F_Schlick(F0, HdotV);
-
-    vec3  spec = (D * G * F) / max(4.0 * NdotL * NdotV, 1e-4);
-
-    // Lambert diffuse, energy-conserving with metallic
-    vec3 kd = (1.0 - F) * (1.0 - I.metallic);
-    vec3 diff = kd * I.baseColor / PI;
-
-    return (diff + spec) * I.radiance * NdotL;
-}
-
 void clampFireflies(inout vec3 color)
 {
     float lum = dot(color, vec3(1.0F / 3.0F));
@@ -233,7 +164,7 @@ vec3 shadeGLTF(
     I.metallic = metallic;
     I.roughness = roughness;
 
-    vec3 Lo = BRDF_PBR(I);
+    vec3 Lo = shadePBR(I);
     
     //TODO: Transparency disable for now
     /*float alpha = base.a;
