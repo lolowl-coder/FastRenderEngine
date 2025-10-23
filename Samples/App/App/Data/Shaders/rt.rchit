@@ -544,4 +544,8 @@ void main()
     {
         payload.radiance = vec3(gl_HitTEXT / 10.0);
 	}
+    if(dynamicData.mDebugMode != 0)
+    {
+        payload.done = 1;
+    }
 }
