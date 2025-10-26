@@ -125,6 +125,8 @@ namespace app
 					{
 						setHasExternalResources(mIsDenoiserEnabled);
 					}
+
+					inputFloat(-10.0f, 10.0f, "Flow multiplier", mDynamicData.mFlowMultiplier);
 					//ImGui::Checkbox("Temporal mode", &mTemporalMode);
 					sliderFloat(1.0f, 16.0f, "Max ray depth", mDynamicData.mRTSettings.x);
 					sliderFloat(1.0f, 64.0f, "GI samples", mDynamicData.mRTSettings.y);
@@ -158,7 +160,7 @@ namespace app
 					ImGui::ColorEdit3("Background color", (float*)&mDynamicData.mBackgroundColor.x, ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoAlpha);
 					sliderFloat(0.0f, 10.0f, "Firefly threshold", mDynamicData.mFireflyThreshold, "%.2f");
 					sliderInt(1, 16, "AA samples", mDynamicData.mAASamples);
-					ImGui::Combo("Debug mode", &mDynamicData.mDebugMode, "Off\0Normals\0Albedo\0Roughness\0Metallic\0Emissive\0Ray distance\0");
+					ImGui::Combo("Debug mode", &mDynamicData.mDebugMode, "Off\0Normals\0Albedo\0Roughness\0Metallic\0Emissive\0Ray distance\0Flow\0");
 					ImGui::Separator();
 					if(ImGui::Button("Restore defaults"))
 					{
@@ -276,8 +278,8 @@ namespace app
 
 		mDynamicData.mViewInverse = glm::inverse(camera.mView);
 		mDynamicData.mProjInverse = glm::inverse(camera.mProjection);
-		//mDynamicData.mPrevPV = camera.mProjection * camera.mPrevView;
-		//mDynamicData.mPV = camera.mProjection * camera.mView;
+		mDynamicData.mPrevPV = camera.mProjection * camera.mPrevView;
+		mDynamicData.mPV = camera.mProjection * camera.mView;
 
         mBufferManager.udpateBuffer(mainDevice.logicalDevice, mDynamicDataBufferIndex, &mDynamicData, sizeof(mDynamicData));
 
@@ -288,7 +290,7 @@ namespace app
 				mColorStorage[mCurrentFrame].descriptor,
 				mAlbedoStorage[mCurrentFrame].descriptor,
 				mNormalStorage[mCurrentFrame].descriptor,
-				//mFlowStorage[mCurrentFrame].descriptor,
+				mFlowStorage[mCurrentFrame].descriptor,
 				mDynamicDataDescriptor,
 				mRTMeshesGPUDescriptor,
 				mRTMaterialsGPUDescriptor,
@@ -462,7 +464,7 @@ namespace app
 				mColorStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#colorStorage%i", i)));
 				mAlbedoStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#albedoStorage%i", i)));
 				mNormalStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#normalStorage%i", i)));
-				//mFlowStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#flowStorage%i", i)));
+				mFlowStorage.push_back(createStorageImage(true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_TILING_LINEAR, formatString("#flowStorage%i", i)));
 			}
 		}
 
@@ -728,7 +730,7 @@ namespace app
 			mCUDAExternalColorBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mColorStorage[i].texture->mId, this));
 			mCUDAExternalAlbedoBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mAlbedoStorage[i].texture->mId, this));
 			mCUDAExternalNormalBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mNormalStorage[i].texture->mId, this));
-			//mCUDAExternalFlowBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mFlowStorage[i].texture->mId, this));
+			mCUDAExternalFlowBuffer.push_back(mCudaBufferManager.createExternalBuffer<float4>(mFlowStorage[i].texture->mId, this));
 		}
         assert(!mExternalWaitSemaphores.empty());
         assert(!mExternalSignalSemaphores.empty());

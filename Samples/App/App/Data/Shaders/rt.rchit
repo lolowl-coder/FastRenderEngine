@@ -22,13 +22,13 @@ layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions o
 layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indices
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
-layout(set = 0, binding = 4, scalar) uniform DynamicData { DynamicDataBlock dynamicData; };
-layout(set = 0, binding = 5, scalar) buffer SceneDesc { Mesh i[]; } sceneDesc;
-layout(set = 0, binding = 6, scalar) buffer GlobalMaterials { Material i[]; } materials;
+layout(set = 0, binding = 5, scalar) uniform DynamicData { DynamicDataBlock dynamicData; };
+layout(set = 0, binding = 6, scalar) buffer SceneDesc { Mesh i[]; } sceneDesc;
+layout(set = 0, binding = 7, scalar) buffer GlobalMaterials { Material i[]; } materials;
 // Scene textures
-layout(set = 0, binding = 7) uniform sampler2D textures[];
+layout(set = 0, binding = 8) uniform sampler2D textures[];
 // Emissive objects triangles
-layout(set = 0, binding = 8, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
+layout(set = 0, binding = 9, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
 // clang-format on
 
 float getLod(int texId)
@@ -544,8 +544,5 @@ void main()
     {
         payload.radiance = vec3(gl_HitTEXT / 10.0);
 	}
-    if(dynamicData.mDebugMode != 0)
-    {
-        payload.done = 1;
-    }
+    // Flow is debugged in .rgen shader
 }

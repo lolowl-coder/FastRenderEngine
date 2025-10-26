@@ -80,8 +80,8 @@ namespace fre
 	{
 		glm::mat4 mViewInverse = glm::mat4(1.0f);
 		glm::mat4 mProjInverse = glm::mat4(1.0f);
-		//glm::mat4 mPrevPV = glm::mat4(1.0f);
-		//glm::mat4 mPV = glm::mat4(1.0f);
+		glm::mat4 mPrevPV = glm::mat4(1.0f);
+		glm::mat4 mPV = glm::mat4(1.0f);
 		glm::vec4 mLightingSettins = glm::vec4(4.5f, 0.03f, 1.0f, 1.0f);
 		glm::vec4 mLightPos = glm::vec4(3.5f, 1.8f, 0.31f, 0.01f);
 		glm::vec4 mLightColor = glm::vec4(1.0f, 1.0f, 0.9f, 1.0f);
@@ -93,6 +93,7 @@ namespace fre
 		//mLodDistanceRatio
 		glm::vec4 mRTSettings = glm::vec4(2.0f, 4.0f, 4.0f, 0.0f);
 		float mFireflyThreshold = 10.0f;
+		float mFlowMultiplier = 1.0f;
 		int mDebugMode = 0;
 		int mAASamples = 2;
 	};

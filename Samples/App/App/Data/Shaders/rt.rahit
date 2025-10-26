@@ -18,12 +18,12 @@ layout(buffer_reference, scalar) buffer Vertices { Vertex v[]; }; // Positions o
 layout(buffer_reference, scalar) buffer Indices { uvec3 i[]; }; // Triangle indices
 
 layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
-layout(set = 0, binding = 5) buffer SceneDesc { Mesh i[]; } sceneDesc;
-layout(set = 0, binding = 6, scalar) buffer GlobalMaterials { Material i[]; } materials;
+layout(set = 0, binding = 6) buffer SceneDesc { Mesh i[]; } sceneDesc;
+layout(set = 0, binding = 7, scalar) buffer GlobalMaterials { Material i[]; } materials;
 // Scene textures
-layout(set = 0, binding = 7) uniform sampler2D textures[];
+layout(set = 0, binding = 8) uniform sampler2D textures[];
 // Emissive objects triangles
-layout(set = 0, binding = 8, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
+layout(set = 0, binding = 9, scalar) buffer EmissiveTriangles {EmissiveTriangle L[];} emissiveTriangles;
 // clang-format on
 
 // --------------------------- texture sampling --------------------------------
@@ -77,8 +77,5 @@ void main()
 		//payload.weight *= (1.0 - alpha);
         // Transparent -> ignore this intersection and keep searching
         ignoreIntersectionEXT;
-        return;
     }
-
-	return;
 }

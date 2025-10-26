@@ -321,8 +321,14 @@ namespace fre
                 m_layers[i].previousOutput = m_layers[i].output;
                 m_layers[i].output = temp;
             }
+            m_params.temporalModeUsePreviousLayers = 1;
         }
-        m_params.temporalModeUsePreviousLayers = 1;
+
+        if(mHistoryResetRequested)
+        {
+            resetHistory();
+			mHistoryResetRequested = false;
+        }
     }
 
     void Denoiser::exec()
@@ -527,6 +533,15 @@ namespace fre
             CUDA_CHECK(cudaMemcpy(*data, (void*)m_guideLayer.outputInternalGuideLayer.data, *sizeInBytes, cudaMemcpyDeviceToHost));
         }
     }
+
+    void Denoiser::resetHistory()
+    {
+        if(m_guideLayer.previousOutputInternalGuideLayer.data)
+        {
+            const uint64_t frame_byte_size = m_guideLayer.previousOutputInternalGuideLayer.width * m_guideLayer.previousOutputInternalGuideLayer.height * m_guideLayer.previousOutputInternalGuideLayer.pixelStrideInBytes;
+            CUDA_CHECK(cudaMemset((void*)m_guideLayer.previousOutputInternalGuideLayer.data, 0, frame_byte_size));
+        }
+	}
 
     void Denoiser::finish()
     {

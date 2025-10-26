@@ -47,8 +47,8 @@ struct DynamicDataBlock
 {
 	mat4 mViewInverse;
 	mat4 mProjInverse;
-	//mat4 prevPV;
-	//mat4 PV;
+	mat4 prevPV;
+	mat4 PV;
 	//x - main light intensity
 	//y - lamp light intensity
 	//z - enable GI
@@ -66,6 +66,7 @@ struct DynamicDataBlock
 	//mLodDistanceRatio
 	vec4 mRTSettings;
 	float mFireflyThreshold;
+	float mFlowMultiplier;
 	int mDebugMode;
 	int mAASamples;
 };

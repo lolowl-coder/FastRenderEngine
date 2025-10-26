@@ -109,8 +109,9 @@ namespace app
 		VkSemaphore mExternalVulkanSignalSemaphore = VK_NULL_HANDLE;
 		bool mDenoiserInitialized = false;
 		bool mIsDenoiserEnabled = true;
-		bool mTemporalMode = false;
+		bool mTemporalMode = true;
 		uint32_t mLampMaterialIndex = MAX(uint32_t);
         std::vector<fre::Material> mDefaultMaterials;
+		int mUsePrevLayers = 0;
 	};
 }

@@ -55,11 +55,13 @@ namespace fre
         // Copy results from GPU to host memory.
         void getResults();
 
-        // Copy results from device buffer to another device buffer
-        void copyResultDevice(void* data);
-
         // Return internal guide layer data for temporal models, if available. Returned memory must be freed.
         void getInternalGuideLayerData(unsigned char** data, size_t* sizeInBytes);
+
+        void requestResetHistory()
+        {
+            mHistoryResetRequested = true;
+		}
 
         // Cleanup state, deallocate memory -- normally done only once per render session.
         void finish();
@@ -68,6 +70,8 @@ namespace fre
         // --- Test flow vectors: Flow is applied to noisy input image and written back to result.
         // --- No denoising.
         void applyFlow();
+		// Resets the history buffers used for temporal denoising
+		void resetHistory();
 
     private:
         OptixDeviceContext    m_context = nullptr;
@@ -91,5 +95,6 @@ namespace fre
         OptixDenoiserGuideLayer           m_guideLayer = {};
         std::vector< OptixDenoiserLayer > m_layers;
         std::vector< float* >             m_host_outputs;
+		bool mHistoryResetRequested = false;
     };
 }
