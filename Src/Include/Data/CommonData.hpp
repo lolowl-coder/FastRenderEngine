@@ -95,7 +95,7 @@ namespace fre
 		glm::vec4 mLightColor = glm::vec4(1.0f, 1.0f, 0.9f, 1.0f);
 		//rbg - Background color
 		//w - Exposure
-		glm::vec4 mBackgroundColor = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f);
+		glm::vec4 mBackgroundColor = glm::vec4(0.1f, 0.1f, 0.1f, 0.0f);
 		//RT settings
 		//mMaxRayDepth
 		//mGiSamples
