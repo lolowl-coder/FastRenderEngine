@@ -532,12 +532,12 @@ void main()
 
     payload.radiance += directLightContrib;
     
-    if(getAreaLightsEnabled(dynamicData) && payload.depth == 0 && dynamicData.mDebugMode == 0)
+    if(getAreaLightsEnabled(dynamicData) && payload.giDepth == 0 && dynamicData.mDebugMode == 0)
     {
         processEmissives(objMat, objUV, P, N_world, V_world, base, emissive, mr);
     }
 
-    if(getGIEnabled(dynamicData) && payload.depth == 0 && dynamicData.mDebugMode == 0)
+    if(getGIEnabled(dynamicData) && payload.giDepth == 0 && dynamicData.mDebugMode == 0)
     {
         processGI(P, V_world, N_world, T, B, N, base.rgb, metallness, roughness);
     }
