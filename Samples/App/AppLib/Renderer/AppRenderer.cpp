@@ -20,6 +20,8 @@
 using namespace fre;
 using namespace glm;
 
+#define TRACK_CHANGES(f) if(f){ changed = true; }
+
 namespace app
 {
 	AppRenderer::AppRenderer(ThreadPool& threadPool)
@@ -52,6 +54,7 @@ namespace app
 				{
 					ImGui::Begin("Options");
                     ImGui::PushItemWidth(150.0f);
+					bool materialsChanged = false;
 					bool changed = false;
 					static int selectedIndex = -1;
 
@@ -91,7 +94,7 @@ namespace app
 											selectedIndex = i;
 											selected = ImGuiTreeNodeFlags_Selected;
 										}
-										changed = true;
+										materialsChanged = true;
 										//if(mat.mName == "light_mat")
 										if(mat.mName == lightMatName)
 										{
@@ -110,57 +113,73 @@ namespace app
 
 						ImGui::TreePop();
 					}*/
-					ImGui::Text("Ray tracing");
+					if(ImGui::CollapsingHeader("Ray tracing", ImGuiTreeNodeFlags_DefaultOpen))
 					{
 						bool tmp = mDynamicData.mLightingSettins.z;
-						ImGui::Checkbox("Enable GI", &tmp);
+						TRACK_CHANGES(ImGui::Checkbox("Enable GI", &tmp));
 						mDynamicData.mLightingSettins.z = tmp ? 1.0f : 0.0f;
-					}
-					{
-						bool tmp = mDynamicData.mLightingSettins.w;
-						ImGui::Checkbox("Enable Area lights", &tmp);
-						mDynamicData.mLightingSettins.w = tmp ? 1.0f : 0.0f;
-					}
-					if(ImGui::Checkbox("Denoise", &mIsDenoiserEnabled))
-					{
-						setHasExternalResources(mIsDenoiserEnabled);
-					}
-
-					inputFloat(-10.0f, 10.0f, "Flow multiplier", mDynamicData.mFlowMultiplier);
-					//ImGui::Checkbox("Temporal mode", &mTemporalMode);
-					sliderFloat(1.0f, 16.0f, "Max ray depth", mDynamicData.mRTSettings.x);
-					sliderFloat(1.0f, 64.0f, "GI samples", mDynamicData.mRTSettings.y);
-					sliderFloat(1.0f, 64.0f, "Emissive samples", mDynamicData.mRTSettings.z);
-
-					ImGui::Text("Lighting");
-					sliderFloat(0.0f, 100.0f, "Main ligth intensity", mDynamicData.mLightingSettins.x, "%.2f");
-					sliderFloat(0.0f, 10.0f, "Ambient intensity", mDynamicData.mLightingSettins.y, "%.2f");
-                    auto& itr = std::find_if(mMaterials.begin(), mMaterials.end(), [&lightMatName](const Material& mat) { return mat.mName == lightMatName; });
-                    if(itr != mMaterials.end())
-					{
-                        float intensity = itr->mEmissiveFactor.x;
-						if(sliderFloat(0.0f, 1000.0f, "Lamp light intensity", intensity, "%.2f"))
 						{
-							itr->mEmissiveFactor = vec3(intensity);
-							changed = true;
+							bool tmp = mDynamicData.mLightingSettins.w;
+							TRACK_CHANGES(ImGui::Checkbox("Enable Area lights", &tmp));
+							mDynamicData.mLightingSettins.w = tmp ? 1.0f : 0.0f;
 						}
-					}
-					ImGui::Text("Main light position");
-					inputFloat(-1000.0f, 1000.0f, "x", mDynamicData.mLightPos.x);
-					inputFloat(-1000.0f, 1000.0f, "y", mDynamicData.mLightPos.y);
-					inputFloat(-1000.0f, 1000.0f, "z", mDynamicData.mLightPos.z);
-					sliderFloat(0.0f, 5.0f, "Light radius", mDynamicData.mLightPos.w);
-					sliderFloat(0.0f, 10.0f, "Lod distance ratio", mDynamicData.mRTSettings.w);
-					ImGui::ColorEdit3("Main Light color", (float*)&mDynamicData.mLightColor.x, ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoAlpha);
+						if(ImGui::Checkbox("Denoise", &mIsDenoiserEnabled))
+						{
+							changed = true;
+							setHasExternalResources(mIsDenoiserEnabled);
+						}
 
-					ImGui::Text("Camera");
-					OPTIONS;
-					sliderFloat(0.00001f, 10.0f, "Pan speed", options.mCameraPanSpeed, "%.7f");
-					sliderFloat(0.00001f, 10.0f, "Zoom speed", options.mCameraZoomSpeed, "%.7f");
-					ImGui::ColorEdit3("Background color", (float*)&mDynamicData.mBackgroundColor.x, ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoAlpha);
-					sliderFloat(0.0f, 10.0f, "Firefly threshold", mDynamicData.mFireflyThreshold, "%.2f");
-					sliderInt(1, 16, "AA samples", mDynamicData.mAASamples);
-					ImGui::Combo("Debug mode", &mDynamicData.mDebugMode, "Off\0Normals\0Albedo\0Roughness\0Metallic\0Emissive\0Ray distance\0Flow\0");
+						//inputFloat(-10.0f, 10.0f, "Flow multiplier", mDynamicData.mFlowMultiplier);
+						//ImGui::Checkbox("Temporal mode", &mTemporalMode);
+						TRACK_CHANGES(sliderFloat(1.0f, 16.0f, "Max ray depth", mDynamicData.mRTSettings.x, "%.0f"));
+						TRACK_CHANGES(sliderFloat(1.0f, 64.0f, "GI samples", mDynamicData.mRTSettings.y, "%.0f"));
+						TRACK_CHANGES(sliderFloat(1.0f, 64.0f, "Emissive samples", mDynamicData.mRTSettings.z, "%.0f"));
+					}
+
+					if(ImGui::CollapsingHeader("Lighting", ImGuiTreeNodeFlags_DefaultOpen))
+					{
+						TRACK_CHANGES(sliderFloat(0.0f, 100.0f, "Main ligth intensity", mDynamicData.mLightingSettins.x, "%.2f"));
+						TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Ambient intensity", mDynamicData.mLightingSettins.y, "%.2f"));
+						TRACK_CHANGES(sliderFloat(-20.0f, 20.0f, "Exposure", mDynamicData.mBackgroundColor.w, "%.1f"));
+						auto& itr = std::find_if(mMaterials.begin(), mMaterials.end(), [&lightMatName](const Material& mat) { return mat.mName == lightMatName; });
+						if(itr != mMaterials.end())
+						{
+							float intensity = itr->mEmissiveFactor.x;
+							if(sliderFloat(0.0f, 1000.0f, "Lamp light intensity", intensity, "%.2f"))
+							{
+								itr->mEmissiveFactor = vec3(intensity);
+								changed = true;
+								materialsChanged = true;
+							}
+						}
+						ImGui::Text("Main light position");
+						TRACK_CHANGES(inputFloat(-1000.0f, 1000.0f, "x", mDynamicData.mLightPos.x));
+						TRACK_CHANGES(inputFloat(-1000.0f, 1000.0f, "y", mDynamicData.mLightPos.y));
+						TRACK_CHANGES(inputFloat(-1000.0f, 1000.0f, "z", mDynamicData.mLightPos.z));
+						TRACK_CHANGES(sliderFloat(0.0f, 1000.0f, "Main light radius", mDynamicData.mLightPos.w));
+						TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Lod distance ratio", mDynamicData.mRTSettings.w));
+						TRACK_CHANGES(ImGui::ColorEdit3("Main Light color", (float*)&mDynamicData.mLightColor.x, ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoAlpha));
+						TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Normal scale", mDynamicData.mLightColor.w));
+						TRACK_CHANGES(ImGui::Checkbox("Tone mapping", (bool*)(&mDynamicData.mEnableToneMapping)));
+					}
+
+					if(ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen))
+					{
+						OPTIONS;
+						TRACK_CHANGES(sliderFloat(0.00001f, 10.0f, "Pan speed", options.mCameraPanSpeed, "%.7f"));
+						TRACK_CHANGES(sliderFloat(0.00001f, 10.0f, "Zoom speed", options.mCameraZoomSpeed, "%.7f"));
+					}
+					if(ImGui::CollapsingHeader("Misc", ImGuiTreeNodeFlags_DefaultOpen))
+					{
+						TRACK_CHANGES(ImGui::Combo("Background", &mDynamicData.mBackgroundType, "Static color\0HDR environment map\0"));
+						if(mDynamicData.mBackgroundType == 0)
+						{
+							TRACK_CHANGES(ImGui::ColorEdit3("Background color", (float*)&mDynamicData.mBackgroundColor.x, ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoAlpha));
+						}
+						TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Firefly threshold", mDynamicData.mFireflyThreshold, "%.2f"));
+						TRACK_CHANGES(sliderInt(1, 16, "AA samples", mDynamicData.mAASamples));
+						TRACK_CHANGES(ImGui::Combo("Debug mode", &mDynamicData.mDebugMode, "Off\0Normals\0Albedo\0Roughness\0Metallic\0Emissive\0Ray distance\0Flow\0"));
+					}
 					ImGui::Separator();
 					if(ImGui::Button("Restore defaults"))
 					{
@@ -168,13 +187,19 @@ namespace app
 						mDynamicData = DynamicData();
 						mMaterials = mDefaultMaterials;
                         changed = true;
+						materialsChanged = true;
 					}
                     ImGui::Separator();
                     ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
 
-					if(changed)
+					if(materialsChanged)
 					{
 						updateMaterials();
+					}
+
+					if(changed)
+					{
+						mAccumulatedFrames = 0;
 					}
 					ImGui::PopItemWidth();
 					ImGui::End();
@@ -244,30 +269,39 @@ namespace app
 
 	void AppRenderer::update(const Camera& camera, const Light& light)
 	{
-		if(getTexture(0) == nullptr)
-		{
-			createTexture(getTextureInfo(0));
-		}
 		if(mTLAS.mHandle == VK_NULL_HANDLE)
 		{
-			bool allTexturesCreated = true;
+			std::vector<uint32_t> texturesToCreate;
+			if(getTexture(0) == nullptr)
+			{
+				texturesToCreate.push_back(0);
+			}
+			if(getTexture(mDynamicData.mEnvTexIndex) == nullptr)
+			{
+				texturesToCreate.push_back(mDynamicData.mEnvTexIndex);
+			}
 			for(const auto& mesh : mRTMeshes)
 			{
 				const auto& material = getMaterial(mesh->getMaterialId());
 				for(auto textureIndexPair : material.mTextureIds)
 				{
-					auto& textureInfo = getTextureInfo(textureIndexPair.second);
-					if(textureInfo->mImage.mData != nullptr)
+					texturesToCreate.push_back(textureIndexPair.second);
+				}
+			}
+			bool allTexturesCreated = true;
+			for(auto texId : texturesToCreate)
+			{
+				auto& textureInfo = getTextureInfo(texId);
+				if(textureInfo->mImage.mData != nullptr)
+				{
+					if(getTexture(textureInfo->mId) == nullptr)
 					{
-						if(getTexture(textureInfo->mId) == nullptr)
-						{
-							createTexture(textureInfo);
-						}
+						createTexture(textureInfo);
 					}
-					else
-					{
-						allTexturesCreated = false;
-					}
+				}
+				else
+				{
+					allTexturesCreated = false;
 				}
 			}
             if(allTexturesCreated)
@@ -280,11 +314,20 @@ namespace app
 		mDynamicData.mProjInverse = glm::inverse(camera.mProjection);
 		mDynamicData.mPrevPV = camera.mProjection * camera.mPrevView;
 		mDynamicData.mPV = camera.mProjection * camera.mView;
+		if(mDynamicData.mPrevPV == mDynamicData.mPV && !mIsDenoiserEnabled)
+		{
+			mAccumulatedFrames++;
+		}
+		else
+		{
+			mAccumulatedFrames = 1;
+		}
+		mDynamicData.mFrameIndex = mAccumulatedFrames;
 
         mBufferManager.udpateBuffer(mainDevice.logicalDevice, mDynamicDataBufferIndex, &mDynamicData, sizeof(mDynamicData));
 
 		
-        mResultMesh->setDescriptors({ { mColorStorage[mCurrentFrame].descriptor } });
+        mResultMesh->setDescriptors({ { mColorStorage[mCurrentFrame].descriptor, mDynamicDataDescriptor } });
 		mMeshModel->getMesh(0)->setDescriptors({ {
                 mTLASDescriptor,
 				mColorStorage[mCurrentFrame].descriptor,
@@ -349,7 +392,7 @@ namespace app
 				mDenoiser.setTemporalMode(mTemporalMode);
 				mDenoiser.update(data);
 			}
-            mDenoiser.exec();
+			mDenoiser.exec();
 			mDenoiser.getResults();
 
 			cudaExternalSemaphoreSignalParams signalParams = {};
@@ -476,11 +519,11 @@ namespace app
 		//mMeshModel = createMeshModel("Models/unitQuad/unitQuad.obj", {});
 		//mMeshModel = createMeshModel("Models/unitCube/unitCube.obj", {});
         //mat4 sceneTransform = rotate(mat4(1.0f), glm::half_pi<float>(), vec3(1.0f, 0.0f, 0.0f));
-		mMeshModel = createMeshModel("Models/pool2/scene.gltf",
+		//mMeshModel = createMeshModel("Models/pool2/scene.gltf",
 		//mMeshModel = createMeshModel("Models/unreal/scene.gltf",
 		//mMeshModel = createMeshModel("Models/mobileHome/scene.gltf",
 		//mMeshModel = createMeshModel("Models/dreadroamer/scene.gltf",
-		//mMeshModel = createMeshModel("Models/helmet/scene.gltf",
+		mMeshModel = createMeshModel("Models/helmet/scene.gltf",
 			{
 				aiTextureType_NORMALS, aiTextureType_BASE_COLOR, aiTextureType_METALNESS,
 				aiTextureType_EMISSIVE, aiTextureType_AMBIENT_OCCLUSION, aiTextureType_LIGHTMAP
@@ -564,8 +607,23 @@ namespace app
 		addMeshModel({ mResultMesh });
 	}
 
+	void AppRenderer::loadEnvTexture()
+	{
+		Image image;
+        image.mFileName = "rural_evening_road_4k.hdr";
+		image.mFormat = VK_FORMAT_R32G32B32_SFLOAT;
+		mDynamicData.mEnvTexIndex = createTextureInfo(
+			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			image, 0u);
+	}
+
 	int AppRenderer::createMeshGPUResources()
 	{
+		loadEnvTexture();
 		loadMeshModel();
 
 		int result = VulkanRenderer::createMeshGPUResources();
@@ -585,7 +643,12 @@ namespace app
 		}
 		mTextureViews[textureId] = texture->mImageView;
 		auto& textureInfo = getTextureInfo(textureId);
-		auto samplerIndex = createSampler({ VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_FILTER_LINEAR, VK_FALSE, textureInfo->mMipLevelCount });
+		auto samplerIndex = createSampler(
+			{
+				VK_SAMPLER_ADDRESS_MODE_REPEAT,
+				textureId == mDynamicData.mEnvTexIndex ? VK_FILTER_NEAREST : VK_FILTER_LINEAR,
+				VK_FALSE, textureInfo->mMipLevelCount
+			});
 		auto sampler = getSampler(samplerIndex);
 		if(textureId >= mTextureSamplers.size())
 		{

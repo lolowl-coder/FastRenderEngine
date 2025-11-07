@@ -69,6 +69,13 @@ struct DynamicDataBlock
 	float mFlowMultiplier;
 	int mDebugMode;
 	int mAASamples;
+	int mFrameIndex;
+	//0 - static color
+	//1 - HDR env map
+	int mBackgroundType;
+	//Environment texture id
+	int mEnvTexIndex;
+	int mEnableToneMapping;
 };
 
 // DynamicDataBlock getters

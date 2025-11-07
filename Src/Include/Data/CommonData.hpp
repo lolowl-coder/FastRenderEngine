@@ -82,9 +82,19 @@ namespace fre
 		glm::mat4 mProjInverse = glm::mat4(1.0f);
 		glm::mat4 mPrevPV = glm::mat4(1.0f);
 		glm::mat4 mPV = glm::mat4(1.0f);
+		//x - main light intensity
+		//y - lamp light intensity
+		//z - enable GI
+		//w - enable Area lights
 		glm::vec4 mLightingSettins = glm::vec4(4.5f, 0.03f, 1.0f, 1.0f);
-		glm::vec4 mLightPos = glm::vec4(3.5f, 1.8f, 0.31f, 0.01f);
+		//xyz - world light position
+		//w - light radius
+		glm::vec4 mLightPos = glm::vec4(3.5f, 1.8f, 0.31f, 0.2f);
+		//rgb - Light color
+		//w - Normal scale
 		glm::vec4 mLightColor = glm::vec4(1.0f, 1.0f, 0.9f, 1.0f);
+		//rbg - Background color
+		//w - Exposure
 		glm::vec4 mBackgroundColor = glm::vec4(0.1f, 0.1f, 0.1f, 1.0f);
 		//RT settings
 		//mMaxRayDepth
@@ -96,6 +106,13 @@ namespace fre
 		float mFlowMultiplier = 1.0f;
 		int mDebugMode = 0;
 		int mAASamples = 2;
+		int mFrameIndex = 0;
+		//0 - static color
+		//1 - HDR env map
+		int mBackgroundType = 1;
+		//Environment texture id
+		int mEnvTexIndex = 0;
+		int mEnableToneMapping = 0;
 	};
 
 	struct RTMeshCPU

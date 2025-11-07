@@ -12,6 +12,8 @@ struct Payload
 	//uint rngState;
 	int done;
 	int depth;
+	int giDepth;
+	int aaSampleIdx;
 };
 
 #endif

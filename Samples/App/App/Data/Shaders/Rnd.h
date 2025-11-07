@@ -35,12 +35,11 @@ vec3 cosineHemisphere(int sampleIdx) {
     uvec2 launchSize = gl_LaunchSizeEXT.xy;
     uint pixelIndex = launchID.x + launchID.y * launchSize.x;
     uint pixHash = wangHash(pixelIndex);
-    uint baseSeq = pixHash * 1664525u + 1013904223u; // mixed base seed
     // then for each sample, build a small sequence index
-    uint seqForU = baseSeq + uint(sampleIdx) * 4u + 3u; // +0 for tri index
+    uint seq = pixHash + sampleIdx;
 
-    float u1 = halton(seqForU, 11u);
-    float u2 = halton(seqForU, 15u);
+    float u1 = halton(seq, 2u);
+    float u2 = halton(seq, 3u);
 
     float r = sqrt(u1);
     float phi = 2.0 * 3.14159265 * u2;

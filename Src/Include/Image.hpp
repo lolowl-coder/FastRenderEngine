@@ -18,8 +18,9 @@ namespace fre
         void calculateStrideAndDataSize();
         //Loads image. Supported formats - the same as stb_image does.
         void load();
-        void loadPng(const std::string& fileName);
+        void loadPngJpg(const std::string& fileName);
         void loadTIFF(const std::string& fileName);
+        void loadHdr(const std::string& fileName);
         static void saveTIFF(const std::string& fileName, uint16_t* data, int width, int height);
         //Destroy image data
         void destroy();

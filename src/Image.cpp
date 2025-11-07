@@ -110,7 +110,7 @@ namespace fre
 		LOG_ERROR("Can't open TIFF file to retrieve the dimensions: {}", fileName);
 	}
 	
-    void getInfoFromPngOrJpg(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
+    void getInfoPngJpg(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
     {
 		FS;
 		stbi_info(fs.find(fileName.c_str()).c_str(), &size.x, &size.y, &numChannels);
@@ -133,6 +133,15 @@ namespace fre
 				break;
 			default: LOG_ERROR("Unsupported channel count for file: {}", fileName);
 		}
+	}
+
+	void getInfoHdr(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
+	{
+		int w, h, n;
+		stbi_info(fileName.c_str(), &w, &h, &n);
+		size = ivec2(w, h);
+		format = VK_FORMAT_R32G32B32_SFLOAT;
+		numChannels = 3;
 	}
 
 	void Image::create(const ivec2& dimension, const VkFormat format)
@@ -169,6 +178,9 @@ namespace fre
 		case VK_FORMAT_R32G32B32A32_SFLOAT:
 			mStride = 16;
 			break;
+		case VK_FORMAT_R32G32B32_SFLOAT:
+			mStride = 12;
+			break;
 		default: LOG_ERROR("Image::calculateStrideAndDataSize() - unsupported Vulkan format: {}. Image name: {}", mFormat, mFileName);
 		}
 		mDataSize = mDimension.x * mDimension.y * mStride;
@@ -179,18 +191,25 @@ namespace fre
 		if(isFileNameValid())
 		{
 			FS;
+			const auto ext = fs.getExt(mFileName);
 			//Load pixel data of image
-			if(mFileName.find(".tiff") != std::string::npos || mFileName.find(".tif") != std::string::npos)
+			if(ext == ".tiff" || ext == ".tif")
 			{
 				auto fullFileName = fs.find(mFileName);
 				getInfoFromTiff(fullFileName, mDimension, mFormat, mNumChannels);
 				loadTIFF(fullFileName);
 			}
-			else if(mFileName.find(".png") != std::string::npos || mFileName.find(".jpg") != std::string::npos || mFileName.find(".jpeg") != std::string::npos)
+			else if(ext == ".png" || ext == ".jpg" || ext == ".jpeg")
 			{
 				auto fullFileName = fs.find(mFileName);
-				getInfoFromPngOrJpg(fullFileName, mDimension, mFormat, mNumChannels);
-				loadPng(fullFileName);
+				getInfoPngJpg(fullFileName, mDimension, mFormat, mNumChannels);
+				loadPngJpg(fullFileName);
+			}
+			else if(ext == ".hdr")
+			{
+				auto fullFileName = fs.find(mFileName);
+				getInfoHdr(fullFileName, mDimension, mFormat, mNumChannels);
+				loadHdr(fullFileName);
 			}
 
 			if (mData == nullptr)
@@ -204,7 +223,7 @@ namespace fre
 		calculateStrideAndDataSize();
  	}
 
-	void Image::loadPng(const std::string& fileName)
+	void Image::loadPngJpg(const std::string& fileName)
 	{
 		//Number of channels image uses
 		int channels;
@@ -255,6 +274,13 @@ namespace fre
 		}
 		
 		TIFFClose(tiff);
+	}
+
+	void Image::loadHdr(const std::string& fileName)
+	{
+		int width;
+		int height;
+		mData = stbi_loadf(fileName.c_str(), &width, &height, &mNumChannels, 3);
 	}
 
 	void Image::saveTIFF(const std::string& fileName, uint16_t* data, int width, int height)
@@ -315,16 +341,19 @@ namespace fre
 
 	void Image::getInfo(const std::string& fileName, ivec2& size, VkFormat& format, int& numChannels)
 	{
-		if(fileName.find(".tiff") != std::string::npos || fileName.find(".tif") != std::string::npos)
+		FS;
+		const auto ext = fs.getExt(fileName);
+		if(ext == ".tiff" || ext == ".tif")
 		{
 			getInfoFromTiff(fileName, size, format, numChannels);
 		}
-		else if(
-			fileName.find(".png") != std::string::npos ||
-			fileName.find(".jpg") != std::string::npos ||
-			fileName.find(".jpeg") != std::string::npos)
+		else if(ext == ".png" || ext == ".jpg" || ext == ".jpeg")
 		{
-			getInfoFromPngOrJpg(fileName, size, format, numChannels);
+			getInfoPngJpg(fileName, size, format, numChannels);
+		}
+		else if(ext == ".hdr")
+		{
+			getInfoHdr(fileName, size, format, numChannels);
 		}
 		else
 		{

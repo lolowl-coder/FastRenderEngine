@@ -45,7 +45,7 @@ float getLod(int texId)
 // Tangent.w is expected to be the handedness (+1 / -1). If you don't have it, use +1.
 vec3 getWorldNormal(Material mat, int normalTexIndex,
     vec3 objN, vec4 objT, vec2 uv,
-    mat4x3 objectToWorld, out vec3 T, out vec3 B, out vec3 N)
+    mat4x3 objectToWorld, out vec3 T, out vec3 B, out vec3 N, out vec3 nTex)
 {
     // Orthonormalize T against N
     N = normalize(objN);
@@ -54,12 +54,12 @@ vec3 getWorldNormal(Material mat, int normalTexIndex,
 
     mat3 TBN = mat3(T, B, N);
 
-    vec3 nTex = vec3(0.0, 0.0, 1.0);
+    nTex = vec3(0.0, 0.0, 1.0);
     if(normalTexIndex >= 0) {
         // Tangent-space normal in [0,1] -> [-1,1]
 		float lod = getLod(normalTexIndex);
         nTex = textureLod(textures[normalTexIndex], uv, lod).xyz * 2.0 - 1.0;
-        nTex.xy *= mat.mNormalScale;
+        nTex.xy *= mat.mNormalScale * dynamicData.mLightColor.w;
         nTex = normalize(nTex);
     }
 
@@ -197,7 +197,8 @@ vec3 shadeGLTF(
 // Get a random emissive triangle that faces the view direction V
 // V - reversed ray direction (origin - hit position)
 // e1, e2 - triangle edges (v1-v0, v2-v0)
-EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 lightUV, out vec3 n, out vec3 e1, out vec3 e2, out vec3 xL)
+EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 lightUV,
+    out vec3 n, out vec3 e1, out vec3 e2, out vec3 xL)
 {
     EmissiveTriangle result;
     //for(int i = 0; i < 10; i++)
@@ -210,7 +211,7 @@ EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 lightUV, ou
         uint pixelIndex = launchID.x + launchID.y * launchSize.x;
 
         uint pixHash = wangHash(pixelIndex);
-        uint baseSeq = pixHash * 1664525u + 1013904223u; // mixed base seed
+        uint baseSeq = pixHash + sampleIdx; // mixed base seed
 
         // then for each sample, build a small sequence index
         uint seqForTri = baseSeq + uint(sampleIdx) * 4u + 0u; // +0 for tri index
@@ -259,7 +260,7 @@ EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 lightUV, ou
 
 //Next event estimation for emissive triangles
 vec3 nee(
-    int sampleIdx, Material objMat, vec2 objUV, vec3 P, vec3 N, vec3 V, vec4 base,
+    int neeSampleIdx, Material objMat, vec2 objUV, vec3 P, vec3 N, vec3 V, vec4 base,
     vec3 emissive, vec2 mr)
 {
     vec3 Lo_direct = vec3(0.0);
@@ -272,6 +273,16 @@ vec3 nee(
         vec3 xL;
         vec2 lightUV;
         vec3 nTri;
+
+		const int areaLightsSamplesCount = int(dynamicData.mRTSettings.z);
+        const int width = areaLightsSamplesCount;
+        const int height = dynamicData.mAASamples;
+        const int x = neeSampleIdx;
+        const int y = payload.aaSampleIdx;
+        const int z = dynamicData.mFrameIndex;
+        // Sample index within the frame
+        const int sampleIdx = z * width * height + y * width + x;
+
         // 1) Get random emissive triangle
         EmissiveTriangle tri = getEmissiveTriangle(sampleIdx, P, lightUV, nTri, e1, e2, xL);
 
@@ -344,26 +355,46 @@ void processEmissives(Material objMat, vec2 objUV, vec3 P, vec3 N_world, vec3 V_
     payload.radiance += neeEmissiveContrib;
 }
 
-void processGI(vec3 P, vec3 T, vec3 B, vec3 N)
+vec3 getAttenuation(vec3 base, float metallness, float roughness)
+{
+    // TODO: get rid of this double return.
+    // Problem: in case of bright environment map its conribution is to high and returning 1 doesn't produce acceptable result.
+    // On the other hand if we calculate it fully GI contribution degrades to almost no effect.
+    return vec3(1.0);
+    return mix(base * (1.0 - roughness), base * metallness, metallness);
+}
+
+void processGI(vec3 P, vec3 V, vec3 N_world, vec3 T, vec3 B, vec3 N, vec3 base, float metallness, float roughness)
 {
     vec3 giContrib = vec3(0.0);
     Payload old = payload;
-    payload.depth++;
-    for(int i = 0; i < int(dynamicData.mRTSettings.y); i++)
+    payload.giDepth++;
+    const int giSamplesCount = int(dynamicData.mRTSettings.y);
+    for(int i = 0; i < giSamplesCount; i++)
     {
         float tMin = 0.001;
         // infinite
         float tMax = 1e32;
         vec3 origin = P;
-
-        vec3 rayDir = normalize(mat3(gl_ObjectToWorldEXT) * toTBNSpace(cosineHemisphere(i), N, T, B));
+        const int width = giSamplesCount;
+        const int height = dynamicData.mAASamples;
+        const int x = i;
+        const int y = payload.aaSampleIdx;
+        const int z = dynamicData.mFrameIndex;
+        // Sample index within the frame
+        const int sampleIdx = z * width * height + y * width + x;
+        //const vec3 rndDir = cosineHemisphere(sampleIdx);
+        vec3 R0 = reflect(gl_WorldRayDirectionEXT, N_world);
+        vec3 R1 = normalize(mat3(gl_ObjectToWorldEXT) * toTBNSpace(cosineHemisphere(sampleIdx), N, T, B));
+        vec3 R = normalize(mix(R0, R1, roughness * roughness));
+        vec3 rayDir = R;// normalize(mat3(gl_ObjectToWorldEXT) * toTBNSpace(R, N, T, B));
         uint flags =
             gl_RayFlagsTerminateOnFirstHitEXT |
             gl_RayFlagsCullBackFacingTrianglesEXT;
             //gl_RayFlagsOpaqueEXT;
 
+        payload.rayDir = rayDir;
         payload.radiance = vec3(0.0);
-        payload.attenuation = vec3(1.0);
 
         traceRayEXT(topLevelAS,        // acceleration structure
             flags,             // rayFlags
@@ -381,6 +412,7 @@ void processGI(vec3 P, vec3 T, vec3 B, vec3 N)
         clampFireflies(giContrib);
     }
     giContrib /= dynamicData.mRTSettings.y;
+    giContrib *= getAttenuation(base, metallness, roughness);
     payload = old;
     payload.radiance += giContrib;
 }
@@ -391,16 +423,17 @@ vec3 getLightPosJitter()
     uvec2 launchSize = gl_LaunchSizeEXT.xy;
     uint pixelIndex = launchID.x + launchID.y * launchSize.x;
     uint hashedIdx = wangHash(pixelIndex);
+    uint seq = hashedIdx + dynamicData.mFrameIndex * dynamicData.mAASamples + payload.aaSampleIdx;
 
-    float x = halton(hashedIdx, 2u);
-    float y = halton(hashedIdx, 3u);
-    float z = halton(hashedIdx, 5u);
-    return vec3(x, y, z) * dynamicData.mLightPos.w;
+    float x = halton(seq, 2u);
+    float y = halton(seq, 3u);
+    float z = halton(seq, 5u);
+    return (vec3(x, y, z) - 0.5) * dynamicData.mLightPos.w;
 }
 
 void main()
 {
-    if(payload.depth > 1)
+    if(payload.giDepth > 1)
     {
         return;
     }
@@ -440,7 +473,8 @@ void main()
     vec3 T;
     vec3 B;
     vec3 N;
-    vec3 N_world = getWorldNormal(objMat, objMat.mNormalTex, vNormal, vec4(vTangent, 1.0), objUV, gl_ObjectToWorldEXT, T, B, N);
+    vec3 nTex;
+    vec3 N_world = getWorldNormal(objMat, objMat.mNormalTex, vNormal, vec4(vTangent, 1.0), objUV, gl_ObjectToWorldEXT, T, B, N, nTex);
 
     // Computing the coordinates of the hit position
     vec3 P = v0.mPos.xyz * barycentrics.x + v1.mPos.xyz * barycentrics.y + v2.mPos.xyz * barycentrics.z;
@@ -498,27 +532,29 @@ void main()
 
     payload.radiance += directLightContrib;
     
-    if(getAreaLightsEnabled(dynamicData) && payload.depth == 0)
+    if(getAreaLightsEnabled(dynamicData) && payload.depth == 0 && dynamicData.mDebugMode == 0)
     {
         processEmissives(objMat, objUV, P, N_world, V_world, base, emissive, mr);
     }
 
-    if(getGIEnabled(dynamicData) && payload.depth == 0)
+    if(getGIEnabled(dynamicData) && payload.depth == 0 && dynamicData.mDebugMode == 0)
     {
-        processGI(P, T, B, N);
+        processGI(P, V_world, N_world, T, B, N, base.rgb, metallness, roughness);
     }
 
     payload.radiance *= payload.attenuation;
+    payload.attenuation *= getAttenuation(base.rgb, metallness, roughness);
 
 	// Reflect
 	vec3 rayDir = reflect(gl_WorldRayDirectionEXT, N_world);
-    if(payload.depth == 0)
-    {
-        payload.attenuation *= 0.5 * metallness;
-    }
     payload.rayOrigin = P;
     payload.rayDir = rayDir;
     payload.normal = N_world;
+    const int maxDepth = dynamicData.mDebugMode == 0 ? int(dynamicData.mRTSettings.x) : 1;
+    //if(metallness < 0.01)
+    {
+        payload.depth = maxDepth;
+    }
 
     if(dynamicData.mDebugMode == 1)
     {

@@ -48,6 +48,7 @@ namespace app
 		void initInterop();
 		void createScene();
 		void updateMaterials();
+		void loadEnvTexture();
 
 	private:
         std::vector<StorageImage> mColorStorage;
@@ -109,9 +110,10 @@ namespace app
 		VkSemaphore mExternalVulkanSignalSemaphore = VK_NULL_HANDLE;
 		bool mDenoiserInitialized = false;
 		bool mIsDenoiserEnabled = true;
-		bool mTemporalMode = true;
+		bool mTemporalMode = false;
 		uint32_t mLampMaterialIndex = MAX(uint32_t);
         std::vector<fre::Material> mDefaultMaterials;
 		int mUsePrevLayers = 0;
+		int mAccumulatedFrames = 0;
 	};
 }

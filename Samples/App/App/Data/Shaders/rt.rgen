@@ -100,10 +100,14 @@ void main()
 		//payload.rngState = uint(gl_LaunchIDEXT.x * 1973u ^ gl_LaunchIDEXT.y * 9277u ^ 89173u);
 		payload.done = 0;
 		payload.depth = 0;
+		payload.aaSampleIdx = i;
+		payload.giDepth = 0;
 
 		vec3 sampleColor = vec3(0.0);
-		for(int depth = 0; depth < int(dynamicData.mRTSettings.x); depth++)
+		const int maxDepth = dynamicData.mDebugMode == 0 ? int(dynamicData.mRTSettings.x) : 1;
+		for(int depth = 0; depth < maxDepth; depth++)
 		{
+			payload.depth = depth;
 			traceRayEXT(
 				topLevelAS,
 				gl_RayFlagsCullBackFacingTrianglesEXT,
@@ -120,14 +124,17 @@ void main()
 					done = true;
 				}
 			}
-			if(payload.done == 1 || length(payload.attenuation) < 0.001)
+			if(payload.done == 1 || length(payload.attenuation) < 0.001 || payload.depth >= maxDepth)
 				break;
 		}
 		color += sampleColor / float(dynamicData.mAASamples);
 		albedo += payload.albedo / float(dynamicData.mAASamples);
 		normal += payload.normal / float(dynamicData.mAASamples);
 	}
-	imageStore(colorImage, ivec2(gl_LaunchIDEXT.xy), vec4(color, 0.0));
+	vec4 prevColor = imageLoad(colorImage, ivec2(gl_LaunchIDEXT.xy));
+	vec3 newColor = dynamicData.mFrameIndex == 1 ? color : (prevColor.rgb * (dynamicData.mFrameIndex - 1.0) + color) / float(dynamicData.mFrameIndex);
+
+	imageStore(colorImage, ivec2(gl_LaunchIDEXT.xy), vec4(newColor, 1.0));
 	imageStore(albedoImage, ivec2(gl_LaunchIDEXT.xy), vec4(payload.albedo, 0.0));
 	imageStore(normalImage, ivec2(gl_LaunchIDEXT.xy), vec4(payload.normal, 0.0));
 	computeFlow(worldHitPos, done);

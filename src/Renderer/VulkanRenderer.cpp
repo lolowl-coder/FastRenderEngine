@@ -35,6 +35,7 @@
 #include <mutex>
 
 #include <assimp/scene.h>
+#include <assimp/GltfMaterial.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -368,7 +369,7 @@ namespace fre
 				VkSamplerCreateInfo samplerCreateInfo = {};
 				samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 				samplerCreateInfo.magFilter = key.mFilter;
-				samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+				samplerCreateInfo.minFilter = key.mFilter;
 				samplerCreateInfo.addressModeU = key.mAddressMode;
 				samplerCreateInfo.addressModeV = key.mAddressMode;
 				samplerCreateInfo.addressModeW = key.mAddressMode;
@@ -723,7 +724,7 @@ namespace fre
 					LOG_ERROR("Vulkan error {}", vulkanResult);
 				}*/
 				//Get next frame
-				mCurrentFrame = (mCurrentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+				//mCurrentFrame = (mCurrentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 
 				onFrameEnd();
 			}
@@ -1607,7 +1608,7 @@ namespace fre
 		//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
 		// Setup Dear ImGui style
-		ImGui::StyleColorsLight();
+		ImGui::StyleColorsDark();
 
 		// Setup Platform/Renderer backends
 		ImGui_ImplGlfw_InitForVulkan(mWindow, true);
@@ -2860,7 +2861,7 @@ namespace fre
 			material.mBaseColorFactor = toVec4(diffuse);
 			AI_CHECK(externalMaterial->Get(AI_MATKEY_METALLIC_FACTOR, material.mMetallicFactor));
 			AI_CHECK(externalMaterial->Get(AI_MATKEY_ROUGHNESS_FACTOR, material.mRoughnessFactor));
-			AI_CHECK(externalMaterial->Get("$mat.gltf.normalTexture.scale", 0, 0, material.mNormalScale));
+			AI_CHECK(externalMaterial->Get(AI_MATKEY_GLTF_TEXTURE_SCALE(aiTextureType_NORMALS, 0), material.mNormalScale));
 			AI_CHECK(externalMaterial->Get("$mat.gltf.occlusionTexture.strength", 0, 0, material.mOcclusionStrength));
 			aiColor4D emissive;
 			AI_CHECK(externalMaterial->Get(AI_MATKEY_COLOR_EMISSIVE, emissive));
