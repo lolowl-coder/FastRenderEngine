@@ -19,7 +19,7 @@ namespace app
         AppEngine();
         virtual ~AppEngine() override;
 
-        void initUI();
+        void initUI(fre::Camera& camera);
 
         virtual bool createDynamicGPUResources() override;
 

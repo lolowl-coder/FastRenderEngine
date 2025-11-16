@@ -45,7 +45,7 @@ float getLod(int texId)
 // Tangent.w is expected to be the handedness (+1 / -1). If you don't have it, use +1.
 vec3 getWorldNormal(Material mat, int normalTexIndex,
     vec3 objN, vec4 objT, vec2 uv,
-    mat4x3 objectToWorld, out vec3 T, out vec3 B, out vec3 N, out vec3 nTex)
+    out vec3 T, out vec3 B, out vec3 N, out vec3 nTex)
 {
     // Orthonormalize T against N
     N = normalize(objN);
@@ -57,8 +57,9 @@ vec3 getWorldNormal(Material mat, int normalTexIndex,
     nTex = vec3(0.0, 0.0, 1.0);
     if(normalTexIndex >= 0) {
         // Tangent-space normal in [0,1] -> [-1,1]
-		float lod = getLod(normalTexIndex);
-        nTex = textureLod(textures[normalTexIndex], uv, lod).xyz * 2.0 - 1.0;
+		//float lod = getLod(normalTexIndex);
+        //nTex = textureLod(textures[normalTexIndex], uv, lod).xyz * 2.0 - 1.0;
+        nTex = texture(textures[normalTexIndex], uv).xyz * 2.0 - 1.0;
         nTex.xy *= mat.mNormalScale * dynamicData.mLightColor.w;
         nTex = normalize(nTex);
     }
@@ -66,8 +67,8 @@ vec3 getWorldNormal(Material mat, int normalTexIndex,
     // To OBJECT space
     vec3 nObj = normalize(TBN * nTex);
     // To WORLD space (w = 0 for direction)
-    vec3 nWorld = normalize(inverse(transpose(mat3(gl_ObjectToWorldEXT))) * nObj);
-    //vec3 nWorld = normalize((objectToWorld * vec4(nObj, 0.0)).xyz);
+    // We need inverse(transpose( if object matrix contains non-uniform scale
+    vec3 nWorld = normalize(/*inverse*/(/*transpose*/(mat3(gl_ObjectToWorldEXT))) * nObj);
     return nWorld;
 }
 
@@ -76,8 +77,9 @@ vec4 sampleBaseColor(const Material m, vec2 uv) {
     vec4 base = m.mBaseColorFactor;
     if(m.mBaseColorTex >= 0) {
         // Base color is typically authored in sRGB; ensure your sampler/format handles sRGB -> linear
-        float lod = getLod(m.mBaseColorTex);
-        base *= textureLod(textures[m.mBaseColorTex], uv, lod);
+        //float lod = getLod(m.mBaseColorTex);
+        //base *= textureLod(textures[m.mBaseColorTex], uv, lod);
+        base *= texture(textures[m.mBaseColorTex], uv);
     }
     return base;
 }
@@ -87,8 +89,9 @@ vec2 sampleMetallicRoughness(const Material m, vec2 uv) {
     float roughness = m.mRoughnessFactor;
     if(m.mMetallicRoughnessTex >= 0)
     {
-		float lod = getLod(m.mMetallicRoughnessTex);
-        vec4 mr = textureLod(textures[m.mMetallicRoughnessTex], uv, lod);
+		//float lod = getLod(m.mMetallicRoughnessTex);
+        //vec4 mr = textureLod(textures[m.mMetallicRoughnessTex], uv, lod);
+        vec4 mr = texture(textures[m.mMetallicRoughnessTex], uv);
         roughness *= mr.g;
         metallic *= mr.b;
     }
@@ -104,8 +107,9 @@ float sampleAO(const Material m, vec2 uv) {
     return 1.0;
     if(m.mOcclusionTex >= 0)
     {
-		float lod = getLod(m.mOcclusionTex);
-        float ao = textureLod(textures[m.mOcclusionTex], uv, lod).r;
+		//float lod = getLod(m.mOcclusionTex);
+        //float ao = textureLod(textures[m.mOcclusionTex], uv, lod).r;
+        float ao = texture(textures[m.mOcclusionTex], uv).r;
         return mix(1.0, ao, m.mOcclusionStrength);
     }
     return 1.0;
@@ -115,8 +119,9 @@ vec3 sampleEmissive(const Material m, vec2 uv) {
     vec3 e = m.mEmissiveFactor;
     if(m.mEmissiveTex >= 0) {
         // Emissive is authored in sRGB; ensure your sampler/format linearizes
-		float lod = getLod(m.mEmissiveTex);
-        e *= textureLod(textures[m.mEmissiveTex], uv, lod).rgb;
+		//float lod = getLod(m.mEmissiveTex);
+        //e *= textureLod(textures[m.mEmissiveTex], uv, lod).rgb;
+        e *= texture(textures[m.mEmissiveTex], uv).rgb;
     }
     return e;
 }
@@ -137,7 +142,6 @@ vec3 shadeGLTF(
     vec2 objUV,
     vec3 P_world,
     vec3 V_world,                 // from P toward camera, normalized
-    mat4x3 objectToWorld,
     vec3 lightDir_world,          // normalized (from P toward light)
     vec3 lightRadiance,           // RGB radiance at P (includes intensity & attenuation)
     float shadowVisibility,       // 0..1 (1 = unshadowed). For hard shadow: 0 or 1.
@@ -318,7 +322,7 @@ vec3 nee(
             Material emissiveTriMat = materials.i[tri.matIndex];
             vec3 lightEmissive = sampleEmissive(emissiveTriMat, lightUV);
             vec3 f = shadeGLTF(
-                objMat, objUV, P, V, gl_ObjectToWorldEXT,
+                objMat, objUV, P, V,
                 wi, lightEmissive, // light direction & radiance
                 float(!isShadowed), // shadow visibility (1 = unshadowed)
                 1.0, // ambient occlusion
@@ -364,7 +368,7 @@ vec3 getAttenuation(vec3 base, float metallness, float roughness)
     return mix(base * (1.0 - roughness), base * metallness, metallness);
 }
 
-void processGI(vec3 P, vec3 V, vec3 N_world, vec3 T, vec3 B, vec3 N, vec3 base, float metallness, float roughness)
+void processGI(vec3 P, vec3 V_world, vec3 N_world, vec3 T, vec3 B, vec3 N, vec3 base, float metallness, float roughness)
 {
     vec3 giContrib = vec3(0.0);
     Payload old = payload;
@@ -383,7 +387,6 @@ void processGI(vec3 P, vec3 V, vec3 N_world, vec3 T, vec3 B, vec3 N, vec3 base, 
         const int z = dynamicData.mFrameIndex;
         // Sample index within the frame
         const int sampleIdx = z * width * height + y * width + x;
-        //const vec3 rndDir = cosineHemisphere(sampleIdx);
         vec3 R0 = reflect(gl_WorldRayDirectionEXT, N_world);
         vec3 R1 = normalize(mat3(gl_ObjectToWorldEXT) * toTBNSpace(cosineHemisphere(sampleIdx), N, T, B));
         vec3 R = normalize(mix(R0, R1, roughness * roughness));
@@ -408,7 +411,10 @@ void processGI(vec3 P, vec3 V, vec3 N_world, vec3 T, vec3 B, vec3 N, vec3 base, 
             tMax,              // ray max range
             0                  // payload (location = 0, 1)
         );
-        giContrib += min(vec3(2.5), payload.radiance);
+        float NdotV = saturate(dot(N_world, V_world));
+        vec3 F0 = mix(vec3(0.04), base, metallness);
+        vec3 F = F_Schlick(F0, NdotV);
+        giContrib += min(vec3(2.5), payload.radiance) * F;
         clampFireflies(giContrib);
     }
     giContrib /= dynamicData.mRTSettings.y;
@@ -474,7 +480,7 @@ void main()
     vec3 B;
     vec3 N;
     vec3 nTex;
-    vec3 N_world = getWorldNormal(objMat, objMat.mNormalTex, vNormal, vec4(vTangent, 1.0), objUV, gl_ObjectToWorldEXT, T, B, N, nTex);
+    vec3 N_world = getWorldNormal(objMat, objMat.mNormalTex, vNormal, vec4(vTangent, 1.0), objUV, T, B, N, nTex);
 
     // Computing the coordinates of the hit position
     vec3 P = v0.mPos.xyz * barycentrics.x + v1.mPos.xyz * barycentrics.y + v2.mPos.xyz * barycentrics.z;
@@ -482,7 +488,9 @@ void main()
 
     vec3 lightPos = dynamicData.mLightPos.xyz + getLightPosJitter();
     // To light direction
-    vec3 L = normalize(lightPos - P);
+    vec3 toLightDir = lightPos - P;
+    float distToLight = length(toLightDir);
+    vec3 L = normalize(toLightDir);
 
     float NdotL = dot(N_world, L);
     vec2 mr = sampleMetallicRoughness(objMat, objUV);
@@ -494,10 +502,10 @@ void main()
     if(NdotL > 0.0)
     {
         float tMin = 0.001;
-        float tMax = 1e32;        // infinite
+        float tMax = distToLight;        // infinite
         vec3  origin = P;
         vec3  rayDir = L;
-        uint  flags = gl_RayFlagsTerminateOnFirstHitEXT /*| gl_RayFlagsOpaqueEXT*/ | gl_RayFlagsSkipClosestHitShaderEXT;
+        uint  flags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
         isShadowed = true;
 
         traceRayEXT(topLevelAS,        // acceleration structure
@@ -520,7 +528,7 @@ void main()
     vec3 emissive = sampleEmissive(objMat, objUV);
     vec3 lightRadiance = dynamicData.mLightColor.rgb * getMainLightIntensity(dynamicData); // light radiance at P (includes intensity & attenuation)
     vec3 directLightContrib = shadeGLTF(
-        objMat, objUV, P, V_world, gl_ObjectToWorldEXT,
+        objMat, objUV, P, V_world,
         L, lightRadiance, // light direction & radiance
         float(!isShadowed), // shadow visibility (1 = unshadowed)
         1.0, // ambient occlusion

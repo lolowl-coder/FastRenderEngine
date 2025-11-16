@@ -59,6 +59,11 @@ struct DynamicDataBlock
 	vec4 mLightPos;
 	vec4 mLightColor;
 	vec4 mBackgroundColor;
+	//x - frequency
+	//y - power
+	//z - offset
+	//w - amplitude
+	vec4 mNoiseParams;
 	//RT settings
 	//mMaxRayDepth
 	//mGiSamples

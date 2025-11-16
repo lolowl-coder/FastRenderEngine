@@ -229,7 +229,8 @@ namespace fre
 		int channels;
 		int width;
 		int height;
-		mData = stbi_load(fileName.c_str(), &width, &height, &channels, mNumChannels);
+		// Even if image contains less than 4 stb will pad missing channels up to 4
+		mData = stbi_load(fileName.c_str(), &width, &height, &channels, 4);
 		mIsPNG = true;
 	}
 

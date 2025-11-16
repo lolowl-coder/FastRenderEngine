@@ -51,7 +51,7 @@ namespace fre
 		VulkanRenderer(ThreadPool& threadPool);
 		virtual ~VulkanRenderer();
 		
-		virtual void initUI() {}
+		virtual void initUI(Camera& camera) {}
 
 		virtual int createCoreGPUResources(GLFWwindow* newWindow);
 		virtual int createDynamicGPUResources();

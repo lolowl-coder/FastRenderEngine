@@ -44,11 +44,11 @@ namespace app
 		}
 	}
 
-	void AppRenderer::initUI()
+	void AppRenderer::initUI(Camera& camera)
 	{
 		addUIRenderCallback
 		(
-			[this]()
+			[this, & camera]()
 			{
 				if(!mRTMeshes.empty() && mRTMeshes[0] != nullptr)
 				{
@@ -131,7 +131,7 @@ namespace app
 
 						//inputFloat(-10.0f, 10.0f, "Flow multiplier", mDynamicData.mFlowMultiplier);
 						//ImGui::Checkbox("Temporal mode", &mTemporalMode);
-						TRACK_CHANGES(sliderFloat(1.0f, 16.0f, "Max ray depth", mDynamicData.mRTSettings.x, "%.0f"));
+						//TRACK_CHANGES(sliderFloat(1.0f, 16.0f, "Max ray depth", mDynamicData.mRTSettings.x, "%.0f"));
 						TRACK_CHANGES(sliderFloat(1.0f, 64.0f, "GI samples", mDynamicData.mRTSettings.y, "%.0f"));
 						TRACK_CHANGES(sliderFloat(1.0f, 64.0f, "Emissive samples", mDynamicData.mRTSettings.z, "%.0f"));
 					}
@@ -156,8 +156,17 @@ namespace app
 						TRACK_CHANGES(inputFloat(-1000.0f, 1000.0f, "x", mDynamicData.mLightPos.x));
 						TRACK_CHANGES(inputFloat(-1000.0f, 1000.0f, "y", mDynamicData.mLightPos.y));
 						TRACK_CHANGES(inputFloat(-1000.0f, 1000.0f, "z", mDynamicData.mLightPos.z));
+						if(ImGui::Button("Copy from camera eye"))
+						{
+							const auto t = inverse(camera.mView) * vec4(vec3(0.0f), 1.0f);
+
+							mDynamicData.mLightPos.x = t.x;
+							mDynamicData.mLightPos.y = t.y;
+							mDynamicData.mLightPos.z = t.z;
+							changed = true;
+						}
 						TRACK_CHANGES(sliderFloat(0.0f, 1000.0f, "Main light radius", mDynamicData.mLightPos.w));
-						TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Lod distance ratio", mDynamicData.mRTSettings.w));
+						//TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Lod distance ratio", mDynamicData.mRTSettings.w));
 						TRACK_CHANGES(ImGui::ColorEdit3("Main Light color", (float*)&mDynamicData.mLightColor.x, ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoAlpha));
 						TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Normal scale", mDynamicData.mLightColor.w));
 						TRACK_CHANGES(ImGui::Checkbox("Tone mapping", (bool*)(&mDynamicData.mEnableToneMapping)));
@@ -175,8 +184,12 @@ namespace app
 						if(mDynamicData.mBackgroundType == 0)
 						{
 							TRACK_CHANGES(ImGui::ColorEdit3("Background color", (float*)&mDynamicData.mBackgroundColor.x, ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoAlpha));
+							TRACK_CHANGES(sliderFloat(0.0f, 1000.0f, "Noise frequency", mDynamicData.mNoiseParams.x, "%.1f"));
+							TRACK_CHANGES(sliderFloat(-10.0f, 100.0f, "Noise power", mDynamicData.mNoiseParams.y, "%.1f"));
+							TRACK_CHANGES(sliderFloat(-10.0f, 10.0f, "Noise offset", mDynamicData.mNoiseParams.z, "%.1f"));
+							TRACK_CHANGES(sliderFloat(-10.0f, 10.0f, "Noise amplitude", mDynamicData.mNoiseParams.w, "%.1f"));
 						}
-						TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Firefly threshold", mDynamicData.mFireflyThreshold, "%.2f"));
+						//TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Firefly threshold", mDynamicData.mFireflyThreshold, "%.2f"));
 						TRACK_CHANGES(sliderInt(1, 16, "AA samples", mDynamicData.mAASamples));
 						TRACK_CHANGES(ImGui::Combo("Debug mode", &mDynamicData.mDebugMode, "Off\0Normals\0Albedo\0Roughness\0Metallic\0Emissive\0Ray distance\0Flow\0"));
 					}
@@ -191,6 +204,7 @@ namespace app
 					}
                     ImGui::Separator();
                     ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+					ImGui::Text("Camera position: %.2f, %.2f, %.2f", camera.mEye.x, camera.mEye.y, camera.mEye.z);
 
 					if(materialsChanged)
 					{
@@ -276,9 +290,9 @@ namespace app
 			{
 				texturesToCreate.push_back(0);
 			}
-			if(getTexture(mDynamicData.mEnvTexIndex) == nullptr)
+			if(getTexture(mEnvTexIndex) == nullptr)
 			{
-				texturesToCreate.push_back(mDynamicData.mEnvTexIndex);
+				texturesToCreate.push_back(mEnvTexIndex);
 			}
 			for(const auto& mesh : mRTMeshes)
 			{
@@ -314,6 +328,7 @@ namespace app
 		mDynamicData.mProjInverse = glm::inverse(camera.mProjection);
 		mDynamicData.mPrevPV = camera.mProjection * camera.mPrevView;
 		mDynamicData.mPV = camera.mProjection * camera.mView;
+
 		if(mDynamicData.mPrevPV == mDynamicData.mPV && !mIsDenoiserEnabled)
 		{
 			mAccumulatedFrames++;
@@ -323,6 +338,7 @@ namespace app
 			mAccumulatedFrames = 1;
 		}
 		mDynamicData.mFrameIndex = mAccumulatedFrames;
+		mDynamicData.mEnvTexIndex = mEnvTexIndex;
 
         mBufferManager.udpateBuffer(mainDevice.logicalDevice, mDynamicDataBufferIndex, &mDynamicData, sizeof(mDynamicData));
 
@@ -520,10 +536,14 @@ namespace app
 		//mMeshModel = createMeshModel("Models/unitCube/unitCube.obj", {});
         //mat4 sceneTransform = rotate(mat4(1.0f), glm::half_pi<float>(), vec3(1.0f, 0.0f, 0.0f));
 		//mMeshModel = createMeshModel("Models/pool2/scene.gltf",
+		//mMeshModel = createMeshModel("Models/pool/scene.gltf",
 		//mMeshModel = createMeshModel("Models/unreal/scene.gltf",
 		//mMeshModel = createMeshModel("Models/mobileHome/scene.gltf",
 		//mMeshModel = createMeshModel("Models/dreadroamer/scene.gltf",
 		mMeshModel = createMeshModel("Models/helmet/scene.gltf",
+		//mMeshModel = createMeshModel("Models/sidewalk/scene.gltf",
+		//mMeshModel = createMeshModel("Models/vipers_helmet/scene.gltf",
+		//mMeshModel = createMeshModel("Models/sponza_palace/scene.gltf",
 			{
 				aiTextureType_NORMALS, aiTextureType_BASE_COLOR, aiTextureType_METALNESS,
 				aiTextureType_EMISSIVE, aiTextureType_AMBIENT_OCCLUSION, aiTextureType_LIGHTMAP
@@ -612,7 +632,7 @@ namespace app
 		Image image;
         image.mFileName = "rural_evening_road_4k.hdr";
 		image.mFormat = VK_FORMAT_R32G32B32_SFLOAT;
-		mDynamicData.mEnvTexIndex = createTextureInfo(
+		mEnvTexIndex = createTextureInfo(
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 			VK_IMAGE_TILING_OPTIMAL,
 			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
@@ -646,7 +666,7 @@ namespace app
 		auto samplerIndex = createSampler(
 			{
 				VK_SAMPLER_ADDRESS_MODE_REPEAT,
-				textureId == mDynamicData.mEnvTexIndex ? VK_FILTER_NEAREST : VK_FILTER_LINEAR,
+				textureId == mEnvTexIndex ? VK_FILTER_NEAREST : VK_FILTER_LINEAR,
 				VK_FALSE, textureInfo->mMipLevelCount
 			});
 		auto sampler = getSampler(samplerIndex);
