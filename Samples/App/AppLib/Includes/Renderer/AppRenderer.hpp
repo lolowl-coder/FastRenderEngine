@@ -16,7 +16,7 @@ namespace app
 	public:
 		AppRenderer(fre::ThreadPool& threadPool);
 
-		virtual void initUI() override;
+		virtual void initUI(fre::Camera& camera) override;
 		virtual int createDynamicGPUResources() override;
 		virtual int createMeshGPUResources() override;
 		virtual void destroy() override;
@@ -51,21 +51,27 @@ namespace app
 		void loadEnvTexture();
 
 	private:
+		//G-buffer storage images
         std::vector<StorageImage> mColorStorage;
         std::vector<StorageImage> mAlbedoStorage;
         std::vector<StorageImage> mNormalStorage;
         std::vector<StorageImage> mFlowStorage;
+		//Final result mesh
 		fre::MeshPtr mResultMesh;
-
+		//Ray tracing shader id
         uint32_t mRTShaderId = MAX(uint32_t);
-
+		//Loaded mesh model
 		fre::MeshModelPtr mMeshModel;
 		fre::VulkanBuffer mVertexBuffer;
 		fre::VulkanBuffer mIndexBuffer;
 		fre::VulkanBuffer mTransformMatrixBuffer;
+
+		//Ray tracing
+		
+		//Acceleration structures
 		fre::AccelerationStructure mBLAS;
 		fre::AccelerationStructure mTLAS;
-		fre::VulkanBuffer mSceneGPU;
+		//Descriptors for ray tracing
 		fre::VulkanDescriptorPtr mTLASDescriptor;
 		fre::VulkanDescriptorPtr mRTMeshesGPUDescriptor;
 		fre::VulkanDescriptorPtr mRTMaterialsGPUDescriptor;
@@ -73,47 +79,63 @@ namespace app
 		fre::VulkanDescriptorPtr mRTTexturesDescriptor;
 		fre::VulkanDescriptorPtr mEmissiveTrianglesDescriptor;
 
+		//CPU-side meshes for ray tracing
 		std::vector<fre::MeshPtr> mRTMeshes;
+
+		//GPU-side buffers
+
+		//RT meshes buffer
+		uint32_t mRTMeshesGPUBufferIndex = MAX(uint32_t);
 		fre::VulkanBuffer mRTMeshesGPUBuffer;
+		//RT materials buffer
 		uint32_t mRTMaterialsGPUBufferIndex = MAX(uint32_t);
 		fre::VulkanBuffer mRTMaterialsGPUBuffer;
+		//Uniform buffer with RT options
         uint32_t mDynamicDataBufferIndex = MAX(uint32_t);
-        fre::VulkanBuffer mRTMeshesBuffer;
-        fre::VulkanBuffer mRTMaterialsBuffer;
 		fre::VulkanBuffer mDynamicDataBuffer;
+		//Emissive triangles buffer (area lights)
 		fre::VulkanBuffer mEmissiveTrianglesBuffer;
+		//Texture views and samplers we pass to ray tracing shaders
         std::vector<VkImageView> mTextureViews;
         std::vector<VkSampler> mTextureSamplers;
+		//Shadow miss shader id to build SBT
 		uint32_t mShadowMissShaderId = MAX(uint32_t);
 
-		//Interop
+		//Interop btw CUDA and Vulkan
 
 		//Cuda-Vulkan synchronization primitives
 		std::vector<cudaExternalSemaphore_t> mCudaWaitSemaphores;
 		std::vector<cudaExternalSemaphore_t> mCudaSignalSemaphores;
-
-		cudaExternalMemory_t mCUDAExternalColorMem = nullptr;
-		cudaExternalMemory_t mCUDAExternalAlbedoMem = nullptr;
-		cudaExternalMemory_t mCUDAExternalNormalMem = nullptr;
+		VkSemaphore mExternalVulkanWaitSemaphore = VK_NULL_HANDLE;
+		VkSemaphore mExternalVulkanSignalSemaphore = VK_NULL_HANDLE;
+		//Buffers to feed to denoiser
         std::vector<fre::CudaBuffer<float4>> mCUDAExternalColorBuffer;
         std::vector<fre::CudaBuffer<float4>> mCUDAExternalAlbedoBuffer;
         std::vector<fre::CudaBuffer<float4>> mCUDAExternalNormalBuffer;
         std::vector<fre::CudaBuffer<float4>> mCUDAExternalFlowBuffer;
-
-        fre::DynamicData mDynamicData;
-		uint32_t mColorTextureId = MAX(uint32_t);
-		uint32_t mAlbedoTextureId = MAX(uint32_t);
-		uint32_t mNormalTextureId = MAX(uint32_t);
-		fre::Denoiser mDenoiser;
+		//Cuda buffer manager to simplify allocations/cleanup
 		fre::CudaBufferManager mCudaBufferManager;
-		VkSemaphore mExternalVulkanWaitSemaphore = VK_NULL_HANDLE;
-		VkSemaphore mExternalVulkanSignalSemaphore = VK_NULL_HANDLE;
+
+		//Denoiser
+
+		//OptiX denoiser instance
+		fre::Denoiser mDenoiser;
 		bool mDenoiserInitialized = false;
+		//Real time denoiser enabled flag
 		bool mIsDenoiserEnabled = true;
+
+		//Uniform buffer with settings we edit via UI
+        fre::DynamicData mDynamicData;
+		//Temporal mode.
+		//TODO: not implemented fully yet. No improvements if turned on. I suspect smth is missed out.
 		bool mTemporalMode = false;
+		//Index of lamp material (for pool2 scene)
 		uint32_t mLampMaterialIndex = MAX(uint32_t);
+		//Materials backup list to restore from if we edited them via options
         std::vector<fre::Material> mDefaultMaterials;
-		int mUsePrevLayers = 0;
+		//Progressive ray tracing frame counter
 		int mAccumulatedFrames = 0;
+		//Environment texture id
+		int mEnvTexIndex = 0;
 	};
 }

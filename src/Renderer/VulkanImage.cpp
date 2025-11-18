@@ -400,7 +400,9 @@ namespace fre
 
 	uint32_t getMipLevelCount(const ivec2& dimensions)
 	{
-		return static_cast<uint32_t>(std::floor(std::log2(std::max(dimensions.x, dimensions.y)))) + 1;
+		return 1;
+		// Currently not used
+		//return static_cast<uint32_t>(std::floor(std::log2(std::max(dimensions.x, dimensions.y)))) + 1;
 	}
 
 	void generateMipmaps(

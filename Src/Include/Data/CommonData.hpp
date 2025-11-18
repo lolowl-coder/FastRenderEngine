@@ -96,12 +96,17 @@ namespace fre
 		//rbg - Background color
 		//w - Exposure
 		glm::vec4 mBackgroundColor = glm::vec4(0.1f, 0.1f, 0.1f, 0.0f);
+		//x - frequency
+		//y - power
+		//z - offset
+		//w - amplitude
+		glm::vec4 mNoiseParams = glm::vec4(44.0f, 0.1f, 0.0f, 1.3f);
 		//RT settings
 		//mMaxRayDepth
 		//mGiSamples
 		//mEmissiveSamples
 		//mLodDistanceRatio
-		glm::vec4 mRTSettings = glm::vec4(2.0f, 4.0f, 4.0f, 0.0f);
+		glm::vec4 mRTSettings = glm::vec4(1.0f, 4.0f, 4.0f, 0.0f);
 		float mFireflyThreshold = 10.0f;
 		float mFlowMultiplier = 1.0f;
 		int mDebugMode = 0;

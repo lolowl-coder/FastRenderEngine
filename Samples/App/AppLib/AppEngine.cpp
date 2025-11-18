@@ -45,7 +45,7 @@ namespace app
 
         mRenderer->setShaderMetaDataProvider(this);
 
-        initUI();
+        initUI(mCamera);
 
         OPTIONS;
         options.load();
@@ -55,7 +55,7 @@ namespace app
     {
     }
 
-    void AppEngine::initUI()
+    void AppEngine::initUI(Camera& camera)
     {
         mRenderer->addUIRenderCallback
         (
@@ -85,7 +85,7 @@ namespace app
                 ImGui::PopStyleVar(1);
             }
         );
-        mRenderer->initUI();
+        mRenderer->initUI(mCamera);
     }
 
 	bool AppEngine::createCoreGPUResources()

@@ -51,4 +51,61 @@ vec3 cosineHemisphere(int sampleIdx) {
     return vec3(x, y, z);
 }
 
+// Hash function: fast and good enough for value noise
+precise float hash(vec2 p)
+{
+    // Large prime-like numbers
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 34.345);
+    return fract(p.x * p.y);
+}
+
+// Smooth interpolation
+float smoothstep_interp(float t)
+{
+    return t * t * (3.0 - 2.0 * t);
+}
+
+// 2D Value Noise in [0, 1]
+float valueNoise2D(vec2 uv)
+{
+    vec2 i = floor(uv);        // integer cell id
+    vec2 f = fract(uv);        // fractional part
+
+    // Smooth interpolation curve
+    vec2 u = vec2(
+        smoothstep_interp(f.x),
+        smoothstep_interp(f.y)
+    );
+
+    // Corner values
+    float a = hash(i + vec2(0.0, 0.0));
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+
+    // Bilinear interpolation
+    return mix(
+        mix(a, b, u.x),
+        mix(c, d, u.x),
+        u.y
+    );
+}
+
+float fbm(vec2 uv)
+{
+    float value = 0.0;
+    float amplitude = 0.5;
+    float frequency = 1.0;
+
+    for (int i = 0; i < 5; ++i)
+    {
+        value += amplitude * valueNoise2D(uv * frequency);
+        frequency *= 1.5;
+        amplitude *= 0.5;
+    }
+
+    return value;
+}
+
 #endif
