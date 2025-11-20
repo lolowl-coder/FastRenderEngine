@@ -9,13 +9,17 @@ namespace fre
 		std::vector<VkFormat> result;
 		switch (attachmentKind)
 		{
-			case EAttachmentKind::Color: result = { VK_FORMAT_R8G8B8A8_UNORM };
+			case EAttachmentKind::Color:
+				result = { VK_FORMAT_R8G8B8A8_UNORM };
 				break;
-			case EAttachmentKind::Color16: result = { VK_FORMAT_R16G16B16_SFLOAT, VK_FORMAT_R16G16B16A16_SFLOAT };
+			case EAttachmentKind::Color16:
+				result = { VK_FORMAT_R16G16B16_SFLOAT, VK_FORMAT_R16G16B16A16_SFLOAT };
 				break;
-			case EAttachmentKind::Color32: result = { VK_FORMAT_R32G32B32_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT };
+			case EAttachmentKind::Color32:
+				result = { VK_FORMAT_R32G32B32_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT };
 				break;
-			case EAttachmentKind::DepthStencil: result = { VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT };
+			case EAttachmentKind::DepthStencil:
+				result = { VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT };
 				break;
 			//case AK_DEPTH_STENCIL: result = { VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT }; break;
 			//case AK_DEPTH_STENCIL: result = { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D16_UNORM }; break;

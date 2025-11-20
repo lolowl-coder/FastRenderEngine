@@ -128,6 +128,10 @@ vec3 sampleEmissive(const Material m, vec2 uv) {
 
 void clampFireflies(inout vec3 color)
 {
+    if(dynamicData.mFireflyThreshold <= 0.0)
+    {
+        return;
+	}
     float lum = dot(color, vec3(1.0F / 3.0F));
     if(lum > dynamicData.mFireflyThreshold)
     {

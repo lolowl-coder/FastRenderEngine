@@ -275,7 +275,7 @@ namespace fre
 		vkDestroyBuffer(mainDevice.logicalDevice, imageStagingBuffer.mBuffer, nullptr);
 		vkFreeMemory(mainDevice.logicalDevice, imageStagingBuffer.mBufferMemory, nullptr);
 
-		if(mipLevels > 0)
+		if(mipLevels > 1)
 		{
 			generateMipmaps(mainDevice.logicalDevice, commandPool, queue,
 				texture->mImage, info->mImage.mDimension.x, info->mImage.mDimension.y,

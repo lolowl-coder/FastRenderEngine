@@ -140,8 +140,8 @@ namespace fre
 		int w, h, n;
 		stbi_info(fileName.c_str(), &w, &h, &n);
 		size = ivec2(w, h);
-		format = VK_FORMAT_R32G32B32_SFLOAT;
-		numChannels = 3;
+		format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		numChannels = 4;
 	}
 
 	void Image::create(const ivec2& dimension, const VkFormat format)
@@ -281,7 +281,7 @@ namespace fre
 	{
 		int width;
 		int height;
-		mData = stbi_loadf(fileName.c_str(), &width, &height, &mNumChannels, 3);
+		mData = stbi_loadf(fileName.c_str(), &width, &height, &mNumChannels, 4);
 	}
 
 	void Image::saveTIFF(const std::string& fileName, uint16_t* data, int width, int height)

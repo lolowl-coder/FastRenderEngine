@@ -189,7 +189,7 @@ namespace app
 							TRACK_CHANGES(sliderFloat(-10.0f, 10.0f, "Noise offset", mDynamicData.mNoiseParams.z, "%.1f"));
 							TRACK_CHANGES(sliderFloat(-10.0f, 10.0f, "Noise amplitude", mDynamicData.mNoiseParams.w, "%.1f"));
 						}
-						//TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Firefly threshold", mDynamicData.mFireflyThreshold, "%.2f"));
+						TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Firefly threshold", mDynamicData.mFireflyThreshold, "%.2f"));
 						TRACK_CHANGES(sliderInt(1, 16, "AA samples", mDynamicData.mAASamples));
 						TRACK_CHANGES(ImGui::Combo("Debug mode", &mDynamicData.mDebugMode, "Off\0Normals\0Albedo\0Roughness\0Metallic\0Emissive\0Ray distance\0Flow\0"));
 					}
@@ -269,6 +269,11 @@ namespace app
 			VkPhysicalDeviceAccelerationStructureFeaturesKHR,
 			VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
 			accelerationStructure);
+
+		REQUEST_FEATURE(
+			VkPhysicalDeviceRobustness2FeaturesEXT,
+			VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT,
+			nullDescriptor);
 	}
 
 	void AppRenderer::cleanupSwapChain()
@@ -631,14 +636,14 @@ namespace app
 	{
 		Image image;
         image.mFileName = "rural_evening_road_4k.hdr";
-		image.mFormat = VK_FORMAT_R32G32B32_SFLOAT;
+		image.mFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 		mEnvTexIndex = createTextureInfo(
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 			VK_IMAGE_TILING_OPTIMAL,
 			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			image, 0u);
+			image, 1u);
 	}
 
 	int AppRenderer::createMeshGPUResources()
