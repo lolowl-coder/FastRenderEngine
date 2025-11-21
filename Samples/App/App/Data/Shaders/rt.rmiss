@@ -44,7 +44,7 @@ void main()
         float intensity = (1.0 - clamp(
             length(gl_LaunchIDEXT.xy - gl_LaunchSizeEXT.xy * 0.5) /
             (min(gl_LaunchSizeEXT.x, gl_LaunchSizeEXT.y) * 0.75), 0.0, 1.0)) ;
-        payload.radiance = mix(vec3(0.0), vec3(dynamicData.mBackgroundColor.xyz), intensity * n);
+        payload.radiance = mix(vec3(0.0), vec3(dynamicData.mBackgroundColor.xyz * n), intensity);
 	}
     else
     {

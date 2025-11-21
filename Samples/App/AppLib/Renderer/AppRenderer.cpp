@@ -169,7 +169,14 @@ namespace app
 						//TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Lod distance ratio", mDynamicData.mRTSettings.w));
 						TRACK_CHANGES(ImGui::ColorEdit3("Main Light color", (float*)&mDynamicData.mLightColor.x, ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoAlpha));
 						TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Normal scale", mDynamicData.mLightColor.w));
-						TRACK_CHANGES(ImGui::Checkbox("Tone mapping", (bool*)(&mDynamicData.mEnableToneMapping)));
+						{
+							bool enabled = mDynamicData.mEnableToneMapping != 0;
+							if(ImGui::Checkbox("Tone mapping", &enabled))
+							{
+								mDynamicData.mEnableToneMapping = enabled ? 1 : 0;
+								changed = true;
+							}
+						}
 					}
 
 					if(ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen))
