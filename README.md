@@ -49,6 +49,7 @@ Ray tracing using Vulkan KHR extension:
 - Progressive ray tracing accumulation;
 - PBR workflow with physically-based materials and multiple texture maps;
 - MSAA.
+
 Core:
 - Vulkan renderer;
 - GLSL Shaders support;
