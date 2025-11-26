@@ -545,25 +545,28 @@ namespace fre
 
     void Denoiser::finish()
     {
-        // Cleanup resources
-        optixDenoiserDestroy(m_denoiser);
-        optixDeviceContextDestroy(m_context);
-
-        CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_intensity)));
-        CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_avgColor)));
-        CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_scratch)));
-        CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_state)));
-        CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_guideLayer.albedo.data)));
-        CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_guideLayer.normal.data)));
-        CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_guideLayer.flow.data)));
-        CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_guideLayer.flowTrustworthiness.data)));
-        CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_guideLayer.previousOutputInternalGuideLayer.data)));
-        CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_guideLayer.outputInternalGuideLayer.data)));
-        for(size_t i = 0; i < m_layers.size(); i++)
+        if(m_denoiser != nullptr)
         {
-            CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_layers[i].input.data)));
-            CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_layers[i].output.data)));
-            CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_layers[i].previousOutput.data)));
+            // Cleanup resources
+            optixDenoiserDestroy(m_denoiser);
+            optixDeviceContextDestroy(m_context);
+
+            CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_intensity)));
+            CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_avgColor)));
+            CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_scratch)));
+            CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_state)));
+            CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_guideLayer.albedo.data)));
+            CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_guideLayer.normal.data)));
+            CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_guideLayer.flow.data)));
+            CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_guideLayer.flowTrustworthiness.data)));
+            CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_guideLayer.previousOutputInternalGuideLayer.data)));
+            CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_guideLayer.outputInternalGuideLayer.data)));
+            for(size_t i = 0; i < m_layers.size(); i++)
+            {
+                CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_layers[i].input.data)));
+                CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_layers[i].output.data)));
+                CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_layers[i].previousOutput.data)));
+            }
         }
     }
 }

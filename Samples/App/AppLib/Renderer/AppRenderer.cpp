@@ -384,7 +384,11 @@ namespace app
 			waitParams.flags = 0;
 			waitParams.params.fence.value = 0;
 			// Wait for vulkan to complete it's work
-			CUDA_CHECK(cudaWaitExternalSemaphoresAsync(&mCudaWaitSemaphores[mCurrentFrame], &waitParams, 1, 0));
+
+			if(mHasExternalResources)
+			{
+				CUDA_CHECK(cudaWaitExternalSemaphoresAsync(&mCudaWaitSemaphores[mCurrentFrame], &waitParams, 1, 0));
+			}
 
 			Denoiser::Data data;
 			auto maxViewSize = getViewport().getSize();
@@ -414,6 +418,7 @@ namespace app
 				mDenoiser.init(data, tileWidth, tileHeight, kpMode, temporalMode, applyFlow,
 					upscale2x, alphaMode, specularMode);
 				mDenoiserInitialized = true;
+				setHasExternalResources(true);
 			}
 			else
 			{
@@ -855,11 +860,10 @@ namespace app
  		mRTTexturesDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mTextureViews, mTextureSamplers);
 		mEmissiveTrianglesDescriptor = std::make_shared<DescriptorBuffer>(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, mEmissiveTrianglesBuffer.mBuffer);
 		mMeshModel->setVisible(true);
-
+        
 		mResultMesh->setVisible(true);
         
 		initInterop();
-		setHasExternalResources(true);
 		mDefaultMaterials = mMaterials;
 	}
 }
