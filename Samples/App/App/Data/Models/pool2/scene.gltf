@@ -948,13 +948,25 @@
 		},
 		{
 			"doubleSided":true,
+			"name":"torcher_mat",
+			"pbrMetallicRoughness":{
+				"baseColorTexture":{
+					"index":2
+				},
+				"metallicRoughnessTexture":{
+					"index":3
+				}
+			}
+		},
+		{
+			"doubleSided":true,
 			"emissiveFactor":[
 				1,
 				1,
 				1
 			],
 			"emissiveTexture":{
-				"index":2
+				"index":4
 			},
 			"extensions":{
 				"KHR_materials_emissive_strength":{
@@ -964,10 +976,10 @@
 			"name":"light_mat",
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
-					"index":3
+					"index":5
 				},
 				"metallicRoughnessTexture":{
-					"index":4
+					"index":6
 				}
 			}
 		},
@@ -975,14 +987,14 @@
 			"doubleSided":true,
 			"name":"cue_mat",
 			"normalTexture":{
-				"index":5
+				"index":7
 			},
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
-					"index":6
+					"index":8
 				},
 				"metallicRoughnessTexture":{
-					"index":7
+					"index":9
 				}
 			}
 		},
@@ -993,20 +1005,20 @@
 				"KHR_materials_transmission":{
 					"transmissionFactor":1,
 					"transmissionTexture":{
-						"index":8
+						"index":10
 					}
 				}
 			},
 			"name":"pool_table_mat",
 			"normalTexture":{
-				"index":9
+				"index":11
 			},
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
-					"index":10
+					"index":12
 				},
 				"metallicRoughnessTexture":{
-					"index":11
+					"index":13
 				}
 			}
 		},
@@ -1014,18 +1026,15 @@
 			"doubleSided":true,
 			"name":"lambert2.001",
 			"normalTexture":{
-				"index":12
-			},
-			"occlusionTexture":{
-				"index":13
+				"index":14
 			},
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
-					"index":14
+					"index":15
 				},
 				"metallicFactor":0,
 				"metallicRoughnessTexture":{
-					"index":13
+					"index":16
 				},
 				"roughnessFactor":0.5
 			}
@@ -1280,7 +1289,7 @@
 						"TEXCOORD_0":55
 					},
 					"indices":56,
-					"material":1
+					"material":2
 				}
 			]
 		},
@@ -1294,7 +1303,7 @@
 						"TEXCOORD_0":59
 					},
 					"indices":60,
-					"material":2
+					"material":3
 				}
 			]
 		},
@@ -1308,7 +1317,7 @@
 						"TEXCOORD_0":63
 					},
 					"indices":60,
-					"material":2
+					"material":3
 				}
 			]
 		},
@@ -1322,7 +1331,7 @@
 						"TEXCOORD_0":66
 					},
 					"indices":67,
-					"material":3
+					"material":4
 				}
 			]
 		},
@@ -1336,7 +1345,7 @@
 						"TEXCOORD_0":70
 					},
 					"indices":71,
-					"material":4
+					"material":5
 				}
 			]
 		}
@@ -1361,6 +1370,14 @@
 		{
 			"sampler":0,
 			"source":4
+		},
+		{
+			"sampler":0,
+			"source":2
+		},
+		{
+			"sampler":0,
+			"source":3
 		},
 		{
 			"sampler":0,
@@ -1416,11 +1433,6 @@
 		},
 		{
 			"mimeType":"image/png",
-			"name":"light_mat_emissive",
-			"uri":"pool2/light_mat_emissive.png"
-		},
-		{
-			"mimeType":"image/png",
 			"name":"light_mat_baseColor",
 			"uri":"pool2/light_mat_baseColor.png"
 		},
@@ -1428,6 +1440,11 @@
 			"mimeType":"image/png",
 			"name":"light_mat_metallicRoughness",
 			"uri":"pool2/light_mat_metallicRoughness.png"
+		},
+		{
+			"mimeType":"image/png",
+			"name":"light_mat_emissive",
+			"uri":"pool2/light_mat_emissive.png"
 		},
 		{
 			"mimeType":"image/png",
@@ -1471,13 +1488,13 @@
 		},
 		{
 			"mimeType":"image/png",
-			"name":"lambert2_metallicRoughness",
-			"uri":"pool2/lambert2_metallicRoughness.png"
+			"name":"lambert2_baseColor",
+			"uri":"pool2/lambert2_baseColor.png"
 		},
 		{
 			"mimeType":"image/png",
-			"name":"lambert2_baseColor",
-			"uri":"pool2/lambert2_baseColor.png"
+			"name":"lambert2_metallicRoughness",
+			"uri":"pool2/lambert2_metallicRoughness.png"
 		}
 	],
 	"accessors":[
