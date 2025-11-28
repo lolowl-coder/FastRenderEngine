@@ -24,6 +24,7 @@ namespace fre
 	{
 		using LoadImageCallback = std::function<void(const int imageIndex, const int imagesCount)>;
 		using TextureCallback = std::function<void(const VulkanTexturePtr& texture)>;
+		using TextureInfoCallback = std::function<void(const VulkanTextureInfoPtr& textureInfo)>;
 
 		void create(VkDevice logicalDevice);
 		void destroy(VkDevice logicalDevice);
@@ -66,6 +67,16 @@ namespace fre
 		VkDeviceMemory getTextureMemory(uint32_t index);
 		bool isTextureInfoCreated(uint32_t index);
 		void destroyTexture(VkDevice logicalDevice, uint32_t id);
+		void forEachTextureInfo(const TextureInfoCallback& callback)
+		{
+            for(const auto& ti : mTextureInfos)
+            {
+				if(callback != nullptr)
+				{
+					callback(ti.second);
+				}
+            }
+		};
 		void forEachTexture(const TextureCallback& callback)
 		{
             for(const auto& tex : mTextures)

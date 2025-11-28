@@ -63,6 +63,11 @@ namespace fre
             return mStop;
         }
 
+        int getSize()
+        {
+            return mThreads.size();
+        }
+
     private:
         std::vector<std::thread> mThreads;
         std::queue<std::function<void()>> mTasks;

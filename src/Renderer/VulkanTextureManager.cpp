@@ -191,35 +191,27 @@ namespace fre
 	void VulkanTextureManager::loadImages(const LoadImageCallback& callback, ThreadPool& threadPool)
 	{
 		uint32_t cnt = mTextureInfos.size();
-		for(uint32_t i = 0; i < cnt; i++)
+		// Texture 0 is pre loaded
+		for(uint32_t i = 1; i < cnt; i++)
 		{
-			//load default texture in main thread
-			if(i == 0)
-			{
-				auto& image = mTextureInfos[i]->mImage;
-				image.load();
-			}
-			else
-			{
-				threadPool.enqueue
-				(
-					[this, i, cnt, callback]
+			threadPool.enqueue
+			(
+				[this, i, cnt, callback]
+				{
+					std::lock_guard<std::mutex> lock(mMutex);
+
+					auto& image = mTextureInfos[i]->mImage;
+					image.load();
+
+                    LOG_TRACE("Image loaded. id: {}, file name: {}", i, image.mFileName);
+
+					if(callback != nullptr)
 					{
-						std::lock_guard<std::mutex> lock(mMutex);
-
-						auto& image = mTextureInfos[i]->mImage;
-						image.load();
-
-                        LOG_TRACE("Image loaded. id: {}, file name: {}", i, image.mFileName);
-
-						if(callback != nullptr)
-						{
-							callback(i, cnt);
-						}
-
+						callback(i, cnt);
 					}
-				);
-			}
+
+				}
+			);
 		}
 	}
 

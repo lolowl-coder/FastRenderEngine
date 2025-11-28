@@ -9,6 +9,7 @@
 #include "Renderer/VulkanDescriptorSet.hpp"
 #include "Renderer/VulkanDescriptorSetLayout.hpp"
 #include "Renderer/VulkanSampler.hpp"
+#include "Renderer/VulkanTexture.hpp"
 
 #include "FileSystem/FileSystem.hpp"
 #include "UI/UIUtilities.hpp"
@@ -58,16 +59,24 @@ namespace fre
 	: mThreadPool(threadPool)
 	, mRTEnabled(true)
 	{
-		LOG_TRACE("Number of concurent threads: {}", std::thread::hardware_concurrency());
+		LOG_TRACE("Number of concurent threads: {}", mThreadPool.getSize());
+	}
+
+	void VulkanRenderer::createDefaultTexture()
+	{
 		Image image;
-        image.mFileName = "default.jpg";
-        createTextureInfo(
+		image.mFileName = "default.jpg";
+		const auto defaultTextureId = createTextureInfo(
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 			VK_IMAGE_TILING_OPTIMAL,
 			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			image, 1u);
+
+		auto defaultTextureInfo = getTextureInfo(defaultTextureId);
+		defaultTextureInfo->mImage.load();
+		createTexture(defaultTextureInfo);
 	}
 
 	VulkanRenderer::~VulkanRenderer()
@@ -111,6 +120,7 @@ namespace fre
 		{
 			createCommandPools();
 			createCommandBuffers();
+			createDefaultTexture();
 		}
 		catch (std::runtime_error& e)
 		{
@@ -2505,20 +2515,18 @@ namespace fre
 		vkCmdSetScissor(mGraphicsCommandBuffers[mImageIndex].mCommandBuffer, 0, 1, &scissor);
     }
 
+	void VulkanRenderer::onImageLoaded(const uint32_t imageIndex, const int loadQueueSize)
+	{
+		this->requestRedraw();
+	}
+
 	void VulkanRenderer::loadImages()
 	{
 		//std::cout << "render tid: " << std::this_thread::get_id() << std::endl;
-		mStatistics.startMeasure("load images", static_cast<float>(Timer::getInstance().getTime()));
 		mTextureManager.loadImages(
 			[this](int imageIndex, int count)
 			{
-				if(imageIndex == count - 1)
-				{
-					this->mStatistics.stopMeasure("load images", static_cast<float>(Timer::getInstance().getTime()));
-					this->mStatistics.print();
-				}
-
-				this->requestRedraw();
+				this->onImageLoaded(imageIndex, count);
 			},
 			mThreadPool
 		);

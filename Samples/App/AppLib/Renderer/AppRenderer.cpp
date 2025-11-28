@@ -295,7 +295,7 @@ namespace app
 
 	void AppRenderer::update(const Camera& camera, const Light& light)
 	{
-		if(mTLAS.mHandle == VK_NULL_HANDLE)
+		if(!mAllTexturesCreated)
 		{
 			std::vector<uint32_t> texturesToCreate;
 			if(getTexture(0) == nullptr)
@@ -323,6 +323,19 @@ namespace app
 					if(getTexture(textureInfo->mId) == nullptr)
 					{
 						createTexture(textureInfo);
+						createRTTexture(texId);
+						mRTTexturesDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mTextureViews, mTextureSamplers);
+						mMeshModel->getMesh(0)->setDescriptors({ {
+							mTLASDescriptor,
+							mColorStorage[mCurrentFrame].descriptor,
+							mAlbedoStorage[mCurrentFrame].descriptor,
+							mNormalStorage[mCurrentFrame].descriptor,
+							mFlowStorage[mCurrentFrame].descriptor,
+							mDynamicDataDescriptor,
+							mRTMeshesGPUDescriptor,
+							mRTMaterialsGPUDescriptor,
+							mRTTexturesDescriptor,
+							mEmissiveTrianglesDescriptor} });
 					}
 				}
 				else
@@ -330,10 +343,8 @@ namespace app
 					allTexturesCreated = false;
 				}
 			}
-            if(allTexturesCreated)
-            {
-                createScene();
-            }
+
+			mAllTexturesCreated = allTexturesCreated;
         }
 
 		mDynamicData.mViewInverse = glm::inverse(camera.mView);
@@ -506,6 +517,7 @@ namespace app
 			VK_IMAGE_LAYOUT_GENERAL,
 			image, 1u);
 		auto textureInfo = getTextureInfo(textureInfoId);
+		textureInfo->mImage.load();
 		auto textureId = mTextureManager.createTexture(
 			mainDevice,
 			mTransferQueueFamilyId,
@@ -552,12 +564,12 @@ namespace app
 		//mMeshModel = createMeshModel("Models/unitQuad/unitQuad.obj", {});
 		//mMeshModel = createMeshModel("Models/unitCube/unitCube.obj", {});
         //mat4 sceneTransform = rotate(mat4(1.0f), glm::half_pi<float>(), vec3(1.0f, 0.0f, 0.0f));
-		//mMeshModel = createMeshModel("Models/pool2/scene.gltf",
+		mMeshModel = createMeshModel("Models/pool2/scene.gltf",
 		//mMeshModel = createMeshModel("Models/pool/scene.gltf",
 		//mMeshModel = createMeshModel("Models/unreal/scene.gltf",
 		//mMeshModel = createMeshModel("Models/mobileHome/scene.gltf",
 		//mMeshModel = createMeshModel("Models/dreadroamer/scene.gltf",
-		mMeshModel = createMeshModel("Models/helmet/scene.gltf",
+		//mMeshModel = createMeshModel("Models/helmet/scene.gltf",
 		//mMeshModel = createMeshModel("Models/sidewalk/scene.gltf",
 		//mMeshModel = createMeshModel("Models/vipers_helmet/scene.gltf",
 		//mMeshModel = createMeshModel("Models/sponza_palace/scene.gltf",
@@ -665,25 +677,50 @@ namespace app
 
 		int result = VulkanRenderer::createMeshGPUResources();
 
+		mTextureManager.forEachTextureInfo(
+			[this](const VulkanTextureInfoPtr& textureInfo)
+			{
+				createRTTexture(textureInfo->mId);
+			}
+		);
+
 		createResultMesh();
+
+		createScene();
 		
 		return result;
 	}
 
 	uint32_t AppRenderer::createRTTexture(uint32_t textureId)
 	{
-		auto& defaultTexture = getTexture(0);
-		auto& texture = getTexture(textureId);
+		// If texture is found, we use it, otherwise we use the default one (id 0) for textureId slot.
+		// Later it is updated with actual texture when it is created.
+		auto srcTextureId = 0;
+		auto texture = getTexture(textureId);
+		if(texture == nullptr)
+		{
+			texture = getTexture(0);
+		}
+		else
+		{
+			srcTextureId = textureId;
+		}
+
 		if(textureId >= mTextureViews.size())
 		{
-			mTextureViews.resize(textureId + 1, defaultTexture->mImageView);
+			mTextureViews.resize(textureId + 1, texture->mImageView);
 		}
-		mTextureViews[textureId] = texture->mImageView;
-		auto& textureInfo = getTextureInfo(textureId);
+		else
+		{
+			mTextureViews[textureId] = texture->mImageView;
+		}
+
+		// Here default texture can be used with its sampler
+		auto& textureInfo = getTextureInfo(srcTextureId);
 		auto samplerIndex = createSampler(
 			{
 				VK_SAMPLER_ADDRESS_MODE_REPEAT,
-				textureId == mEnvTexIndex ? VK_FILTER_NEAREST : VK_FILTER_LINEAR,
+				srcTextureId == mEnvTexIndex ? VK_FILTER_NEAREST : VK_FILTER_LINEAR,
 				VK_FALSE, textureInfo->mMipLevelCount
 			});
 		auto sampler = getSampler(samplerIndex);
@@ -774,7 +811,7 @@ namespace app
             mBufferManager.udpateBuffer(mainDevice.logicalDevice, mRTMaterialsGPUBufferIndex,
 				rtMaterialsGPU.data(), rtMaterialsGPU.size() * sizeof(RTMaterialGPU));
 		}
-    }	
+    }
 
 	void AppRenderer::createSceneGPU()
 	{

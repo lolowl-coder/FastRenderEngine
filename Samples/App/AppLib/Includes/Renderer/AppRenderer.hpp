@@ -137,5 +137,6 @@ namespace app
 		int mAccumulatedFrames = 0;
 		//Environment texture id
 		int mEnvTexIndex = 0;
+		bool mAllTexturesCreated = false;
 	};
 }

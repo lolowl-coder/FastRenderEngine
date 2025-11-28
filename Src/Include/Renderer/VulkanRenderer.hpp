@@ -77,7 +77,7 @@ namespace fre
 		uint32_t createSampler(const VulkanSamplerKey& key);
 		VkSampler getSampler(const uint32_t index);
 
-		uint32_t createTextureInfo(
+		virtual uint32_t createTextureInfo(
 			const VkSamplerAddressMode addressMode,
 			const VkImageTiling tiling,
 			const VkImageUsageFlags usageFlags,
@@ -87,9 +87,10 @@ namespace fre
 			const uint32_t mipLevelCount);
 		VulkanTextureInfoPtr getTextureInfo(const uint32_t id);
 
-		uint32_t createTexture(const VulkanTextureInfoPtr& info);
+		virtual uint32_t createTexture(const VulkanTextureInfoPtr& info);
 		VulkanTexturePtr getTexture(const uint32_t id);
 		void updateTextureImage(const VulkanTextureInfoPtr& info);
+		virtual void onImageLoaded(const uint32_t imageIndex, const int loadQueueSize);
 
 		VulkanBuffer createStagingBuffer(const void* data, size_t size);
 		uint32_t createBuffer(VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags, void* data, size_t dataSize);
@@ -198,6 +199,7 @@ namespace fre
 		FIELD_NS(BoundingBox3D, SceneBoundingBox, protected, public, public);
 
 	protected:
+		void createDefaultTexture();
 		BoundingBox2D getViewport() const;
 		virtual void createPipelines();
 		virtual void cleanupPipelines(VkDevice logicalDevice);
@@ -453,8 +455,6 @@ namespace fre
 		glm::vec4 mClearColor = glm::vec4(0.0f);
 
 		ThreadPool& mThreadPool;
-
-		Statistics mStatistics;
 
 		uint32_t mFrameNumber = 0;
 		bool mHasComputeTasks = false;
