@@ -49,6 +49,7 @@ namespace app
 		void createScene();
 		void updateMaterials();
 		void loadEnvTexture();
+		void updateTextureDescriptors();
 
 	private:
 		//G-buffer storage images

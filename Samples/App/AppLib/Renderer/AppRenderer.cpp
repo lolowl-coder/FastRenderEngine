@@ -196,6 +196,32 @@ namespace app
 							TRACK_CHANGES(sliderFloat(-10.0f, 10.0f, "Noise offset", mDynamicData.mNoiseParams.z, "%.1f"));
 							TRACK_CHANGES(sliderFloat(-10.0f, 10.0f, "Noise amplitude", mDynamicData.mNoiseParams.w, "%.1f"));
 						}
+						else
+						{
+							const char* items[] = {
+								"kloofendal_48d_partly_cloudy_puresky_4k.hdr",
+								"modern_evening_street_4k.hdr",
+								"moonless_golf_4k.hdr",
+								"moonlit_golf_4k.hdr",
+								"red_hill_straight_8k.hdr",
+								"rogland_clear_night_4k.hdr",
+								"rural_evening_road_4k.hdr",
+								"sandsloot_4k.hdr"
+							};
+							static int itemIndex = 6;
+							if(ImGui::Combo("File name", &itemIndex, items, IM_ARRAYSIZE(items)))
+							{
+								changed = true;
+
+								VulkanTextureInfoPtr envTextureInfo = std::make_shared<VulkanTextureInfo>();
+								*envTextureInfo = *getTextureInfo(mEnvTexIndex);
+								envTextureInfo->mImage.mFileName = items[itemIndex];
+								envTextureInfo->mImage.load();
+								updateTextureImage(envTextureInfo);
+								createRTTexture(mEnvTexIndex);
+								updateTextureDescriptors();
+							}							
+						}
 						TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Firefly threshold", mDynamicData.mFireflyThreshold, "%.2f"));
 						TRACK_CHANGES(sliderInt(1, 16, "AA samples", mDynamicData.mAASamples));
 						TRACK_CHANGES(ImGui::Combo("Debug mode", &mDynamicData.mDebugMode, "Off\0Normals\0Albedo\0Roughness\0Metallic\0Emissive\0Ray distance\0Flow\0"));
@@ -293,6 +319,22 @@ namespace app
         VulkanRenderer::createSwapChain();
 	}
 
+	void AppRenderer::updateTextureDescriptors()
+	{
+		mRTTexturesDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mTextureViews, mTextureSamplers);
+		mMeshModel->getMesh(0)->setDescriptors({ {
+			mTLASDescriptor,
+			mColorStorage[mCurrentFrame].descriptor,
+			mAlbedoStorage[mCurrentFrame].descriptor,
+			mNormalStorage[mCurrentFrame].descriptor,
+			mFlowStorage[mCurrentFrame].descriptor,
+			mDynamicDataDescriptor,
+			mRTMeshesGPUDescriptor,
+			mRTMaterialsGPUDescriptor,
+			mRTTexturesDescriptor,
+			mEmissiveTrianglesDescriptor} });
+	}
+
 	void AppRenderer::update(const Camera& camera, const Light& light)
 	{
 		if(!mAllTexturesCreated)
@@ -324,18 +366,7 @@ namespace app
 					{
 						createTexture(textureInfo);
 						createRTTexture(texId);
-						mRTTexturesDescriptor = std::make_shared<DescriptorImage>(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, mTextureViews, mTextureSamplers);
-						mMeshModel->getMesh(0)->setDescriptors({ {
-							mTLASDescriptor,
-							mColorStorage[mCurrentFrame].descriptor,
-							mAlbedoStorage[mCurrentFrame].descriptor,
-							mNormalStorage[mCurrentFrame].descriptor,
-							mFlowStorage[mCurrentFrame].descriptor,
-							mDynamicDataDescriptor,
-							mRTMeshesGPUDescriptor,
-							mRTMaterialsGPUDescriptor,
-							mRTTexturesDescriptor,
-							mEmissiveTrianglesDescriptor} });
+						updateTextureDescriptors();
 					}
 				}
 				else

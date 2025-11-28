@@ -289,6 +289,7 @@ namespace fre
 		{
 			destroyTexture(mainDevice.logicalDevice, info->mId);
 			createTexture(mainDevice, transferQueueFamilyId, graphicsQueueFamilyId, queue, commandPool, info);
+			mTextureInfos[info->mId] = info;
 		}
 		else
 		{
