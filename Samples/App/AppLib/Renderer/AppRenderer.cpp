@@ -213,14 +213,23 @@ namespace app
 							{
 								changed = true;
 
-								VulkanTextureInfoPtr envTextureInfo = std::make_shared<VulkanTextureInfo>();
-								*envTextureInfo = *getTextureInfo(mEnvTexIndex);
-								envTextureInfo->mImage.mFileName = items[itemIndex];
-								envTextureInfo->mImage.load();
+								mTextureFuture = std::async(std::launch::async,
+									[this, items]()
+								{
+									VulkanTextureInfoPtr envTextureInfo = std::make_shared<VulkanTextureInfo>();
+									*envTextureInfo = *getTextureInfo(mEnvTexIndex);
+									envTextureInfo->mImage.mFileName = items[itemIndex];
+									envTextureInfo->mImage.load();
+									return envTextureInfo;
+								});
+							}
+							if(mTextureFuture.valid() && mTextureFuture.wait_for(std::chrono::duration(std::chrono::milliseconds(0))) == std::future_status::ready)
+							{
+								VulkanTextureInfoPtr envTextureInfo = mTextureFuture.get();
 								updateTextureImage(envTextureInfo);
 								createRTTexture(mEnvTexIndex);
 								updateTextureDescriptors();
-							}							
+							}
 						}
 						TRACK_CHANGES(sliderFloat(0.0f, 10.0f, "Firefly threshold", mDynamicData.mFireflyThreshold, "%.2f"));
 						TRACK_CHANGES(sliderInt(1, 16, "AA samples", mDynamicData.mAASamples));

@@ -8,6 +8,7 @@
 #include "Pointers.hpp"
 
 #include <string>
+#include<future>
 
 namespace app
 {
@@ -139,5 +140,7 @@ namespace app
 		//Environment texture id
 		int mEnvTexIndex = 0;
 		bool mAllTexturesCreated = false;
+
+		std::future<fre::VulkanTextureInfoPtr> mTextureFuture;
 	};
 }
