@@ -21,6 +21,7 @@ namespace app
 		virtual int createDynamicGPUResources() override;
 		virtual int createMeshGPUResources() override;
 		virtual void destroy() override;
+		virtual void onImageLoaded(const uint32_t imageIndex, const int loadQueueSize) override;
 
 	protected:
 		virtual void requestExtensions() override;
@@ -140,7 +141,14 @@ namespace app
 		//Environment texture id
 		int mEnvTexIndex = 0;
 		bool mAllTexturesCreated = false;
-
+		//Asynchronous texture loading
 		std::future<fre::VulkanTextureInfoPtr> mTextureFuture;
+		//Progress bar value
+		float mProgress = -1.0f;
+		//Loaded images counter
+		int mLoadedImageCount = 0;
+		//Last loaded image file name
+		std::string mProgressTextOverlay;
+		std::mutex mMutex;
 	};
 }

@@ -2524,7 +2524,7 @@ namespace fre
 	{
 		//std::cout << "render tid: " << std::this_thread::get_id() << std::endl;
 		mTextureManager.loadImages(
-			[this](int imageIndex, int count)
+			[this](const int imageIndex, const int count)
 			{
 				this->onImageLoaded(imageIndex, count);
 			},

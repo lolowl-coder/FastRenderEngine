@@ -247,6 +247,13 @@ namespace app
                     ImGui::Separator();
                     ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
 					ImGui::Text("Camera position: %.2f, %.2f, %.2f", camera.mEye.x, camera.mEye.y, camera.mEye.z);
+					
+					//Progress bar for loaded textures
+					if(mProgress < 1.0f)
+					{
+						std::lock_guard<std::mutex> lock(mMutex);
+						ImGui::ProgressBar(mProgress, ImVec2(-FLT_MIN, 0), mProgressTextOverlay.c_str());
+					}
 
 					if(materialsChanged)
 					{
@@ -262,6 +269,15 @@ namespace app
 				}
 			}
 		);
+	}
+
+	void AppRenderer::onImageLoaded(const uint32_t imageIndex, const int loadQueueSize)
+	{
+		VulkanRenderer::onImageLoaded(imageIndex, loadQueueSize);
+		mLoadedImageCount++;
+		std::lock_guard lock(mMutex);
+		mProgressTextOverlay = getTextureInfo(imageIndex)->mImage.mFileName;
+		mProgress = static_cast<float>(mLoadedImageCount) / static_cast<float>(loadQueueSize - 1);
 	}
 
 	void AppRenderer::requestExtensions()
