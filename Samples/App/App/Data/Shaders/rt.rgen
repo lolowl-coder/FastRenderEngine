@@ -1,4 +1,5 @@
 #version 460
+#extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
@@ -62,7 +63,8 @@ vec2 getSubpixelJitter(const int sampleIndex)
 	const uvec2 launchSize = gl_LaunchSizeEXT.xy;
 	const uint pixelIndex = launchID.x + launchID.y * launchSize.x;
 	const uint pixelHash = wangHash(pixelIndex * 1896537 + sampleIndex);
-	const float u = halton(pixelHash, 2u);
+	const float u = halton2_fast(pixelHash);
+	//const float u = halton(pixelHash, 2u);
 	const float v = halton(pixelHash, 3u);
 	const vec2 subpixelJitter = ANTIALIASING_STANDARD_DEVIATION * sampleGaussian(vec2(u, v));
 
@@ -82,15 +84,15 @@ void main()
 		const vec2 subpixelJitter = (dynamicData.mAASamples > 1) ? getSubpixelJitter(i) : vec2(0.0, 0.0);
 		const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5) + subpixelJitter;
 		const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
-		vec2 d = inUV * 2.0 - 1.0;
+		const vec2 d = inUV * 2.0 - 1.0;
 
-		vec4 origin = dynamicData.mViewInverse * vec4(0,0,0,1);
+		const vec4 origin = dynamicData.mViewInverse * vec4(0,0,0,1);
 		payload.rayOrigin = origin.xyz;
-		vec4 target = dynamicData.mProjInverse * vec4(d.x, d.y, 1, 1);
-		vec4 direction = dynamicData.mViewInverse*vec4(normalize(target.xyz), 0) ;
+		const vec4 target = dynamicData.mProjInverse * vec4(d.x, d.y, 1, 1);
+		const vec4 direction = dynamicData.mViewInverse*vec4(normalize(target.xyz), 0) ;
 
-		float tmin = 0.001;
-		float tmax = 1e32;
+		const float tmin = 0.001;
+		const float tmax = 1e32;
 
 		payload.rayDir = direction.xyz;
 		payload.radiance = vec3(0.0);
@@ -128,14 +130,21 @@ void main()
 				break;
 		}
 		color += sampleColor / float(dynamicData.mAASamples);
-		albedo += payload.albedo / float(dynamicData.mAASamples);
-		normal += payload.normal / float(dynamicData.mAASamples);
+		//albedo += payload.albedo / float(dynamicData.mAASamples);
+		//normal += payload.normal / float(dynamicData.mAASamples);
 	}
-	vec4 prevColor = imageLoad(colorImage, ivec2(gl_LaunchIDEXT.xy));
-	vec3 newColor = dynamicData.mFrameIndex == 1 ? color : (prevColor.rgb * (dynamicData.mFrameIndex - 1.0) + color) / float(dynamicData.mFrameIndex);
 
-	imageStore(colorImage, ivec2(gl_LaunchIDEXT.xy), vec4(newColor, 1.0));
-	imageStore(albedoImage, ivec2(gl_LaunchIDEXT.xy), vec4(payload.albedo, 0.0));
-	imageStore(normalImage, ivec2(gl_LaunchIDEXT.xy), vec4(payload.normal, 0.0));
-	computeFlow(worldHitPos, done);
+	if(dynamicData.mFrameIndex == 1)
+	{
+		imageStore(colorImage, ivec2(gl_LaunchIDEXT.xy), vec4(color, 1.0));
+	}
+	else
+	{
+		const vec4 prevColor = imageLoad(colorImage, ivec2(gl_LaunchIDEXT.xy));
+		const vec3 newColor = mix(prevColor.rgb, color, dynamicData.mFrameIndexRec);
+		imageStore(colorImage, ivec2(gl_LaunchIDEXT.xy), vec4(newColor, 1.0));
+	}
+	//imageStore(albedoImage, ivec2(gl_LaunchIDEXT.xy), vec4(payload.albedo, 0.0));
+	//imageStore(normalImage, ivec2(gl_LaunchIDEXT.xy), vec4(payload.normal, 0.0));
+	//computeFlow(worldHitPos, done);
 }

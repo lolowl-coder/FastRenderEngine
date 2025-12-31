@@ -1,22 +1,28 @@
 #ifndef _RND_
 #define _RND_
 
+#include "Constants.h"
+
 uint lcg(inout uint s) { s = 1664525u * s + 1013904223u; return s; }
 float rng(inout uint s) { return (lcg(s) >> 8) * (1.0 / 16777216.0); } // [0,1)
 
 // Generates quasi-random value in range [0, 1)
 // index: any int value (usually sample index, frame index, etc.)
 // base: any prime number
-float halton(uint index, uint base) {
+float halton(const uint index, const uint base) {
     float f = 1.0;
     float r = 0.0;
     uint i = index;
     while(i > 0u) {
-        f = f / float(base);
-        r = r + f * float(i % base);
-        i = i / base;
+        f /= float(base);
+        r += f * float(i % base);
+        i /= base;
     }
     return r;
+}
+
+float halton2_fast(uint index) {
+    return uintBitsToFloat(0x3f800000u | (bitfieldReverse(index) >> 9u)) - 1.0;
 }
 
 // Generates pseudorandom but deterministic scrambled 32-bit integer
@@ -38,15 +44,39 @@ vec3 cosineHemisphere(int sampleIdx) {
     // then for each sample, build a small sequence index
     uint seq = pixHash + sampleIdx;
 
-    float u1 = halton(seq, 2u);
+    //float u1 = halton(seq, 2u);
+    float u1 = halton2_fast(seq);
     float u2 = halton(seq, 3u);
 
     float r = sqrt(u1);
-    float phi = 2.0 * 3.14159265 * u2;
+    float phi = 2.0 * M_PI * u2;
 
     float x = r * cos(phi);
     float y = r * sin(phi);
     float z = sqrt(max(0.0, 1.0 - u1));
+
+    return vec3(x, y, z);
+}
+
+vec3 cosineWeightedHemisphere(int sampleIdx)
+{
+    uvec2 launchID = gl_LaunchIDEXT.xy;
+    uvec2 launchSize = gl_LaunchSizeEXT.xy;
+    uint pixelIndex = launchID.x + launchID.y * launchSize.x;
+    uint pixHash = wangHash(pixelIndex);
+    // then for each sample, build a small sequence index
+    uint seq = pixHash + sampleIdx;
+
+    //float u1 = halton(seq, 2u);
+    float u1 = halton2_fast(seq);
+    float u2 = halton(seq, 3u);
+
+    float r = sqrt(u1);
+    float phi = 2.0 * M_PI * u2;
+
+    float x = r * cos(phi);
+    float y = r * sin(phi);
+    float z = sqrt(max(0.0, 1.0 - x*x - y*y));
 
     return vec3(x, y, z);
 }

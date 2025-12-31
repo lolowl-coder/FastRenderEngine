@@ -1165,6 +1165,10 @@ namespace fre
 			addDeviceExtension(VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
 #endif /* _WIN64 */
 			addDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
+			//Shader debugging
+			//addDeviceExtension(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
+			//addDeviceExtension(VK_KHR_SHADER_RELAXED_EXTENDED_INSTRUCTION_EXTENSION_NAME);
 		}
 
 		{

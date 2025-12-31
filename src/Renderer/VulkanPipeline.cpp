@@ -188,6 +188,7 @@ namespace fre
 
 		VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
 		pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		//pipelineCreateInfo.flags = VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT;
 		pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
 		pipelineCreateInfo.pStages = shaderStages.data();
 		pipelineCreateInfo.pVertexInputState = &vertexInputCreateInfo;
@@ -221,6 +222,7 @@ namespace fre
 
 		VkComputePipelineCreateInfo pipelineInfo{};
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+		//pipelineInfo.flags = VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT;
 		pipelineInfo.layout = mPipelineLayout;
         auto shaderStageInfos = getPipelineShaderStageCreateInfo({&shader});
 		pipelineInfo.stage = shaderStageInfos.front();
@@ -328,6 +330,7 @@ namespace fre
 
 		VkRayTracingPipelineCreateInfoKHR raytracing_pipeline_create_info{};
 		raytracing_pipeline_create_info.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
+		//raytracing_pipeline_create_info.flags = VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT;
 		raytracing_pipeline_create_info.stageCount = static_cast<uint32_t>(shaderStageInfos.size());
 		raytracing_pipeline_create_info.pStages = shaderStageInfos.data();
 		raytracing_pipeline_create_info.groupCount = static_cast<uint32_t>(mShaderGroups.size());

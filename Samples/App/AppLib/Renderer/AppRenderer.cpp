@@ -417,6 +417,7 @@ namespace app
 			mAccumulatedFrames = 1;
 		}
 		mDynamicData.mFrameIndex = mAccumulatedFrames;
+		mDynamicData.mFrameIndexRec = 1.0f / static_cast<float>(mAccumulatedFrames);
 		mDynamicData.mEnvTexIndex = mEnvTexIndex;
 
         mBufferManager.udpateBuffer(mainDevice.logicalDevice, mDynamicDataBufferIndex, &mDynamicData, sizeof(mDynamicData));

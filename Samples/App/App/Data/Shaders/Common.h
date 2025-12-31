@@ -75,6 +75,7 @@ struct DynamicDataBlock
 	int mDebugMode;
 	int mAASamples;
 	int mFrameIndex;
+	float mFrameIndexRec;
 	//0 - static color
 	//1 - HDR env map
 	int mBackgroundType;

@@ -241,8 +241,9 @@ function(buildApp appName sources headers libs includes)
 			OUTPUT ${SPV_FILE}
             #glslc -std=450 --target-spv=spv1.4 -mfmt=num --target-env=vulkan1.2 -o shader.rchit.spv shader.rchit
 			#COMMAND glslc -std=460 --target-spv=spv1.4 -mfmt=num --target-env=vulkan1.2 -o ${SPV_FILE} ${SHADER}
-		    COMMAND glslc --target-spv=spv1.5 -o ${SPV_FILE} ${SHADER}
+		    #COMMAND glslc --target-spv=spv1.5 ${SHADER} -g -o ${SPV_FILE}
 			#COMMAND glslc -o ${SPV_FILE} ${SHADER}
+            COMMAND glslangValidator -V --target-env vulkan1.3 ${SHADER} -g -Od -I${SHADERS_DIR} -o ${SPV_FILE}
 			DEPENDS ${SHADER}
 		)
 	endforeach()

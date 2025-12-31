@@ -1,4 +1,5 @@
 #version 460
+#extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_scalar_block_layout : enable
 #extension GL_EXT_nonuniform_qualifier : enable
@@ -43,8 +44,8 @@ float getLod(int texId)
 // --------------------------- normal mapping ---------------------------------
 // Inputs: interpolated geometric normal/tangent in OBJECT space and UV
 // Tangent.w is expected to be the handedness (+1 / -1). If you don't have it, use +1.
-vec3 getWorldNormal(Material mat, int normalTexIndex,
-    vec3 objN, vec4 objT, vec2 uv,
+vec3 getWorldNormal(const Material mat, const int normalTexIndex,
+    const vec3 objN, const vec4 objT, const vec2 uv,
     out vec3 T, out vec3 B, out vec3 N, out vec3 nTex)
 {
     // Orthonormalize T against N
@@ -52,7 +53,7 @@ vec3 getWorldNormal(Material mat, int normalTexIndex,
     T = normalize(objT.xyz - N * dot(objT.xyz, N));
     B = normalize(cross(N, T)) * (objT.w >= 0.0 ? 1.0 : -1.0);
 
-    mat3 TBN = mat3(T, B, N);
+    const mat3 TBN = mat3(T, B, N);
 
     nTex = vec3(0.0, 0.0, 1.0);
     if(normalTexIndex >= 0) {
@@ -60,15 +61,15 @@ vec3 getWorldNormal(Material mat, int normalTexIndex,
 		//float lod = getLod(normalTexIndex);
         //nTex = textureLod(textures[normalTexIndex], uv, lod).xyz * 2.0 - 1.0;
         nTex = texture(textures[normalTexIndex], uv).xyz * 2.0 - 1.0;
-        nTex.xy *= mat.mNormalScale * dynamicData.mLightColor.w;
+        nTex.xy *= mat.mNormalScale;// *dynamicData.mLightColor.w;
         nTex = normalize(nTex);
     }
 
     // To OBJECT space
-    vec3 nObj = normalize(TBN * nTex);
+    const vec3 nObj = normalize(TBN * nTex);
     // To WORLD space (w = 0 for direction)
     // We need inverse(transpose( if object matrix contains non-uniform scale
-    vec3 nWorld = normalize(/*inverse*/(/*transpose*/(mat3(gl_ObjectToWorldEXT))) * nObj);
+    const vec3 nWorld = normalize(/*inverse*/(/*transpose*/(mat3(gl_ObjectToWorldEXT))) * nObj);
     return nWorld;
 }
 
@@ -227,7 +228,8 @@ EmissiveTriangle getEmissiveTriangle(int sampleIdx, vec3 P, out vec2 lightUV,
         uint seqForBary2 = baseSeq + uint(sampleIdx) * 4u + 2u; // +2 for bary v
 
         float u_tri = halton(seqForTri, 7u);   // choose base 7 (avoid 2/3 correlation)
-        lightUV.x = halton(seqForBary1, 2u); // base 2
+        lightUV.x = halton2_fast(seqForBary1); // base 2
+        //lightUV.x = halton(seqForBary1, 2u); // base 2
         lightUV.y = halton(seqForBary2, 3u); // base 3
 
         // Pick emissive triangle index using u
@@ -363,27 +365,76 @@ void processEmissives(Material objMat, vec2 objUV, vec3 P, vec3 N_world, vec3 V_
     payload.radiance += neeEmissiveContrib;
 }
 
-vec3 getAttenuation(vec3 base, float metallness, float roughness)
+// Returns a half-vector sampled from the GGX distribution in world space
+vec3 sampleGGX(int sampleIdx, float alpha)
 {
-    // TODO: get rid of this double return.
-    // Problem: in case of bright environment map its conribution is to high and returning 1 doesn't produce acceptable result.
-    // On the other hand if we calculate it fully GI contribution degrades to almost no effect.
-    return vec3(1.0);
-    return mix(base * (1.0 - roughness), base * metallness, metallness);
+    uvec2 launchID = gl_LaunchIDEXT.xy;
+    uvec2 launchSize = gl_LaunchSizeEXT.xy;
+    uint pixelIndex = launchID.x + launchID.y * launchSize.x;
+    uint pixHash = wangHash(pixelIndex);
+    // then for each sample, build a small sequence index
+    uint seq = pixHash + sampleIdx;
+
+    float u1 = halton2_fast(seq);
+    //float u1 = halton(seq, 2u);
+    float u2 = halton(seq, 3u);
+
+    float a2 = alpha * alpha;
+
+    float phi = 2.0 * M_PI * u2;
+    float cosTheta = sqrt((1.0 - u1) / (1.0 + (a2 - 1.0) * u1));
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+
+    vec3 H_tangent = vec3(
+        sinTheta * cos(phi),
+        sinTheta * sin(phi),
+        cosTheta
+    );
+
+    return H_tangent;
 }
 
-void processGI(vec3 P, vec3 V_world, vec3 N_world, vec3 T, vec3 B, vec3 N, vec3 base, float metallness, float roughness)
+float GGX_PDF(vec3 N, vec3 H, vec3 L, float alpha)
 {
+    float NoH = max(dot(N, H), 0.0);
+    float LoH = max(dot(L, H), 0.0);
+    if (LoH <= 0.0) return 0.0;
+
+    float a2 = alpha * alpha;
+
+    float denominator = (NoH * NoH) * (a2 - 1.0) + 1.0;
+    float D = a2 / (M_PI * denominator * denominator);
+
+    float pdf = D * NoH / (4.0 * LoH);
+    return pdf;
+}
+
+void buildONB(in vec3 n, out vec3 t, out vec3 b)
+{
+    if (abs(n.z) < 0.999)
+        t = normalize(cross(vec3(0.0, 0.0, 1.0), n));
+    else
+        t = normalize(cross(vec3(0.0 ,1.0, 0.0), n));
+    b = cross(n, t);
+}
+
+// Vw - view direction in world space (towards the camera)
+void processGI(vec3 P, vec3 Vw, vec3 Nw, vec3 Ng, vec3 baseColor, float metallness, float roughness)
+{
+    const vec3 V = Vw;
+    vec3 Tn, Bn;
+    buildONB(Nw, Tn, Bn);
     vec3 giContrib = vec3(0.0);
     Payload old = payload;
     payload.giDepth++;
     const int giSamplesCount = int(dynamicData.mRTSettings.y);
     for(int i = 0; i < giSamplesCount; i++)
     {
-        float tMin = 0.001;
+        const float tMin = 0.001;
         // infinite
-        float tMax = 1e32;
-        vec3 origin = P;
+        const float tMax = 1e32;
+        const vec3 origin = P;
+
         const int width = giSamplesCount;
         const int height = dynamicData.mAASamples;
         const int x = i;
@@ -391,38 +442,96 @@ void processGI(vec3 P, vec3 V_world, vec3 N_world, vec3 T, vec3 B, vec3 N, vec3 
         const int z = dynamicData.mFrameIndex;
         // Sample index within the frame
         const int sampleIdx = z * width * height + y * width + x;
-        vec3 R0 = reflect(gl_WorldRayDirectionEXT, N_world);
-        vec3 R1 = normalize(mat3(gl_ObjectToWorldEXT) * toTBNSpace(cosineHemisphere(sampleIdx), N, T, B));
-        vec3 R = normalize(mix(R0, R1, roughness * roughness));
-        vec3 rayDir = R;// normalize(mat3(gl_ObjectToWorldEXT) * toTBNSpace(R, N, T, B));
-        uint flags =
+
+        const uvec2 launchID = gl_LaunchIDEXT.xy;
+        const uvec2 launchSize = gl_LaunchSizeEXT.xy;
+        const uint pixelIndex = launchID.x + launchID.y * launchSize.x;
+        const uint pixHash = wangHash(pixelIndex);
+        const uint seq = pixHash + sampleIdx;
+        const float rnd = halton2_fast(seq);
+        payload.radiance = vec3(0.0);
+        const uint flags =
+            //gl_RayFlagsOpaqueEXT;
             gl_RayFlagsTerminateOnFirstHitEXT |
             gl_RayFlagsCullBackFacingTrianglesEXT;
-            //gl_RayFlagsOpaqueEXT;
 
-        payload.rayDir = rayDir;
-        payload.radiance = vec3(0.0);
+        vec3 F0 = mix(vec3(0.04), baseColor, metallness);
+        const vec3 F = F_Schlick(F0, dot(V, Nw));
+        
+        const float F0avg = clamp(dot(F0, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+        const float wSpec = mix(0.25, 0.75, F0avg);
+        const float wDiff = 1.0 - wSpec;
 
-        traceRayEXT(topLevelAS,        // acceleration structure
-            flags,             // rayFlags
-            0xFF,              // cullMask
-            0,                 // sbtRecordOffset
-            0,                 // sbtRecordStride
-            0,                 // missIndex
-            origin,            // ray origin
-            tMin,              // ray min range
-            rayDir,            // ray direction
-            tMax,              // ray max range
-            0                  // payload (location = 0, 1)
-        );
-        float NdotV = saturate(dot(N_world, V_world));
-        vec3 F0 = mix(vec3(0.04), base, metallness);
-        vec3 F = F_Schlick(F0, NdotV);
-        giContrib += min(vec3(2.5), payload.radiance) * F;
+        if(rnd < 0.5)
+        {
+            vec3 rayDir = toTBNSpace(cosineWeightedHemisphere(sampleIdx), Nw, Tn, Bn);
+
+            payload.rayDir = rayDir;
+
+            traceRayEXT(topLevelAS,        // acceleration structure
+                flags,             // rayFlags
+                0xFF,              // cullMask
+                0,                 // sbtRecordOffset
+                0,                 // sbtRecordStride
+                0,                 // missIndex
+                origin,            // ray origin
+                tMin,              // ray min range
+                rayDir,            // ray direction
+                tMax,              // ray max range
+                0                  // payload (location = 0, 1)
+            );
+            giContrib += payload.radiance * baseColor / wDiff;
+        }
+        else
+        {
+			// Do a reverse reconstruction of L from H
+			// Get randomly importance sampled H in world space
+            const float alpha = roughness * roughness;
+            // Tangent space
+            const vec3 H = toTBNSpace(sampleGGX(sampleIdx, alpha), Nw, Tn, Bn);
+            // Get L from H and V
+            // V direction is towards the hit point
+            const vec3 L = normalize(reflect(-V, H));
+            const float NdotL = max(dot(Nw, L), 0.0);
+            if(dot(Ng, L) > 0.0)
+            {
+                const vec3 rayDir = L;
+                payload.rayDir = rayDir;
+
+                // Sample BRDF for this direction
+                traceRayEXT(topLevelAS,        // acceleration structure
+                    flags,             // rayFlags
+                    0xFF,              // cullMask
+                    0,                 // sbtRecordOffset
+                    0,                 // sbtRecordStride
+                    0,                 // missIndex
+                    origin,            // ray origin
+                    tMin,              // ray min range
+                    rayDir,            // ray direction
+                    tMax,              // ray max range
+                    0                  // payload (location = 0, 1)
+                );
+                const vec3 Li = payload.radiance;
+                const float NdotV = max(dot(Nw, V), 0.0);
+                const float NdotH = max(dot(Nw, H), 0.0);
+                const float VdotH = max(dot(V, H), 0.0);
+
+                const float D = D_GGX(NdotH, alpha);
+                const float G = G_Smith(NdotV, NdotL, roughness);
+                const vec3 F = F_Schlick(F0, VdotH);
+                const vec3 f = (D * G * F) / max(4.0 * NdotL * NdotV, 1e-4);
+
+                // PDF
+                const float pdfSpec = (D * NdotH) / (4.0 * VdotH);
+                const float pdf = pdfSpec * wSpec;
+
+                // final GI contribution
+                giContrib += Li * f * NdotL / pdf;
+            }
+        }
         clampFireflies(giContrib);
     }
     giContrib /= dynamicData.mRTSettings.y;
-    giContrib *= getAttenuation(base, metallness, roughness);
     payload = old;
     payload.radiance += giContrib;
 }
@@ -435,7 +544,8 @@ vec3 getLightPosJitter()
     uint hashedIdx = wangHash(pixelIndex);
     uint seq = hashedIdx + dynamicData.mFrameIndex * dynamicData.mAASamples + payload.aaSampleIdx;
 
-    float x = halton(seq, 2u);
+    float x = halton2_fast(seq);
+    //float x = halton(seq, 2u);
     float y = halton(seq, 3u);
     float z = halton(seq, 5u);
     return (vec3(x, y, z) - 0.5) * dynamicData.mLightPos.w;
@@ -551,11 +661,10 @@ void main()
 
     if(getGIEnabled(dynamicData) && payload.giDepth == 0 && dynamicData.mDebugMode == 0)
     {
-        processGI(P, V_world, N_world, T, B, N, base.rgb, metallness, roughness);
+        processGI(P, V_world, N_world, vNormal, base.rgb, metallness, roughness);
     }
 
     payload.radiance *= payload.attenuation;
-    payload.attenuation *= getAttenuation(base.rgb, metallness, roughness);
 
 	// Reflect
 	vec3 rayDir = reflect(gl_WorldRayDirectionEXT, N_world);

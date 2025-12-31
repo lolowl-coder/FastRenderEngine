@@ -112,6 +112,7 @@ namespace fre
 		int mDebugMode = 0;
 		int mAASamples = 2;
 		int mFrameIndex = 0;
+		float mFrameIndexRec = 1.0f;
 		//0 - static color
 		//1 - HDR env map
 		int mBackgroundType = 1;
