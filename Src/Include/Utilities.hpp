@@ -34,12 +34,6 @@ namespace fre
 
 	struct ShaderMetaData;
 
-	struct MainDevice
-	{
-		VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-		VkDevice logicalDevice = VK_NULL_HANDLE;
-	};
-
 	template<class T>
 	struct BoundingBox
 	{

@@ -3,6 +3,7 @@
 #include "Renderer/VulkanImage.hpp"
 #include "Log.hpp"
 #include "Utilities.hpp"
+#include "Types.hpp"
 
 #include <array>
 

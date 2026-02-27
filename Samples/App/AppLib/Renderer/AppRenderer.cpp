@@ -14,6 +14,7 @@
 #include "Defines.hpp"
 #include "Options.hpp"
 #include "Utilities.hpp"
+#include "Types.hpp"
 
 #include<memory>
 
@@ -420,7 +421,7 @@ namespace app
 		mDynamicData.mFrameIndexRec = 1.0f / static_cast<float>(mAccumulatedFrames);
 		mDynamicData.mEnvTexIndex = mEnvTexIndex;
 
-        mBufferManager.udpateBuffer(mainDevice.logicalDevice, mDynamicDataBufferIndex, &mDynamicData, sizeof(mDynamicData));
+        mBufferManager->udpateBuffer(mDynamicDataBufferIndex, &mDynamicData, sizeof(mDynamicData));
 
 		
         mResultMesh->setDescriptors({ { mColorStorage[mCurrentFrame].descriptor, mDynamicDataDescriptor } });
@@ -566,7 +567,7 @@ namespace app
 		image.mFormat = format;
 		image.mFileName = name;
 		image.mIsExternal = external;
-		auto textureInfoId = mTextureManager.createTextureInfo(
+		auto textureInfoId = mTextureManager->createTextureInfo(
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 			tiling,
 			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -575,8 +576,7 @@ namespace app
 			image, 1u);
 		auto textureInfo = getTextureInfo(textureInfoId);
 		textureInfo->mImage.load();
-		auto textureId = mTextureManager.createTexture(
-			mainDevice,
+		auto textureId = mTextureManager->createTexture(
 			mTransferQueueFamilyId,
             mGraphicsQueueFamilyId,
 			mGraphicsQueue,
@@ -693,7 +693,7 @@ namespace app
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 				emissives.data(), sizeof(EmissiveTri) * emissives.size());
-			mEmissiveTrianglesBuffer = *mBufferManager.getBuffer(emissivesBufferIndex);
+			mEmissiveTrianglesBuffer = mBufferManager->getBuffer(emissivesBufferIndex);
 		}
 
 		auto worldCenter = sceneTransform * vec4(mSceneBoundingBox.getCenter(), 1.0f);
@@ -734,7 +734,7 @@ namespace app
 
 		int result = VulkanRenderer::createMeshGPUResources();
 
-		mTextureManager.forEachTextureInfo(
+		mTextureManager->forEachTextureInfo(
 			[this](const VulkanTextureInfoPtr& textureInfo)
 			{
 				createRTTexture(textureInfo->mId);
@@ -861,11 +861,11 @@ namespace app
 			const VkMemoryPropertyFlags memoryFlags =
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			mRTMaterialsGPUBufferIndex = createBuffer(bufferUsageFlags, memoryFlags, rtMaterialsGPU.data(), rtMaterialsGPU.size() * sizeof(RTMaterialGPU));
-			mRTMaterialsGPUBuffer = *mBufferManager.getBuffer(mRTMaterialsGPUBufferIndex);
+			mRTMaterialsGPUBuffer = mBufferManager->getBuffer(mRTMaterialsGPUBufferIndex);
 		}
 		else
 		{
-            mBufferManager.udpateBuffer(mainDevice.logicalDevice, mRTMaterialsGPUBufferIndex,
+            mBufferManager->udpateBuffer(mRTMaterialsGPUBufferIndex,
 				rtMaterialsGPU.data(), rtMaterialsGPU.size() * sizeof(RTMaterialGPU));
 		}
     }
@@ -876,7 +876,7 @@ namespace app
 		// used by them. So in the shader, we have direct access to the data
 		std::vector<RTMeshGPU> rtMeshesGPU;
 
-        mTextureManager.forEachTexture([&](const VulkanTexturePtr& texture)
+        mTextureManager->forEachTexture([&](const VulkanTexturePtr& texture)
             {
                 createRTTexture(texture->mId);
             });
@@ -884,8 +884,8 @@ namespace app
 		for(auto& rtMeshCPU : mRTMeshes)
 		{
 			RTMeshGPU rtMeshGPU;
-			rtMeshGPU.mVertices = getVertexBuffer(rtMeshCPU->getId())->mDeviceAddress;
-			rtMeshGPU.mIndices = getIndexBuffer(rtMeshCPU->getId())->mDeviceAddress;
+			rtMeshGPU.mVertices = getVertexBuffer(rtMeshCPU->getId()).mDeviceAddress;
+			rtMeshGPU.mIndices = getIndexBuffer(rtMeshCPU->getId()).mDeviceAddress;
 			rtMeshGPU.mMaterialIndex = rtMeshCPU->getMaterialId();
 			rtMeshesGPU.emplace_back(rtMeshGPU);
 		}
@@ -894,10 +894,10 @@ namespace app
 		const VkMemoryPropertyFlags memoryFlags =
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
         uint32_t bufferIndex = createBuffer(bufferUsageFlags, memoryFlags, rtMeshesGPU.data(), rtMeshesGPU.size() * sizeof(RTMeshGPU));
-        mRTMeshesGPUBuffer = *mBufferManager.getBuffer(bufferIndex);
+        mRTMeshesGPUBuffer = mBufferManager->getBuffer(bufferIndex);
 		updateMaterials();
 		mDynamicDataBufferIndex = createBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memoryFlags, &mDynamicData, sizeof(DynamicData));
-        mDynamicDataBuffer = *mBufferManager.getBuffer(mDynamicDataBufferIndex);
+        mDynamicDataBuffer = mBufferManager->getBuffer(mDynamicDataBufferIndex);
 	}
 
 	void AppRenderer::createAS()

@@ -1,5 +1,6 @@
 #include "Renderer/VulkanSwapchain.hpp"
 #include "Log.hpp"
+#include "Types.hpp"
 
 #include <stdexcept>
 #include <array>

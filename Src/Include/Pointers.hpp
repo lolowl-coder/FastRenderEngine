@@ -4,6 +4,9 @@
 
 namespace fre
 {
+    class VulkanTextureManager;
+	class VulkanBufferManager;
+
     struct VulkanBuffer;
     struct VulkanDescriptor;
     struct VulkanDescriptorPool;
@@ -14,6 +17,8 @@ namespace fre
     struct Mesh;
     struct MeshModel;
 
+    using VulkanBufferManagerPtr = std::shared_ptr<VulkanBufferManager>;
+    using VulkanTextureManagerPtr = std::shared_ptr<VulkanTextureManager>;
     using VulkanBufferPtr = std::shared_ptr<VulkanBuffer>;
     using VulkanDescriptorPtr = std::shared_ptr<VulkanDescriptor>;
     using VulkanDescriptorPoolPtr = std::shared_ptr<VulkanDescriptorPool>;

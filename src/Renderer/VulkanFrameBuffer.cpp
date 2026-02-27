@@ -1,5 +1,6 @@
 #include "Renderer/VulkanFrameBuffer.hpp"
 #include "Utilities.hpp"
+#include "Types.hpp"
 
 #include <stdexcept>
 #include <array>

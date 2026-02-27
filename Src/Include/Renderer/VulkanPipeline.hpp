@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 
 #include "Renderer/VulkanBufferManager.hpp"
+#include "Pointers.hpp"
 
 #include <vector>
 
@@ -36,7 +37,7 @@ namespace fre
 		    std::vector<VkPushConstantRange> pushConstantRanges);
 
         void createShaderBindingTables(MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool,
-            const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& mRayTracingPipelineProperties, VulkanBufferManager& bufferManager);
+            const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& mRayTracingPipelineProperties, VulkanBufferManagerPtr& bufferManager);
 
         void createRTPipeline(VkDevice logicalDevice,
             std::vector<const VulkanShader*> shaders,

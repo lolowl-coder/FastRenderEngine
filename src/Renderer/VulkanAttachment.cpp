@@ -1,6 +1,7 @@
 #include "Renderer/VulkanAttachment.hpp"
 #include "Renderer/VulkanImage.hpp"
 #include "Utilities.hpp"
+#include "Types.hpp"
 
 namespace fre
 {

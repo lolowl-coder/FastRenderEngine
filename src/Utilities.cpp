@@ -1,6 +1,7 @@
 #include "Engine.hpp"
 #include "Shader.hpp"
 #include "Utilities.hpp"
+#include "Types.hpp"
 
 #include <sstream>
 #include <iostream>

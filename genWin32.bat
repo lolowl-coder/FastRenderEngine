@@ -1,4 +1,4 @@
 md build
 cd build
-cmake -S .. -B .
+cmake -S .. -B . -DCMAKE_CUDA_FLAGS="-allow-unsupported-compiler"
 pause

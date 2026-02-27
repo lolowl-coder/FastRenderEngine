@@ -10,6 +10,7 @@
 #include "MeshModel.hpp"
 #include "Shader.hpp"
 #include "Statistics.hpp"
+#include "Types.hpp"
 #include "Utilities.hpp"
 #include "Renderer/Denoiser.hpp"
 #include "Renderer/VulkanBufferManager.hpp"
@@ -142,8 +143,8 @@ namespace fre
 		//Push shader constants
 		void pushConstants(VkPushConstantRange pushConstants, const void* data, VkPipelineLayout pipelineLayout, VkPipelineBindPoint pipelineBindPoint);
 		void createBarrier(VkBuffer buffer, VkPipelineBindPoint pipelineBindPoint);
-		VulkanBuffer* getVertexBuffer(const uint32_t meshId);
-		VulkanBuffer* getIndexBuffer(const uint32_t meshId);
+		VulkanBuffer getVertexBuffer(const uint32_t meshId);
+		VulkanBuffer getIndexBuffer(const uint32_t meshId);
 		//External shader meta data provider
 		void setShaderMetaDataProvider(ShaderMetaDataProvider* provider);
 		//Shader used if no shader was selected for material
@@ -159,7 +160,7 @@ namespace fre
 		VulkanFrameBuffer& getFramBuffer(){ return mFrameBuffers[mImageIndex]; }
 		void transitionDepthLayout(VkImageLayout from, VkImageLayout to, VkPipelineBindPoint pipelineBindPoint);
 
-		VulkanTextureManager& getTextureManager() { return mTextureManager; }
+		const VulkanTextureManagerPtr& getTextureManager() { return mTextureManager; }
 
 		VkSemaphore getExternalWaitSemaphore() { return mExternalWaitSemaphores[mCurrentFrame]; }
 		VkSemaphore getExternalSignalSemaphore() { return mExternalSignalSemaphores[mCurrentFrame]; }
@@ -350,8 +351,8 @@ namespace fre
 		std::vector<VulkanDescriptorPtr> mColorAttacmentDescriptors;
 		std::vector<VulkanDescriptorPtr> mDepthAttacmentDescriptors;
 
-		VulkanBufferManager mBufferManager;
-		VulkanTextureManager mTextureManager;
+		VulkanBufferManagerPtr mBufferManager;
+		VulkanTextureManagerPtr mTextureManager;
 
 		// - Assets
 		std::vector<MeshModelPtr> mMeshModels;

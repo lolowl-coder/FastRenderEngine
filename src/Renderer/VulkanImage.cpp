@@ -1,5 +1,6 @@
 #include "Renderer/VulkanImage.hpp"
 #include "Utilities.hpp"
+#include "Types.hpp"
 
 #ifdef _WIN64
 	#include <VersionHelpers.h>

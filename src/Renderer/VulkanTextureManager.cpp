@@ -16,18 +16,18 @@ namespace fre
 {
     std::mutex gImagesMutex;
 
-	void VulkanTextureManager::create(VkDevice logicalDevice)
+	void VulkanTextureManager::create()
 	{
 		LOG_INFO("Create texture manager");
 
 		LOG_INFO("Texture manager created");
 	}
 
-	void VulkanTextureManager::destroy(VkDevice logicalDevice)
+	void VulkanTextureManager::destroy()
 	{
 		for(auto& idToTex : mTextures)
 		{
-			destroyTexture(logicalDevice, idToTex.first);
+			destroyTexture(idToTex.first);
 		}
 	}
 
@@ -121,7 +121,6 @@ namespace fre
 	}
 
 	uint32_t VulkanTextureManager::createTexture(
-		const MainDevice& mainDevice,
 		int8_t transferQueueFamilyId,
 		int8_t graphicsQueueFamilyId,
 		const VkQueue queue,
@@ -138,7 +137,7 @@ namespace fre
 			if(info->mImage.mIsExternal)
 			{
 				result->mImage = fre::createExternalImage(
-					mainDevice, info->mImage.mDimension.x, info->mImage.mDimension.y,
+					mMainDevice, info->mImage.mDimension.x, info->mImage.mDimension.y,
 					info->mImage.mFormat, info->mTiling,
 					info->mUsageFlags,
 					info->mMemoryFlags,
@@ -146,26 +145,26 @@ namespace fre
 			}
 			else
 			{
-				result->mImage = fre::createImage(mainDevice, info->mImage.mDimension.x, info->mImage.mDimension.y,
+				result->mImage = fre::createImage(mMainDevice, info->mImage.mDimension.x, info->mImage.mDimension.y,
 					info->mImage.mFormat, info->mTiling, info->mMipLevelCount,
 					info->mUsageFlags,
 					info->mMemoryFlags,
 					&result->mImageMemory,
 					result->mActualSize);
 			}
-			result->mImageView = createImageView(mainDevice.logicalDevice,
+			result->mImageView = createImageView(mMainDevice.logicalDevice,
 				result->mImage, info->mImage.mFormat,
 				VK_IMAGE_ASPECT_COLOR_BIT, info->mMipLevelCount);
 
 			//Is texture data passed?
 			if(info->mImage.mData != nullptr)
 			{
-				uploadData(mainDevice, transferQueueFamilyId, graphicsQueueFamilyId,
+				uploadData(transferQueueFamilyId, graphicsQueueFamilyId,
 					queue, commandPool, result, info, info->mMipLevelCount);
 			}
 			else
 			{
-				transitionImageLayout(mainDevice.logicalDevice, queue, commandPool, result->mImage, VK_IMAGE_ASPECT_COLOR_BIT,
+				transitionImageLayout(mMainDevice.logicalDevice, queue, commandPool, result->mImage, VK_IMAGE_ASPECT_COLOR_BIT,
 					VK_IMAGE_LAYOUT_UNDEFINED, info->mLayout, 0u, 1u);
 			}
 		}
@@ -216,7 +215,6 @@ namespace fre
 	}
 
     void VulkanTextureManager::uploadData(
-		const MainDevice& mainDevice,
 		int8_t transferQueueFamilyId,
 		int8_t graphicsQueueFamilyId,
 		const VkQueue queue,
@@ -228,14 +226,14 @@ namespace fre
 		//Create staging buffer to hold loaded data, ready to copy to device
 		VulkanBuffer imageStagingBuffer;
 		VkDeviceMemory imageStagingBufferMemory;
-		createBuffer(mainDevice, info->mImage.mDataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		fre::createBuffer(mMainDevice, info->mImage.mDataSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			0,
 			&imageStagingBuffer.mBuffer, nullptr, &imageStagingBuffer.mBufferMemory);
 
 		//Copy image data to staging buffer
 		void* data;
-		VK_CHECK(vkMapMemory(mainDevice.logicalDevice, imageStagingBuffer.mBufferMemory, 0, info->mImage.mDataSize, 0, &data));
+		VK_CHECK(vkMapMemory(mMainDevice.logicalDevice, imageStagingBuffer.mBufferMemory, 0, info->mImage.mDataSize, 0, &data));
 		//Fill texture with zeoes if filename is not provided
 		if(info->mImage.mData != nullptr)
 		{
@@ -245,14 +243,14 @@ namespace fre
 		{
 			memset(data, 0, static_cast<size_t>(info->mImage.mDataSize));
 		}
-		vkUnmapMemory(mainDevice.logicalDevice, imageStagingBuffer.mBufferMemory);
+		vkUnmapMemory(mMainDevice.logicalDevice, imageStagingBuffer.mBufferMemory);
 
 		//Copy data to image
 		//Transition image to be DST for copy operation
-		transitionImageLayout(mainDevice.logicalDevice, queue, commandPool, texture->mImage, VK_IMAGE_ASPECT_COLOR_BIT,
+		transitionImageLayout(mMainDevice.logicalDevice, queue, commandPool, texture->mImage, VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0u, mipLevels);
 
-		copyImageBuffer(mainDevice.logicalDevice, transferQueueFamilyId, graphicsQueueFamilyId, queue, commandPool,
+		copyImageBuffer(mMainDevice.logicalDevice, transferQueueFamilyId, graphicsQueueFamilyId, queue, commandPool,
 			imageStagingBuffer.mBuffer, texture->mImage, info->mImage.mDimension.x, info->mImage.mDimension.y);
 
 		//Transition image to be shader readable for shader usage
@@ -264,12 +262,12 @@ namespace fre
 		//	/*info->mLayout*/VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0u);
 
 		//Destroy staging buffers
-		vkDestroyBuffer(mainDevice.logicalDevice, imageStagingBuffer.mBuffer, nullptr);
-		vkFreeMemory(mainDevice.logicalDevice, imageStagingBuffer.mBufferMemory, nullptr);
+		vkDestroyBuffer(mMainDevice.logicalDevice, imageStagingBuffer.mBuffer, nullptr);
+		vkFreeMemory(mMainDevice.logicalDevice, imageStagingBuffer.mBufferMemory, nullptr);
 
 		if(mipLevels > 1)
 		{
-			generateMipmaps(mainDevice.logicalDevice, commandPool, queue,
+			generateMipmaps(mMainDevice.logicalDevice, commandPool, queue,
 				texture->mImage, info->mImage.mDimension.x, info->mImage.mDimension.y,
 				mipLevels, info->mLayout);
 		}
@@ -278,7 +276,6 @@ namespace fre
 	}
 
 	void VulkanTextureManager::updateTextureImage(
-		const MainDevice& mainDevice,
 		int8_t transferQueueFamilyId,
 		int8_t graphicsQueueFamilyId,
 		VkQueue queue,
@@ -287,13 +284,13 @@ namespace fre
 	{
 		if(mTextureInfos[info->mId]->mImage.mDimension != info->mImage.mDimension)
 		{
-			destroyTexture(mainDevice.logicalDevice, info->mId);
-			createTexture(mainDevice, transferQueueFamilyId, graphicsQueueFamilyId, queue, commandPool, info);
+			destroyTexture(info->mId);
+			createTexture(transferQueueFamilyId, graphicsQueueFamilyId, queue, commandPool, info);
 			mTextureInfos[info->mId] = info;
 		}
 		else
 		{
-            uploadData(mainDevice, transferQueueFamilyId, graphicsQueueFamilyId,
+            uploadData(transferQueueFamilyId, graphicsQueueFamilyId,
                 queue, commandPool, mTextures[info->mId], info, 1u);
 		}
 	}
@@ -317,10 +314,10 @@ namespace fre
 		return mTextureInfos.find(index) != mTextureInfos.end();
 	}
 
-	void VulkanTextureManager::destroyTexture(VkDevice logicalDevice, uint32_t id)
+	void VulkanTextureManager::destroyTexture(uint32_t id)
 	{
-		vkDestroyImageView(logicalDevice, mTextures[id]->mImageView, nullptr);
-		vkDestroyImage(logicalDevice, mTextures[id]->mImage, nullptr);
-		vkFreeMemory(logicalDevice, mTextures[id]->mImageMemory, nullptr);
+		vkDestroyImageView(mMainDevice.logicalDevice, mTextures[id]->mImageView, nullptr);
+		vkDestroyImage(mMainDevice.logicalDevice, mTextures[id]->mImage, nullptr);
+		vkFreeMemory(mMainDevice.logicalDevice, mTextures[id]->mImageMemory, nullptr);
 	}
 }

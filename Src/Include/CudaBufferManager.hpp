@@ -78,7 +78,7 @@ namespace fre
             CudaBuffer<T> result;
 			cudaExternalMemory_t cudaExternalMem;
 			// Get Vulkan texture memory
-			VkDeviceMemory vulkanExternalMem = renderer->getTextureManager().getTextureMemory(textureId);
+			VkDeviceMemory vulkanExternalMem = renderer->getTextureManager()->getTextureMemory(textureId);
 			// Get image for actual size
             Image& image = renderer->getTextureInfo(textureId)->mImage;
 			VulkanTexturePtr& texture = renderer->getTexture(textureId);

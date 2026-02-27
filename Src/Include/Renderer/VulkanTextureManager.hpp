@@ -17,17 +17,22 @@
 
 namespace fre
 {
-	struct MainDevice;
 	class ThreadPool;
 
-	struct VulkanTextureManager
+	class VulkanTextureManager
 	{
+	public:
 		using LoadImageCallback = std::function<void(const int imageIndex, const int imagesCount)>;
 		using TextureCallback = std::function<void(const VulkanTexturePtr& texture)>;
 		using TextureInfoCallback = std::function<void(const VulkanTextureInfoPtr& textureInfo)>;
 
-		void create(VkDevice logicalDevice);
-		void destroy(VkDevice logicalDevice);
+		VulkanTextureManager(const MainDevice& mainDevice)
+			: mMainDevice(mainDevice)
+		{
+		}
+
+		void create();
+		void destroy();
 		int getImageIdByFilename(const std::string& fileName) const;
 		bool isImageCreated(const std::string& fileName) const;
 		uint32_t getImagesCount() const;
@@ -41,7 +46,6 @@ namespace fre
 			const uint32_t mipLevelCount);
 		VulkanTextureInfoPtr getTextureInfo(const uint32_t id);
 		uint32_t createTexture(
-			const MainDevice& mainDevice,
 			int8_t transferQueueFamilyId,
 			int8_t graphicsQueueFamilyId,
 			const VkQueue queue,
@@ -49,7 +53,7 @@ namespace fre
 			const VulkanTextureInfoPtr& info);
 		VulkanTexturePtr getTexture(uint32_t id);
         void loadImages(const LoadImageCallback& callback, ThreadPool& threadPool);
-		void uploadData(const MainDevice& mainDevice,
+		void uploadData(
 			int8_t transferQueueFamilyId,
 			int8_t graphicsQueueFamilyId,
 			const VkQueue queue,
@@ -58,7 +62,6 @@ namespace fre
 			const VulkanTextureInfoPtr& info,
 			const uint32_t mipLevels);
 		void updateTextureImage(
-			const MainDevice& mainDevice,
 			int8_t transferFamilyId,
 			int8_t graphicsFamilyId,
 			VkQueue queue,
@@ -66,7 +69,7 @@ namespace fre
 			const VulkanTextureInfoPtr& info);
 		VkDeviceMemory getTextureMemory(uint32_t index);
 		bool isTextureInfoCreated(uint32_t index);
-		void destroyTexture(VkDevice logicalDevice, uint32_t id);
+		void destroyTexture(uint32_t id);
 		void forEachTextureInfo(const TextureInfoCallback& callback)
 		{
             for(const auto& ti : mTextureInfos)
@@ -89,6 +92,7 @@ namespace fre
 		};
 		
 	private:
+		MainDevice mMainDevice;
 		std::map<uint32_t, VulkanTextureInfoPtr> mTextureInfos;
 		std::map<uint32_t, VulkanTexturePtr> mTextures;
 		uint32_t mDefaultTextureId = 0;

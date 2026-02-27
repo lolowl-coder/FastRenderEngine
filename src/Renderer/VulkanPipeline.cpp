@@ -237,7 +237,7 @@ namespace fre
 	void VulkanPipeline::createShaderBindingTables(
 		MainDevice& mainDevice, VkQueue transferQueue, VkCommandPool transferCommandPool,
 		const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& mRayTracingPipelineProperties,
-		VulkanBufferManager& bufferManager)
+		VulkanBufferManagerPtr& bufferManager)
 	{
 		std::vector<uint32_t> rgen_index{ 0 };
 		std::vector<uint32_t> miss_index{ 1, 2 };
@@ -259,35 +259,35 @@ namespace fre
 		uint8_t* data = shader_handle_storage.data();
 		uint32_t bufSize = handle_size_aligned * rgen_index.size();
 		uint32_t dataSize = handle_size * rgen_index.size();
-		uint32_t bufferIndex = bufferManager.createBuffer(mainDevice, transferQueue, transferCommandPool,
+		uint32_t bufferIndex = bufferManager->createBuffer(transferQueue, transferCommandPool,
 			sbt_buffer_usage_flags, sbt_memory_usage, data, bufSize, dataSize);
 		data += dataSize;
-        mRaygenShaderBindingTable = *bufferManager.getBuffer(bufferIndex);
+        mRaygenShaderBindingTable = bufferManager->getBuffer(bufferIndex);
 
 		// Miss shader SBT is different a bit because it contains multiple shader indices
 		bufSize = handle_size_aligned * miss_index.size();
 		dataSize = handle_size * miss_index.size();
-		bufferIndex = bufferManager.createBuffer(mainDevice, transferQueue, transferCommandPool,
+		bufferIndex = bufferManager->createBuffer(transferQueue, transferCommandPool,
 			sbt_buffer_usage_flags, sbt_memory_usage, nullptr, bufSize);
 
 		// Copy element wise, because of alignment difference
-		uint8_t* mappedData = bufferManager.map(mainDevice.logicalDevice, bufferIndex, bufSize);
+		uint8_t* mappedData = bufferManager->map(bufferIndex, bufSize);
 		for(int i = 0; i < miss_index.size(); i++)
 		{
 			memcpy(mappedData, data, handle_size);
 			mappedData += handle_size_aligned;
 			data += handle_size;
 		}
-		bufferManager.unmap(mainDevice.logicalDevice, bufferIndex);
-        mMissShaderBindingTable = *bufferManager.getBuffer(bufferIndex);
+		bufferManager->unmap(bufferIndex);
+        mMissShaderBindingTable = bufferManager->getBuffer(bufferIndex);
 
 		bufSize = handle_size_aligned * hit_index.size();
 		dataSize = handle_size * hit_index.size();
-		bufferIndex = bufferManager.createBuffer(mainDevice, transferQueue, transferCommandPool,
+		bufferIndex = bufferManager->createBuffer(transferQueue, transferCommandPool,
 			sbt_buffer_usage_flags, sbt_memory_usage, data, bufSize, dataSize);
 		data += dataSize;
 
-		mHhitShaderBindingTable = *bufferManager.getBuffer(bufferIndex);
+		mHhitShaderBindingTable = bufferManager->getBuffer(bufferIndex);
 	}
 
 	void VulkanPipeline::createRTPipeline(VkDevice logicalDevice,

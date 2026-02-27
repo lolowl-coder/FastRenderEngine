@@ -95,6 +95,7 @@ namespace fre
 			createSurface();
 			getPhysicalDevice();
 			createLogicalDevice();
+
 			if(isRayTracingSupported())
 			{
 				initRayTracing();
@@ -103,8 +104,11 @@ namespace fre
 				mPresentationQueueFamilyId, mSurface);
 			mRenderPass.create(mainDevice, mSwapChain.mSwapChainImageFormat);
 			createSwapChainFrameBuffers();
-			mTextureManager.create(mainDevice.logicalDevice);
 			createSynchronisation();
+
+			mBufferManager = std::make_unique<VulkanBufferManager>(mainDevice);
+			mTextureManager = std::make_unique<VulkanTextureManager>(mainDevice);
+			mTextureManager->create();
 
 			LOG_INFO("VulkanRenderer. Core GPU resources created");
 		}
@@ -241,7 +245,7 @@ namespace fre
 
 			//_aligned_free(modetTransferSpace);
 
-			mBufferManager.destroy(mainDevice.logicalDevice);
+			mBufferManager->destroy();
 
             int count = mDescriptorPoolCache.size();
 			for(int i = 0; i < count; i++)
@@ -264,7 +268,7 @@ namespace fre
 				vkDestroySampler(mainDevice.logicalDevice, s, nullptr);
 			}
 
-			mTextureManager.destroy(mainDevice.logicalDevice);
+			mTextureManager->destroy();
 
 			mSwapChain.destroy(mainDevice.logicalDevice);
 			cleanupSwapChainFrameBuffers();
@@ -417,7 +421,7 @@ namespace fre
 		Image& image,
 		const uint32_t mipLevelCount)
 	{
-		return mTextureManager.createTextureInfo(
+		return mTextureManager->createTextureInfo(
 			addressMode,
 			tiling,
 			usageFlags,
@@ -429,30 +433,29 @@ namespace fre
 
 	VulkanTextureInfoPtr VulkanRenderer::getTextureInfo(const uint32_t id)
 	{
-		return mTextureManager.getTextureInfo(id);
+		return mTextureManager->getTextureInfo(id);
 	}
 
 	uint32_t VulkanRenderer::createTexture(const VulkanTextureInfoPtr& info)
 	{
-		return mTextureManager.createTexture(mainDevice, mTransferQueueFamilyId,
+		return mTextureManager->createTexture(mTransferQueueFamilyId,
 			mGraphicsQueueFamilyId, mGraphicsQueue, mGraphicsCommandPool, info);
 	}
 
 	VulkanTexturePtr VulkanRenderer::getTexture(const uint32_t id)
 	{
-		return mTextureManager.getTexture(id);
+		return mTextureManager->getTexture(id);
 	}
 
 	void VulkanRenderer::updateTextureImage(const VulkanTextureInfoPtr& info)
 	{
-		mTextureManager.updateTextureImage(mainDevice, mTransferQueueFamilyId, mGraphicsQueueFamilyId,
+		mTextureManager->updateTextureImage(mTransferQueueFamilyId, mGraphicsQueueFamilyId,
 			mGraphicsQueue, mGraphicsCommandPool, info);
 	}
 
 	VulkanBuffer VulkanRenderer::createStagingBuffer(const void* data, size_t size)
 	{
-		auto result = mBufferManager.createStagingBuffer(
-			mainDevice,
+		auto result = mBufferManager->createStagingBuffer(
 			mTransferQueue,
 			mTransferCommandPool,
 			data, size);
@@ -461,8 +464,7 @@ namespace fre
 
 	uint32_t VulkanRenderer::createBuffer(VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryFlags, void* data, size_t dataSize)
 	{
-		return mBufferManager.createBuffer(
-			mainDevice,
+		return mBufferManager->createBuffer(
 			mTransferQueue,
 			mTransferCommandPool,
 			usage,
@@ -473,7 +475,7 @@ namespace fre
 	const VulkanBuffer& VulkanRenderer::createExternalBuffer(VkBufferUsageFlags bufferUsage, VkMemoryPropertyFlags memoryFlags,
 		VkExternalMemoryHandleTypeFlagsKHR extMemHandleType, VkDeviceSize size)
 	{
-		const auto& result = mBufferManager.createExternalBuffer(mainDevice, bufferUsage, memoryFlags, extMemHandleType, size);
+		const auto& result = mBufferManager->createExternalBuffer(bufferUsage, memoryFlags, extMemHandleType, size);
 
 		return result;
 	}
@@ -862,10 +864,10 @@ namespace fre
 
 	uint32_t VulkanRenderer::createBLAS(MeshPtr& mesh)
 	{
-		const VulkanBuffer* vbo = getVertexBuffer(mesh->getId());
-		const VulkanBuffer* ibo = getIndexBuffer(mesh->getId());
+		const VulkanBuffer vbo = getVertexBuffer(mesh->getId());
+		const VulkanBuffer ibo = getIndexBuffer(mesh->getId());
 
-        if(vbo == nullptr || ibo == nullptr)
+        if(!vbo.isValid() || !ibo.isValid())
         {
             throw std::runtime_error("VulkanRenderer::createBLAS: Vertex or index buffer not found for mesh");
         }
@@ -886,15 +888,17 @@ namespace fre
 			buffer_usage_flags,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			&transform_matrix, sizeof(transform_matrix));
-        VulkanBuffer* transformMatrixBuffer = mBufferManager.getBuffer(bufferIndex);
+        VulkanBuffer transformMatrixBuffer = mBufferManager->getBuffer(bufferIndex);
+
+		assert(transformMatrixBuffer.isValid() && "Failed to create buffer for BLAS transform matrix");
 
 		VkDeviceOrHostAddressConstKHR vertexDataDeviceAddress{};
 		VkDeviceOrHostAddressConstKHR indexDataDeviceAddress{};
 		VkDeviceOrHostAddressConstKHR transformMatrixDeviceAddress{};
 
-		vertexDataDeviceAddress.deviceAddress = vbo->mDeviceAddress;
-		indexDataDeviceAddress.deviceAddress = ibo->mDeviceAddress;
-		transformMatrixDeviceAddress.deviceAddress = transformMatrixBuffer->mDeviceAddress;
+		vertexDataDeviceAddress.deviceAddress = vbo.mDeviceAddress;
+		indexDataDeviceAddress.deviceAddress = ibo.mDeviceAddress;
+		transformMatrixDeviceAddress.deviceAddress = transformMatrixBuffer.mDeviceAddress;
 
 		VkAccelerationStructureGeometryTrianglesDataKHR triangles{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR };
 		triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
@@ -953,10 +957,12 @@ namespace fre
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 		uint32_t bufferIndex = createBuffer(bufferUsageFlags, memoryFlags,
 			blasInstances.data(), blasInstances.size() * sizeof(VkAccelerationStructureInstanceKHR));
-        VulkanBuffer* instancesBuffer = mBufferManager.getBuffer(bufferIndex);
+        VulkanBuffer instancesBuffer = mBufferManager->getBuffer(bufferIndex);
+
+		assert(instancesBuffer.isValid() && "Failed to create buffer for TLAS instances");
 		
 		VkDeviceOrHostAddressConstKHR instanceDataDeviceAddress{};
-		instanceDataDeviceAddress.deviceAddress = instancesBuffer->mDeviceAddress;
+		instanceDataDeviceAddress.deviceAddress = instancesBuffer.mDeviceAddress;
 
 		// The top level acceleration structure contains (bottom level) instance as the input geometry
 		VkAccelerationStructureGeometryKHR asGeometry{};
@@ -1006,7 +1012,7 @@ namespace fre
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			nullptr,
 			asBuildSizesInfo.accelerationStructureSize);
-        as.mBuffer = *mBufferManager.getBuffer(bufferIndex);
+        as.mBuffer = mBufferManager->getBuffer(bufferIndex);
 
 		// Create the acceleration structure
 		VkAccelerationStructureCreateInfoKHR asCreateInfo{};
@@ -1024,7 +1030,7 @@ namespace fre
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			nullptr,
 			asBuildSizesInfo.buildScratchSize);
-        VulkanBuffer scratchBuffer = *mBufferManager.getBuffer(bufferIndex);
+        VulkanBuffer scratchBuffer = mBufferManager->getBuffer(bufferIndex);
 
 		VkAccelerationStructureBuildGeometryInfoKHR asBuildGeometryInfo{};
 		asBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
@@ -1067,7 +1073,7 @@ namespace fre
 
 		commandBuffer.free(mainDevice.logicalDevice,mGraphicsCommandPool, true);
 
-		mBufferManager.destroyBuffer(mainDevice.logicalDevice, scratchBuffer);
+		mBufferManager->destroyBuffer(scratchBuffer);
 
 		// Get the bottom acceleration structure's handle, which will be used later
 		VkAccelerationStructureDeviceAddressInfoKHR asDeviceAddressInfo{};
@@ -1685,10 +1691,10 @@ namespace fre
 		{
 			const auto& shader = pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mShaders[computeShaderId] : mShaders[material.mShaderId];
 
-			const auto* vertexBuffer = getVertexBuffer(mesh->getId());
+			const auto vertexBuffer = getVertexBuffer(mesh->getId());
 			bool needToProcess =
 				mesh->getGeneratedVerticesCount() > 0 ||
-				vertexBuffer != nullptr ||
+				vertexBuffer.isValid() ||
 				shader.mComputeShader.mShaderStage != 0 ||
 				shader.mRayGenShader.mShaderStage != 0;
 			if(needToProcess)
@@ -1725,19 +1731,19 @@ namespace fre
                             mesh->mPushConstantsCallback(mesh, modelMatrix, camera, light, pipeline.mPipelineLayout, instanceId);
                         }
 			
-						if(vertexBuffer != nullptr && pipelineBindPoint != VK_PIPELINE_BIND_POINT_COMPUTE &&
+						if(vertexBuffer.isValid() && pipelineBindPoint != VK_PIPELINE_BIND_POINT_COMPUTE &&
 							pipelineBindPoint != VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR)
 						{
-							VkBuffer vertexBuffers[] = { vertexBuffer->mBuffer };	//Buffers to bind
+							VkBuffer vertexBuffers[] = { vertexBuffer.mBuffer };	//Buffers to bind
 							VkDeviceSize offsets[] = { 0 };		//Offsets into buffers being bound
 							bindVertexBuffers(vertexBuffers, 1, offsets, pipelineBindPoint);
 						}
 
-						const auto* indexBuffer = getIndexBuffer(mesh->getId());
-						if(indexBuffer != nullptr && pipelineBindPoint != VK_PIPELINE_BIND_POINT_COMPUTE &&
+						const auto indexBuffer = getIndexBuffer(mesh->getId());
+						if(indexBuffer.isValid() && pipelineBindPoint != VK_PIPELINE_BIND_POINT_COMPUTE &&
 							pipelineBindPoint != VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR)
 						{
-							bindIndexBuffer(indexBuffer->mBuffer, pipelineBindPoint);
+							bindIndexBuffer(indexBuffer.mBuffer, pipelineBindPoint);
 						}
 
                         if(mesh->getDescriptorSets().empty())
@@ -1794,7 +1800,7 @@ namespace fre
 								{
 									vkCmdDraw(commandBuffer, mesh->getGeneratedVerticesCount(), 1, 0, 0);
 								}
-								else if(indexBuffer != nullptr)
+								else if(indexBuffer.isValid())
 								{
 									vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->getIndexCount()), 1, 0, 0, 0);
 								}
@@ -2036,20 +2042,26 @@ namespace fre
 			buffer, 0, VK_INDEX_TYPE_UINT32);
 	}
 
-	VulkanBuffer* VulkanRenderer::getVertexBuffer(const uint32_t meshId)
+	VulkanBuffer VulkanRenderer::getVertexBuffer(const uint32_t meshId)
 	{
+		VulkanBuffer result;
 		const auto found = mMeshToVertexBufferMap.find(meshId);
-		VulkanBuffer* result = found == mMeshToVertexBufferMap.end() ? nullptr :
-			mBufferManager.getBuffer(found->second);
+		if (found != mMeshToVertexBufferMap.end())
+		{
+			result = mBufferManager->getBuffer(found->second);
+		}
 
 		return result;
 	}
 
-	VulkanBuffer* VulkanRenderer::getIndexBuffer(const uint32_t meshId)
+	VulkanBuffer VulkanRenderer::getIndexBuffer(const uint32_t meshId)
 	{
+		VulkanBuffer result;
 		const auto found = mMeshToIndexBufferMap.find(meshId);
-		VulkanBuffer* result = found == mMeshToIndexBufferMap.end() ? nullptr :
-			mBufferManager.getBuffer(found->second);
+		if(found != mMeshToIndexBufferMap.end())
+		{
+			result = mBufferManager->getBuffer(found->second);
+		}
 
 		return result;
 	}
@@ -2463,7 +2475,7 @@ namespace fre
 	void VulkanRenderer::initRayTracing()
 	{
 		// SPIRV 1.4 requires Vulkan 1.1
-		setApiVersion(VK_API_VERSION_1_1);
+		setApiVersion(VK_API_VERSION_1_3);
 
 		mRayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
 		VkPhysicalDeviceProperties2 deviceProperties{};
@@ -2527,7 +2539,7 @@ namespace fre
 	void VulkanRenderer::loadImages()
 	{
 		//std::cout << "render tid: " << std::this_thread::get_id() << std::endl;
-		mTextureManager.loadImages(
+		mTextureManager->loadImages(
 			[this](const int imageIndex, const int count)
 			{
 				this->onImageLoaded(imageIndex, count);
@@ -2556,23 +2568,25 @@ namespace fre
 				if(mesh->getVertexCount() > 0)
 				{
 					const void* vertexData = mesh->getVertexData();
-					mMeshToVertexBufferMap[meshId] = static_cast<uint32_t>(mBufferManager.mBuffers.size());
-					uint32_t vertexBufferSize = mesh->getVertexCount() * mesh->getVertexSize();
-					mBufferManager.createBuffer(
-						mainDevice, mTransferQueue, mTransferCommandPool,
+					const uint32_t vertexBufferSize = mesh->getVertexCount() * mesh->getVertexSize();
+					const auto id = mBufferManager->createBuffer(
+						mTransferQueue, mTransferCommandPool,
 						static_cast<VkBufferUsageFlagBits>(usage | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
-						VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexData, vertexBufferSize);
+						VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexData,
+						vertexBufferSize);
+					mMeshToVertexBufferMap[meshId] = id;
 				}
 
 				if(mesh->getIndexCount() > 0)
 				{
 					const void* indexData = mesh->getIndexData();
-					uint32_t indexBufferSize = mesh->getIndexCount() * sizeof(uint32_t);
-					mMeshToIndexBufferMap[meshId] = static_cast<uint32_t>(mBufferManager.mBuffers.size());
-					mBufferManager.createBuffer(
-						mainDevice, mTransferQueue, mTransferCommandPool,
+					const uint32_t indexBufferSize = mesh->getIndexCount() * sizeof(uint32_t);
+					const auto id = mBufferManager->createBuffer(
+						mTransferQueue, mTransferCommandPool,
 						static_cast<VkBufferUsageFlagBits>(usage | VK_BUFFER_USAGE_INDEX_BUFFER_BIT),
-						VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexData, indexBufferSize);
+						VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexData,
+						indexBufferSize);
+					mMeshToIndexBufferMap[meshId] = id;
 				}
 			}
 		}
