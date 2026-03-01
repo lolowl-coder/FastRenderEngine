@@ -365,8 +365,8 @@ namespace fre
 
 		vkCmdBindDescriptorSets(
 			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ?
-			mComputeCommandBuffers[mImageIndex].mCommandBuffer :
-			mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
+			mComputeCommandBuffers[mCurrentFrame].mCommandBuffer :
+			mGraphicsCommandBuffers[mCurrentFrame].mCommandBuffer,
 			pipelineBindPoint,
 			pipelineLayout,
 			0,
@@ -550,7 +550,7 @@ namespace fre
 
 				VK_CHECK(vkResetFences(mainDevice.logicalDevice, 1, &mComputeFences[mCurrentFrame]));
 
-				const auto commandBuffer = mComputeCommandBuffers[mImageIndex];
+				const auto commandBuffer = mComputeCommandBuffers[mCurrentFrame];
 				commandBuffer.reset();
 				commandBuffer.begin();
 				recordSceneCommands(camera, light, VK_PIPELINE_BIND_POINT_COMPUTE, 0);
@@ -634,7 +634,7 @@ namespace fre
 				//Manually reset (close) fences
 				VK_CHECK(vkResetFences(mainDevice.logicalDevice, 1, &mDrawFences[mCurrentFrame]));
 			
-                VulkanCommandBuffer& commandBuffer = mGraphicsCommandBuffers[mImageIndex];
+                VulkanCommandBuffer& commandBuffer = mGraphicsCommandBuffers[mCurrentFrame];
                 commandBuffer.reset();
 				commandBuffer.begin();
 
@@ -772,7 +772,7 @@ namespace fre
 			// Rendering
 			ImGui::Render();
 			ImDrawData* draw_data = ImGui::GetDrawData();
-			ImGui_ImplVulkan_RenderDrawData(draw_data, mGraphicsCommandBuffers[mImageIndex].mCommandBuffer);
+			ImGui_ImplVulkan_RenderDrawData(draw_data, mGraphicsCommandBuffers[mCurrentFrame].mCommandBuffer);
 			mUIFrameStarted = false;
 		}
 	}
@@ -780,7 +780,7 @@ namespace fre
 	void VulkanRenderer::pushConstants(VkPushConstantRange pushConstants, const void* data, VkPipelineLayout pipelineLayout, VkPipelineBindPoint pipelineBindPoint)
 	{
         vkCmdPushConstants(
-			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeCommandBuffers[mImageIndex].mCommandBuffer : mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
+			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeCommandBuffers[mCurrentFrame].mCommandBuffer : mGraphicsCommandBuffers[mCurrentFrame].mCommandBuffer,
             pipelineLayout,
             pushConstants.stageFlags,
             pushConstants.offset,
@@ -1664,9 +1664,9 @@ namespace fre
 		UboViewProjection vp;
 		vp.mView = camera.mView;
 		vp.mProjection = camera.mProjection;
-		VK_CHECK(vkMapMemory(mainDevice.logicalDevice, mVPUniformBufferMemory[mImageIndex], 0, sizeof(UboViewProjection), 0, &data));
+		VK_CHECK(vkMapMemory(mainDevice.logicalDevice, mVPUniformBufferMemory[mCurrentFrame], 0, sizeof(UboViewProjection), 0, &data));
 		memcpy(data, &vp, sizeof(UboViewProjection));
-		vkUnmapMemory(mainDevice.logicalDevice, mVPUniformBufferMemory[mImageIndex]);*/
+		vkUnmapMemory(mainDevice.logicalDevice, mVPUniformBufferMemory[mCurrentFrame]);*/
 
 		//Copy ModelMatrix data
 		/*for (size_t i = 0; i < meshList.size(); i++)
@@ -1675,9 +1675,9 @@ namespace fre
 			*thisModel = meshList[i].getModelMatrix();
 		}
 		//Map the list of model data
-		vkMapMemory(mainDevice.logicalDevice, modelDUniformBufferMemory[mImageIndex], 0, modelUniformAlignment * meshList.size(), 0, &data);
+		vkMapMemory(mainDevice.logicalDevice, modelDUniformBufferMemory[mCurrentFrame], 0, modelUniformAlignment * meshList.size(), 0, &data);
 		memcpy(data, modetTransferSpace, modelUniformAlignment * meshList.size());
-		vkUnmapMemory(mainDevice.logicalDevice, modelDUniformBufferMemory[mImageIndex]);*/
+		vkUnmapMemory(mainDevice.logicalDevice, modelDUniformBufferMemory[mCurrentFrame]);*/
 	}
 
 	void VulkanRenderer::recordMeshCommands(
@@ -1779,8 +1779,8 @@ namespace fre
 						}
 
 						auto commandBuffer = pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ?
-							mComputeCommandBuffers[mImageIndex].mCommandBuffer :
-							mGraphicsCommandBuffers[mImageIndex].mCommandBuffer;
+							mComputeCommandBuffers[mCurrentFrame].mCommandBuffer :
+							mGraphicsCommandBuffers[mCurrentFrame].mCommandBuffer;
 
 						switch(pipeline.mBindPoint)
 						{
@@ -1896,7 +1896,7 @@ namespace fre
 
 	void VulkanRenderer::renderFullscreenTriangle(VkPipelineLayout pipelineLayout)
 	{
-		VkCommandBuffer commandBuffer = mGraphicsCommandBuffers[mImageIndex].mCommandBuffer;
+		VkCommandBuffer commandBuffer = mGraphicsCommandBuffers[mCurrentFrame].mCommandBuffer;
 		vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 	}
 
@@ -2019,7 +2019,7 @@ namespace fre
 	void VulkanRenderer::bindPipeline(const VulkanPipeline& pipeline)
 	{
 		vkCmdBindPipeline(
-				pipeline.isCompute() ? mComputeCommandBuffers[mImageIndex].mCommandBuffer : mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
+				pipeline.isCompute() ? mComputeCommandBuffers[mCurrentFrame].mCommandBuffer : mGraphicsCommandBuffers[mCurrentFrame].mCommandBuffer,
 				pipeline.mBindPoint,
 				pipeline.mPipeline);
 	}
@@ -2028,8 +2028,8 @@ namespace fre
 	{
 		vkCmdBindVertexBuffers(
 			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ?
-				mComputeCommandBuffers[mImageIndex].mCommandBuffer :
-				mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
+				mComputeCommandBuffers[mCurrentFrame].mCommandBuffer :
+				mGraphicsCommandBuffers[mCurrentFrame].mCommandBuffer,
 			0, count, buffers, offsets);
 	}
 
@@ -2037,8 +2037,8 @@ namespace fre
 	{
 		vkCmdBindIndexBuffer(
 			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ?
-				mComputeCommandBuffers[mImageIndex].mCommandBuffer :
-				mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
+				mComputeCommandBuffers[mCurrentFrame].mCommandBuffer :
+				mGraphicsCommandBuffers[mCurrentFrame].mCommandBuffer,
 			buffer, 0, VK_INDEX_TYPE_UINT32);
 	}
 
@@ -2069,7 +2069,7 @@ namespace fre
 	void VulkanRenderer::recordCommands(const Camera& camera, const Light& light)
 	{
 		//LOG_DEBUG("recordCommands");
-		VkCommandBuffer commandBuffer = mGraphicsCommandBuffers[mImageIndex].mCommandBuffer;
+		VkCommandBuffer commandBuffer = mGraphicsCommandBuffers[mCurrentFrame].mCommandBuffer;
 		mRenderPass.begin(mFrameBuffers[mImageIndex].mFrameBuffer, mSwapChain.mSwapChainExtent,
 			commandBuffer, mClearColor);
 
@@ -2514,7 +2514,7 @@ namespace fre
 		viewport.height = v.mMax.y - v.mMin.y;
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
-		vkCmdSetViewport(mGraphicsCommandBuffers[mImageIndex].mCommandBuffer, 0, 1, &viewport);
+		vkCmdSetViewport(mGraphicsCommandBuffers[mCurrentFrame].mCommandBuffer, 0, 1, &viewport);
     }
 
     void VulkanRenderer::setScissor(const BoundingBox2D& scissorRect)
@@ -2528,7 +2528,7 @@ namespace fre
 		const auto size = scissorRect.getSize();
 		scissor.extent.width = max(0, static_cast<int>(size.x));
 		scissor.extent.height = max(0, static_cast<int>(size.y));
-		vkCmdSetScissor(mGraphicsCommandBuffers[mImageIndex].mCommandBuffer, 0, 1, &scissor);
+		vkCmdSetScissor(mGraphicsCommandBuffers[mCurrentFrame].mCommandBuffer, 0, 1, &scissor);
     }
 
 	void VulkanRenderer::onImageLoaded(const uint32_t imageIndex, const int loadQueueSize)
@@ -2605,8 +2605,8 @@ namespace fre
 		barrier.size = VK_WHOLE_SIZE;
 
 		vkCmdPipelineBarrier(
-			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeCommandBuffers[mImageIndex].mCommandBuffer
-				: mGraphicsCommandBuffers[mImageIndex].mCommandBuffer,
+			pipelineBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE ? mComputeCommandBuffers[mCurrentFrame].mCommandBuffer
+				: mGraphicsCommandBuffers[mCurrentFrame].mCommandBuffer,
 			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
 			VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
 			0,

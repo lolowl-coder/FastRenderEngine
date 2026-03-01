@@ -137,7 +137,6 @@ namespace fre
 		void drawUI();
 
 		const MainDevice& getMainDevice(){ return mainDevice; }
-		uint32_t getImageIndex(){ return mImageIndex; }
 		uint32_t getCurrentFrameIndex(){ return mCurrentFrame; }
 
 		//Push shader constants
