@@ -1,6 +1,4 @@
-MIT License
-
-Copyright (c) 2026 sv-ivanov
+Copyright (c) 2018-2026 Arseny Kapoulkine
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
