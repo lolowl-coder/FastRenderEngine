@@ -1,4 +1,3 @@
-#include "fre/core/VirtualFileSystem.hpp"
 #include "fre/core/Log.hpp"
 
 #include <spdlog/sinks/rotating_file_sink.h>
@@ -6,7 +5,7 @@
 
 std::vector<std::shared_ptr<spdlog::logger>> Log::mLoggers;
 
-void Log::initialize(fre::VirtualFileSystem& fs, bool logToConsole, bool logToFile)
+void Log::initialize(fre::IFileSystem& fs, bool logToConsole, bool logToFile)
 {
     const auto level = spdlog::level::trace;
     if(logToConsole)
@@ -17,7 +16,7 @@ void Log::initialize(fre::VirtualFileSystem& fs, bool logToConsole, bool logToFi
     if(logToFile)
     {
         //Max size - 5 Mb, count of logs - 3
-        mLoggers.push_back(spdlog::rotating_logger_mt("file", (fs.getDocumentsDir() / "log.txt").st, 1048576 * 5, 3));
+        mLoggers.push_back(spdlog::rotating_logger_mt("file", (fs.getDocumentsDir() / "log.txt").generic_string(), 1048576 * 5, 3));
         mLoggers.back()->set_level(level);
     }
     spdlog::set_pattern("%^[%H:%M:%S %z] [%L]%$ %v");\

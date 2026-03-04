@@ -4,7 +4,6 @@ namespace fre
 {
 	VirtualFileSystem::VirtualFileSystem(IFileSystem& fs)
 		: mFS(fs)
-		, mAppDir(mFS.getCurrentDir())
 	{
 		auto docDir = mFS.getDocumentsDir();
 		if(!mFS.exists(Path(docDir)))
@@ -27,7 +26,7 @@ namespace fre
 		}
 	}
 
-	IFileSystem::Path VirtualFileSystem::find(const Path& fileName) const
+	VirtualFileSystem::Path VirtualFileSystem::find(const Path& fileName) const
 	{
 		Path result;
 		for(auto m : mMounts)

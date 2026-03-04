@@ -1,7 +1,6 @@
 #pragma once
 
-#include "fre/core/IFileSystem.hpp"
-#include "fre/macros/Member.hpp"
+#include "fre/core/FileSystemBase.hpp"
 
 #include <map>
 #include <string>
@@ -9,15 +8,14 @@
 
 namespace fre
 {
-	class FileSystemWindows : public IFileSystem
+	class FileSystemWindows : public FileSystemBase
 	{
 	public:
+		FileSystemWindows();
 		virtual void createDirectory(const Path& path) override;
-		virtual Path openFileDialog(const Path& dir, const char* filter) override;
-		virtual Path saveFileDialog(const Path& dir, const char* filter) override;
-		virtual Path getCurrentDir() override;
+		virtual Path openFileDialog(IWindow& mainWindow, const Path& dir, const char* filter) override;
+		virtual Path saveFileDialog(IWindow& mainWindow, const Path& dir, const char* filter) override;
 		virtual Path getDocumentsDir() override;
-		virtual Entries listFiles(const Path& dir) override;
 		
 	private:
 		std::vector<Path> mPath;

@@ -1,3 +1,4 @@
+#include "fre/core/Log.hpp"
 #include "platform/FileSystemWindows.hpp"
 
 #include <filesystem>
@@ -9,6 +10,7 @@
 namespace fre
 {
 	FileSystemWindows::FileSystemWindows()
+		: FileSystemBase()
 	{
 		auto docDir = getDocumentsDir();
 		if(!std::filesystem::exists(std::filesystem::path(docDir)))
@@ -22,7 +24,7 @@ namespace fre
 		std::filesystem::create_directory(path);
 	}
 
-	IFileSystem::Path FileSystemWindows::openFileDialog(const FileSystemWindows::Path& dir, const char* filter)
+	IFileSystem::Path FileSystemWindows::openFileDialog(IWindow& mainWindow, const FileSystemWindows::Path& dir, const char* filter)
 	{
 		// Common dialog box structure
 		OPENFILENAME ofn;
@@ -32,7 +34,7 @@ namespace fre
 		// Initialize OPENFILENAME
 		ZeroMemory(&ofn, sizeof(ofn));
 		ofn.lStructSize = sizeof(ofn);
-		ofn.hwndOwner = *(HWND*)fre::Engine::getWindowHandle();
+		ofn.hwndOwner = *(HWND*)mainWindow.getNativeHandle().handle;
 		ofn.lpstrFile = szFile;
 		ofn.lpstrFile[0] = '\0';
 		ofn.nMaxFile = sizeof(szFile);
@@ -54,14 +56,14 @@ namespace fre
 		return "";
 	}
 
-	FileSystemWindows::Path FileSystemWindows::saveFileDialog(const FileSystemWindows::Path& dir, const char* filter)
+	FileSystemWindows::Path FileSystemWindows::saveFileDialog(IWindow& mainWindow, const FileSystemWindows::Path& dir, const char* filter)
 	{
 		OPENFILENAME ofn;
 		char szFile[260];
 
 		ZeroMemory(&ofn, sizeof(ofn));
 		ofn.lStructSize = sizeof(ofn);
-		ofn.hwndOwner = *(HWND*)fre::Engine::getWindowHandle();
+		ofn.hwndOwner = *(HWND*)mainWindow.getNativeHandle().handle;
 		ofn.lpstrFile = szFile;
 		ofn.lpstrFile[0] = '\0';
 		ofn.nMaxFile = sizeof(szFile);
@@ -80,11 +82,6 @@ namespace fre
 
 		std::filesystem::current_path(mAppDir);
 		return "";
-	}
-
-	IFileSystem::Path FileSystemWindows::getCurrentDir()
-	{
-		return std::filesystem::current_path();
 	}
 
 	std::string WideToUTF8(LPCWSTR wideStr)
@@ -129,16 +126,5 @@ namespace fre
 		}
 
 		return (result / appName).generic_string();
-	}
-
-	IFileSystem::Entries FileSystemWindows::listFiles(const std::string& dir)
-	{
-		Entries result;
-		for(auto const& entry : std::filesystem::directory_iterator{dir}) 
-		{
-			result.push_back(entry.path().filename().generic_string());
-		}
-
-		return result;
 	}
 }

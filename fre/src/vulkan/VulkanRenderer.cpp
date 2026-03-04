@@ -1,4 +1,5 @@
 #include "fre/core/PlatformFactory.hpp"
+#include "fre/core/Log.hpp"
 #include "vulkan/VulkanRenderer.hpp"
 #include "vulkan/VulkanRenderer.hpp"
 #include <volk.h>
@@ -13,6 +14,8 @@ namespace fre
 	{
 		mFS = createFileSystem();
 		mVFS = std::make_unique<VirtualFileSystem>(*mFS);
+
+		Log::initialize(*mFS, true, true);
 	}
 
 	bool VulkanRenderer::selectQueueFamilies()
@@ -74,6 +77,8 @@ namespace fre
 
 	bool VulkanRenderer::initialize(const RendererDesc& desc)
 	{
+		LOG_TRACE("VulkanRenderer::initialize. Width: {}, height: {}, headless {}, validation {}", desc.width, desc.height, desc.headless, desc.enableValidation);
+
 		m_enableValidation = desc.enableValidation;
 		m_headless = desc.headless;
 
@@ -93,6 +98,11 @@ namespace fre
 		vk::ApplicationInfo appInfo{};
 		appInfo.pApplicationName = "FRE";
 		appInfo.apiVersion = VK_API_VERSION_1_3;
+
+		LOG_TRACE("Vulkan API version: {}.{}.{}",
+			VK_VERSION_MAJOR(appInfo.apiVersion),
+			VK_VERSION_MINOR(appInfo.apiVersion),
+			VK_VERSION_PATCH(appInfo.apiVersion));
 
 		vk::InstanceCreateInfo ici{};
 		ici.pApplicationInfo = &appInfo;
@@ -149,6 +159,10 @@ namespace fre
 			}
 			m_device = result.value;
 		}
+
+		LOG_TRACE("VulkanRenderer::initialize. Vulkan device created. Graphics queue family: {}, Compute queue family: {}, Transfer queue family: {}",
+			m_graphicsQueueFamily, m_computeQueueFamily, m_transferQueueFamily);
+
 		VULKAN_HPP_DEFAULT_DISPATCHER.init(m_device);
 
 		volkLoadDevice(m_device);
@@ -158,6 +172,8 @@ namespace fre
 
 	void VulkanRenderer::shutdown()
 	{
+		LOG_TRACE("VulkanRenderer::shutdown");
+
 		if (m_device)
 			m_device.destroy();
 

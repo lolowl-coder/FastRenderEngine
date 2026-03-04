@@ -1,7 +1,7 @@
 #pragma once
 
 #include "fre/core/PlatformFactory.hpp"
-#include "platform/FileSystem.hpp"
+#include "platform/FileSystemWindows.hpp"
 
 namespace fre
 {

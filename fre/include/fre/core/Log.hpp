@@ -1,6 +1,6 @@
 #pragma once
 
-#include "fre/core/VirtualFileSystem.hpp"
+#include "fre/core/IFileSystem.hpp"
 #include <spdlog/spdlog.h>
 
 #define LOG_TRACE(...) for(auto& l : Log::mLoggers) l->trace(__VA_ARGS__)
@@ -16,7 +16,7 @@
 
 struct Log
 {
-    static void initialize(fre::VirtualFileSystem& fs, bool logToConsole, bool logToFile);
+    static void initialize(fre::IFileSystem& fs, bool logToConsole, bool logToFile);
     static void shutdown() { LOG_INFO("shutdown"); spdlog::shutdown(); }
     static std::vector<std::shared_ptr<spdlog::logger>> mLoggers;
 };

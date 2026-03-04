@@ -11,13 +11,18 @@ if (WIN32)
 		src/platform/FileSystemWindows.hpp
 		src/platform/FileSystemWindows.cpp
 		src/platform/PlatformFactoryWindows.cpp
+		src/platform/WindowWindows.hpp
+		src/platform/ExternalWindowWindows.hpp
 	)
 endif()
 
 target_sources(FRE PRIVATE
+	include/fre/core/FileSystemBase.hpp
 	include/fre/core/IFileSystem.hpp
+	include/fre/core/IWindow.hpp
 	include/fre/core/VirtualFileSystem.hpp
 	include/fre/core/Log.hpp
+	include/fre/core/NativeWindowHandle.hpp
 	include/fre/core/Pointers.hpp
 	include/fre/core/PlatformFactory.hpp
 	include/fre/core/Hash.hpp
@@ -26,6 +31,7 @@ target_sources(FRE PRIVATE
 	include/fre/IRenderer.hpp
 	include/fre/RendererDesc.hpp
 	include/fre/RendererFactory.hpp
+    src/core/FileSystemBase.cpp
     src/core/Log.cpp
 	src/core/VirtualFileSystem.cpp
 	${PLATFORM_SOURCES}

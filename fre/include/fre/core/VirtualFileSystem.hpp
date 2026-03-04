@@ -23,11 +23,6 @@ namespace fre
 
         std::vector<Path> mounts() const;
 
-        virtual Path trim(const Path& path) override;
-        virtual Path getExt(const Path& fileName) override;
-
-		FIELD_NS(Path, AppDir, private, public, public);
-
     private:
         IFileSystem& mFS;
         std::vector<Path> mMounts;
