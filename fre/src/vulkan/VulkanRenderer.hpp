@@ -5,7 +5,6 @@
 #include "fre/core/Pointers.hpp"
 #include "fre/core/VirtualFileSystem.hpp"
 #include "fre/core/IFileSystem.hpp"
-#include "fre/Feature.hpp"
 
 namespace fre
 {
@@ -13,7 +12,7 @@ namespace fre
     {
     public:
 		VulkanRenderer();
-        bool initialize(const RendererDesc& desc) override;
+        bool initialize(const RendererConfig& config) override;
         void shutdown() override;
 
         void beginFrame() override;
@@ -46,7 +45,6 @@ namespace fre
         VirtualFileSystemPtr mVFS;
 
         vk::DebugUtilsMessengerEXT mDebugMessenger;
-
-        RendererFeatureConfig mFeatures;
+		RendererConfig mConfig;
     };
 }

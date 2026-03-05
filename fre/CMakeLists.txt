@@ -29,7 +29,7 @@ target_sources(FRE PRIVATE
 	include/fre/macros/Class.hpp
 	include/fre/macros/Member.hpp
 	include/fre/IRenderer.hpp
-	include/fre/RendererDesc.hpp
+	include/fre/RendererConfig.hpp
 	include/fre/RendererFactory.hpp
     src/core/FileSystemBase.cpp
     src/core/Log.cpp

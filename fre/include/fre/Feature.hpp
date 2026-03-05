@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 namespace fre
 {
     enum class FeatureRequirement

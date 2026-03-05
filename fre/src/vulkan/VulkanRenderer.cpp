@@ -127,14 +127,14 @@ namespace fre
 
 	void VulkanRenderer::requestFeatures()
 	{
-		mFeatures.dynamicRendering.requirement = FeatureRequirement::Required;
-		mFeatures.timelineSemaphore.requirement = FeatureRequirement::Optional;
-		mFeatures.bufferDeviceAddress.requirement = FeatureRequirement::Optional;
-		mFeatures.descriptorIndexing.requirement = FeatureRequirement::Optional;
-		mFeatures.synchronization2.requirement = FeatureRequirement::Optional;
-		mFeatures.accelerationStructure.requirement = FeatureRequirement::Optional;
-		mFeatures.rayTracingPipeline.requirement = FeatureRequirement::Optional;
-		mFeatures.rayQuery.requirement = FeatureRequirement::Optional;
+		mConfig.mFeatures.dynamicRendering.requirement = FeatureRequirement::Required;
+		mConfig.mFeatures.timelineSemaphore.requirement = FeatureRequirement::Optional;
+		mConfig.mFeatures.bufferDeviceAddress.requirement = FeatureRequirement::Optional;
+		mConfig.mFeatures.descriptorIndexing.requirement = FeatureRequirement::Optional;
+		mConfig.mFeatures.synchronization2.requirement = FeatureRequirement::Optional;
+		mConfig.mFeatures.accelerationStructure.requirement = FeatureRequirement::Optional;
+		mConfig.mFeatures.rayTracingPipeline.requirement = FeatureRequirement::Optional;
+		mConfig.mFeatures.rayQuery.requirement = FeatureRequirement::Optional;
 	}
 
 	void evaluateFeature(bool supported, FeatureRequest& feature)
@@ -175,23 +175,23 @@ namespace fre
 
 		mPhysicalDevice.getFeatures2(&features2);
 
-		evaluateFeature(features13.dynamicRendering, mFeatures.dynamicRendering);
-		evaluateFeature(features12.timelineSemaphore, mFeatures.timelineSemaphore);
-		evaluateFeature(features12.descriptorIndexing, mFeatures.descriptorIndexing);
-		evaluateFeature(features12.bufferDeviceAddress, mFeatures.bufferDeviceAddress);
-		evaluateFeature(features13.synchronization2, mFeatures.synchronization2);
+		evaluateFeature(features13.dynamicRendering, mConfig.mFeatures.dynamicRendering);
+		evaluateFeature(features12.timelineSemaphore, mConfig.mFeatures.timelineSemaphore);
+		evaluateFeature(features12.descriptorIndexing, mConfig.mFeatures.descriptorIndexing);
+		evaluateFeature(features12.bufferDeviceAddress, mConfig.mFeatures.bufferDeviceAddress);
+		evaluateFeature(features13.synchronization2, mConfig.mFeatures.synchronization2);
 
 		// Ray tracing
-		evaluateFeature(accelFeatures.accelerationStructure, mFeatures.accelerationStructure);
-		evaluateFeature(rtPipelineFeatures.rayTracingPipeline, mFeatures.rayTracingPipeline);
+		evaluateFeature(accelFeatures.accelerationStructure, mConfig.mFeatures.accelerationStructure);
+		evaluateFeature(rtPipelineFeatures.rayTracingPipeline, mConfig.mFeatures.rayTracingPipeline);
 	}
 
-	bool VulkanRenderer::initialize(const RendererDesc& desc)
+	bool VulkanRenderer::initialize(const RendererConfig& config)
 	{
-		LOG_TRACE("VulkanRenderer::initialize. Width: {}, height: {}, headless {}, validation {}", desc.width, desc.height, desc.headless, desc.enableValidation);
+		mConfig = config;
 
-		mEnableValidation = desc.enableValidation;
-		mHeadless = desc.headless;
+		LOG_TRACE("VulkanRenderer::initialize. Width: {}, height: {}, headless {}, validation {}",
+			mConfig.mWidth, mConfig.mHeight, mConfig.mHeadless, mConfig.mEnableValidation);
 
 		if (volkInitialize() != VK_SUCCESS)
 			return false;

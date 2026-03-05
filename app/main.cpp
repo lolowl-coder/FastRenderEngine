@@ -1,14 +1,13 @@
 #include <fre/IRenderer.hpp>
 #include <fre/RendererFactory.hpp>
-#include <fre/RendererDesc.hpp>
 
 int main()
 {
     auto renderer = fre::createRenderer(fre::RenderAPI::Vulkan);
 
-    fre::RendererDesc desc;
-    desc.enableValidation = true;
-    desc.headless = true;
+    fre::RendererConfig desc;
+    desc.mEnableValidation = true;
+    desc.mHeadless = true;
 
     if (!renderer->initialize(desc))
         return -1;

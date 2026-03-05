@@ -1,6 +1,6 @@
 #pragma once
 
-#include "RendererDesc.hpp"
+#include "RendererConfig.hpp"
 
 namespace fre
 {
@@ -9,7 +9,7 @@ namespace fre
 	public:
 		virtual ~IRenderer() = default;
 
-		virtual bool initialize(const RendererDesc& desc) = 0;
+		virtual bool initialize(const RendererConfig& desc) = 0;
 		virtual void shutdown() = 0;
 
 		virtual void beginFrame() = 0;
