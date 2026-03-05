@@ -1,4 +1,5 @@
 #pragma once
+
 #include "RendererDesc.hpp"
 
 namespace fre

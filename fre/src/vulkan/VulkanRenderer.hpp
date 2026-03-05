@@ -5,6 +5,7 @@
 #include "fre/core/Pointers.hpp"
 #include "fre/core/VirtualFileSystem.hpp"
 #include "fre/core/IFileSystem.hpp"
+#include "fre/Feature.hpp"
 
 namespace fre
 {
@@ -21,24 +22,31 @@ namespace fre
         void waitIdle() override;
     private:
         bool selectQueueFamilies();
+        bool createDebugMessenger();
+        void requestFeatures();
+		void evaluateFeatures();
 
     private:
-        bool m_enableValidation = false;
-        bool m_headless = false;
+        bool mEnableValidation = false;
+        bool mHeadless = false;
 
         // Core
-        vk::Instance m_instance;
-        vk::PhysicalDevice m_physicalDevice;
-        vk::Device m_device;
+        vk::Instance mInstance;
+        vk::PhysicalDevice mPhysicalDevice;
+        vk::Device mDevice;
         // Queues
-        uint32_t m_graphicsQueueFamily = UINT32_MAX;
-        uint32_t m_computeQueueFamily = UINT32_MAX;
-        uint32_t m_transferQueueFamily = UINT32_MAX;
-        vk::Queue m_graphicsQueue;
-        vk::Queue m_computeQueue;
-        vk::Queue m_transferQueue;
+        uint32_t mGraphicsQueueFamily = UINT32_MAX;
+        uint32_t mComputeQueueFamily = UINT32_MAX;
+        uint32_t mTransferQueueFamily = UINT32_MAX;
+        vk::Queue mGraphicsQueue;
+        vk::Queue mComputeQueue;
+        vk::Queue mTransferQueue;
 
         FileSystemPtr mFS;
         VirtualFileSystemPtr mVFS;
+
+        vk::DebugUtilsMessengerEXT mDebugMessenger;
+
+        RendererFeatureConfig mFeatures;
     };
 }

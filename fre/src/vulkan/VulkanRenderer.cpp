@@ -4,12 +4,37 @@
 #include "vulkan/VulkanRenderer.hpp"
 #include <volk.h>
 
+#include <format>
 #include <set>
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 namespace fre
 {
+	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+		vk::DebugUtilsMessageSeverityFlagBitsEXT       messageSeverity,
+		vk::DebugUtilsMessageTypeFlagsEXT              messageTypes,
+		const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,
+		void* pUserData)
+	{
+		using namespace fre;
+
+		if (messageSeverity & vk::DebugUtilsMessageSeverityFlagBitsEXT::eError)
+		{
+			LOG_ERROR(pCallbackData->pMessage);
+		}
+		else if (messageSeverity & vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning)
+		{
+			LOG_WARNING(pCallbackData->pMessage);
+		}
+		else
+		{
+			LOG_INFO(pCallbackData->pMessage);
+		}
+
+		return VK_FALSE;
+	}
+
 	VulkanRenderer::VulkanRenderer()
 	{
 		mFS = createFileSystem();
@@ -20,7 +45,7 @@ namespace fre
 
 	bool VulkanRenderer::selectQueueFamilies()
 	{
-		auto families = m_physicalDevice.getQueueFamilyProperties();
+		auto families = mPhysicalDevice.getQueueFamilyProperties();
 
 		int graphicsIndex = -1;
 		int computeIndex = -1;
@@ -58,29 +83,115 @@ namespace fre
 		if (graphicsIndex == -1)
 			return false;
 
-		m_graphicsQueueFamily = graphicsIndex;
+		mGraphicsQueueFamily = graphicsIndex;
 
 		// Prefer dedicated compute
 		if (dedicatedCompute != -1)
-			m_computeQueueFamily = dedicatedCompute;
+			mComputeQueueFamily = dedicatedCompute;
 		else
-			m_computeQueueFamily = computeIndex;
+			mComputeQueueFamily = computeIndex;
 
 		// Prefer dedicated transfer
 		if (dedicatedTransfer != -1)
-			m_transferQueueFamily = dedicatedTransfer;
+			mTransferQueueFamily = dedicatedTransfer;
 		else
-			m_transferQueueFamily = transferIndex;
+			mTransferQueueFamily = transferIndex;
 
 		return true;
+	}
+
+	bool VulkanRenderer::createDebugMessenger()
+	{
+		vk::DebugUtilsMessengerCreateInfoEXT createInfo{};
+
+		createInfo.messageSeverity =
+			vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning |
+			vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
+
+		createInfo.messageType =
+			vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
+			vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+			vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance;
+
+		createInfo.pfnUserCallback = debugCallback;
+
+		auto result = mInstance.createDebugUtilsMessengerEXT(createInfo);
+		if (result.result != vk::Result::eSuccess)
+		{
+			throw std::runtime_error("Failed to create debug messenger");
+		}
+		mDebugMessenger = result.value;
+
+		return true;
+	}
+
+	void VulkanRenderer::requestFeatures()
+	{
+		mFeatures.dynamicRendering.requirement = FeatureRequirement::Required;
+		mFeatures.timelineSemaphore.requirement = FeatureRequirement::Optional;
+		mFeatures.bufferDeviceAddress.requirement = FeatureRequirement::Optional;
+		mFeatures.descriptorIndexing.requirement = FeatureRequirement::Optional;
+		mFeatures.synchronization2.requirement = FeatureRequirement::Optional;
+		mFeatures.accelerationStructure.requirement = FeatureRequirement::Optional;
+		mFeatures.rayTracingPipeline.requirement = FeatureRequirement::Optional;
+		mFeatures.rayQuery.requirement = FeatureRequirement::Optional;
+	}
+
+	void evaluateFeature(bool supported, FeatureRequest& feature)
+	{
+		if (supported)
+		{
+			feature.enabled = true;
+			LOG_INFO("Feature {} is supported and enabled", feature.name);
+		}
+		else
+		{
+			if (feature.requirement == FeatureRequirement::Required)
+			{
+				throw std::runtime_error(std::format("Feature {} not supported", feature.name));
+			}
+			else
+			{
+				LOG_WARNING("Feature {} not supported, but it's optional", feature.name);
+				feature.enabled = false;
+			}
+		}
+	}
+
+	void VulkanRenderer::evaluateFeatures()
+	{
+		vk::PhysicalDeviceVulkan13Features features13{};
+		vk::PhysicalDeviceVulkan12Features features12{};
+		vk::PhysicalDeviceFeatures2 features2{};
+
+		vk::PhysicalDeviceAccelerationStructureFeaturesKHR accelFeatures{};
+		vk::PhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeatures{};
+
+		// Chain them
+		features2.pNext = &features12;
+		features12.pNext = &features13;
+		features13.pNext = &accelFeatures;
+		accelFeatures.pNext = &rtPipelineFeatures;
+
+		mPhysicalDevice.getFeatures2(&features2);
+
+		evaluateFeature(features13.dynamicRendering, mFeatures.dynamicRendering);
+		evaluateFeature(features12.timelineSemaphore, mFeatures.timelineSemaphore);
+		evaluateFeature(features12.descriptorIndexing, mFeatures.descriptorIndexing);
+		evaluateFeature(features12.bufferDeviceAddress, mFeatures.bufferDeviceAddress);
+		evaluateFeature(features13.synchronization2, mFeatures.synchronization2);
+
+		// Ray tracing
+		evaluateFeature(accelFeatures.accelerationStructure, mFeatures.accelerationStructure);
+		evaluateFeature(rtPipelineFeatures.rayTracingPipeline, mFeatures.rayTracingPipeline);
 	}
 
 	bool VulkanRenderer::initialize(const RendererDesc& desc)
 	{
 		LOG_TRACE("VulkanRenderer::initialize. Width: {}, height: {}, headless {}, validation {}", desc.width, desc.height, desc.headless, desc.enableValidation);
 
-		m_enableValidation = desc.enableValidation;
-		m_headless = desc.headless;
+		mEnableValidation = desc.enableValidation;
+		mHeadless = desc.headless;
 
 		if (volkInitialize() != VK_SUCCESS)
 			return false;
@@ -92,9 +203,10 @@ namespace fre
 		VULKAN_HPP_DEFAULT_DISPATCHER.init(getProc);
 
 		std::vector<const char*> layers;
-		if (m_enableValidation)
+		if (mEnableValidation)
 			layers.push_back("VK_LAYER_KHRONOS_validation");
 
+		// Application
 		vk::ApplicationInfo appInfo{};
 		appInfo.pApplicationName = "FRE";
 		appInfo.apiVersion = VK_API_VERSION_1_3;
@@ -104,10 +216,19 @@ namespace fre
 			VK_VERSION_MINOR(appInfo.apiVersion),
 			VK_VERSION_PATCH(appInfo.apiVersion));
 
+		// Create instance
 		vk::InstanceCreateInfo ici{};
 		ici.pApplicationInfo = &appInfo;
 		ici.enabledLayerCount = static_cast<uint32_t>(layers.size());
 		ici.ppEnabledLayerNames = layers.data();
+
+		// Extensions
+		std::vector<const char*> extensions;
+		if (mEnableValidation)
+			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+
+		ici.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+		ici.ppEnabledExtensionNames = extensions.data();
 
 		{
 			auto result = vk::createInstance(ici);
@@ -115,24 +236,31 @@ namespace fre
 			{
 				throw std::runtime_error("Failed to create instance");
 			}
-			m_instance = result.value;
+			mInstance = result.value;
 		}
 
-		VULKAN_HPP_DEFAULT_DISPATCHER.init(m_instance);
+		VULKAN_HPP_DEFAULT_DISPATCHER.init(mInstance);
 
-		volkLoadInstance(m_instance);
+		volkLoadInstance(mInstance);
 
-		auto gpus = m_instance.enumeratePhysicalDevices();
-		m_physicalDevice = gpus->front();
+		if (mEnableValidation)
+		{
+			createDebugMessenger();
+		}
 
+		// Select physical device
+		auto gpus = mInstance.enumeratePhysicalDevices();
+		mPhysicalDevice = gpus->front();
+
+		// Select queue families
 		if (!selectQueueFamilies())
 			return false;
 
 		std::set<uint32_t> uniqueFamilies =
 		{
-			m_graphicsQueueFamily,
-			m_computeQueueFamily,
-			m_transferQueueFamily
+			mGraphicsQueueFamily,
+			mComputeQueueFamily,
+			mTransferQueueFamily
 		};
 
 		float priority = 1.0f;
@@ -148,24 +276,28 @@ namespace fre
 			queueInfos.push_back(qci);
 		}
 
+		// Create logical device
 		vk::DeviceCreateInfo dci{};
 		dci.queueCreateInfoCount = static_cast<uint32_t>(queueInfos.size());
 		dci.pQueueCreateInfos = queueInfos.data();
 		{
-			auto result = m_physicalDevice.createDevice(dci);
+			auto result = mPhysicalDevice.createDevice(dci);
 			if (result.result != vk::Result::eSuccess)
 			{
 				throw std::runtime_error("Failed to create device");
 			}
-			m_device = result.value;
+			mDevice = result.value;
 		}
 
 		LOG_TRACE("VulkanRenderer::initialize. Vulkan device created. Graphics queue family: {}, Compute queue family: {}, Transfer queue family: {}",
-			m_graphicsQueueFamily, m_computeQueueFamily, m_transferQueueFamily);
+			mGraphicsQueueFamily, mComputeQueueFamily, mTransferQueueFamily);
 
-		VULKAN_HPP_DEFAULT_DISPATCHER.init(m_device);
+		VULKAN_HPP_DEFAULT_DISPATCHER.init(mDevice);
 
-		volkLoadDevice(m_device);
+		volkLoadDevice(mDevice);
+
+		requestFeatures();
+		evaluateFeatures();
 
 		return true;
 	}
@@ -174,11 +306,18 @@ namespace fre
 	{
 		LOG_TRACE("VulkanRenderer::shutdown");
 
-		if (m_device)
-			m_device.destroy();
+		if (mDebugMessenger)
+			mInstance.destroyDebugUtilsMessengerEXT(mDebugMessenger);
 
-		if (m_instance)
-			m_instance.destroy();
+		if (mDevice)
+		{
+			mDevice.destroy();
+		}
+
+		if (mInstance)
+		{
+			mInstance.destroy();
+		}
 	}
 
 	void VulkanRenderer::beginFrame()
@@ -191,7 +330,9 @@ namespace fre
 
 	void VulkanRenderer::waitIdle()
 	{
-		if (m_device)
-			m_device.waitIdle();
+		if (mDevice)
+		{
+			mDevice.waitIdle();
+		}
 	}
 }
