@@ -22,7 +22,6 @@ namespace fre
     private:
         bool selectQueueFamilies();
         bool createDebugMessenger();
-        void requestFeatures();
 		void evaluateFeatures();
 
     private:

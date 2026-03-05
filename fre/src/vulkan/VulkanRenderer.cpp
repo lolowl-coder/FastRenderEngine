@@ -125,18 +125,6 @@ namespace fre
 		return true;
 	}
 
-	void VulkanRenderer::requestFeatures()
-	{
-		mConfig.mFeatures.dynamicRendering.requirement = FeatureRequirement::Required;
-		mConfig.mFeatures.timelineSemaphore.requirement = FeatureRequirement::Optional;
-		mConfig.mFeatures.bufferDeviceAddress.requirement = FeatureRequirement::Optional;
-		mConfig.mFeatures.descriptorIndexing.requirement = FeatureRequirement::Optional;
-		mConfig.mFeatures.synchronization2.requirement = FeatureRequirement::Optional;
-		mConfig.mFeatures.accelerationStructure.requirement = FeatureRequirement::Optional;
-		mConfig.mFeatures.rayTracingPipeline.requirement = FeatureRequirement::Optional;
-		mConfig.mFeatures.rayQuery.requirement = FeatureRequirement::Optional;
-	}
-
 	void evaluateFeature(bool supported, FeatureRequest& feature)
 	{
 		if (supported)
@@ -296,7 +284,6 @@ namespace fre
 
 		volkLoadDevice(mDevice);
 
-		requestFeatures();
 		evaluateFeatures();
 
 		return true;
