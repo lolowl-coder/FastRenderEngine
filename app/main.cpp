@@ -1,33 +1,48 @@
-#include <fre/IRenderer.hpp>
-#include <fre/RendererFactory.hpp>
+#include "fre/core/FileSystem.hpp"
+#include "fre/core/Log.hpp"
+#include "fre/core/PlatformFactory.hpp"
+#include "fre/core/Requirement.hpp"
+#include "fre/core/VirtualFileSystem.hpp"
+#include "fre/core/WindowManager.hpp"
+#include "fre/renderer/CommonRendererConfig.hpp"
+#include "fre/renderer/IGraphicsContext.hpp"
+#include "fre/renderer/IRenderer.hpp"
+#include "fre/renderer/RendererFactory.hpp"
 
 int main()
 {
-    auto renderer = fre::createRenderer(fre::RenderAPI::Vulkan);
+    using namespace fre;
 
-    fre::RendererConfig config;
-    config.mEnableValidation = true;
-    config.mHeadless = true;
-    config.mGpuSelectionMode = fre::GPUSelectionMode::Auto;
-    config.mWidth = 1920;
-    config.mHeight = 1080;
-    config.mFeatures.dynamicRendering.requirement = fre::FeatureRequirement::Required;
-    config.mFeatures.timelineSemaphore.requirement = fre::FeatureRequirement::Optional;
-    config.mFeatures.bufferDeviceAddress.requirement = fre::FeatureRequirement::Optional;
-    config.mFeatures.descriptorIndexing.requirement = fre::FeatureRequirement::Optional;
-    config.mFeatures.synchronization2.requirement = fre::FeatureRequirement::Optional;
-    config.mFeatures.accelerationStructure.requirement = fre::FeatureRequirement::Optional;
-    config.mFeatures.rayTracingPipeline.requirement = fre::FeatureRequirement::Optional;
-    config.mFeatures.rayQuery.requirement = fre::FeatureRequirement::Optional;
+    FileSystemPtr mFS;
+    VirtualFileSystemPtr mVFS;
+    mFS = createFileSystem();
+    mVFS = std::make_unique<VirtualFileSystem>(*mFS);
+    Log::initialize(*mFS, true, true);
 
-    if (!renderer->initialize(config))
-        return -1;
+    const int width = 1920;
+    const int height = 1080;
+    WindowManagerPtr windowManager = fre::createWindowManager();
+    auto window = windowManager->createWindow({ width, height, "Renderer Test" });
+
+    CommonRendererConfig commonConfig;
+    commonConfig.mEnableValidation = true;
+    commonConfig.mHeadless = false;
+    commonConfig.mGPUSelectionMode = GPUSelectionMode::Auto;
+    commonConfig.mWidth = width;
+    commonConfig.mHeight = height;
+    commonConfig.mBackend = Backend::Vulkan;
+
+    auto context = createGraphicsContext(commonConfig.mBackend, window.get(), commonConfig.mEnableValidation);
+
+    auto surface = context->createSurface(window.get());
+
+    commonConfig.mContext = context.get();
+	commonConfig.mSurface = surface.get();
+
+    auto renderer = createRenderer(commonConfig);
 
     renderer->beginFrame();
     renderer->endFrame();
-
-    renderer->waitIdle();
-    renderer->shutdown();
 
     return 0;
 }

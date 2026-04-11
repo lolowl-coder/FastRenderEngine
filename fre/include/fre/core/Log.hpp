@@ -1,6 +1,6 @@
 #pragma once
 
-#include "fre/core/IFileSystem.hpp"
+#include "fre/core/FileSystem.hpp"
 #include <spdlog/spdlog.h>
 
 #define LOG_TRACE(...) for(auto& l : Log::mLoggers) l->trace(__VA_ARGS__)

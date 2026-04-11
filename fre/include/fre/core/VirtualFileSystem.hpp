@@ -1,6 +1,6 @@
 #pragma once
 
-#include "fre/core/IFileSystem.hpp"
+#include "fre/core/FileSystem.hpp"
 #include "fre/macros/Member.hpp"
 
 #include <vector>

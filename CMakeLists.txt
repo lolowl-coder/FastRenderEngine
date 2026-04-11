@@ -8,5 +8,6 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/)
 include(CPM)
 
 add_subdirectory(third_party/volk)
+add_subdirectory(third_party/VMA)
 add_subdirectory(fre)
 add_subdirectory(app)

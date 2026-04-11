@@ -4,9 +4,39 @@
 
 namespace fre
 {
+	class IGraphicsContext;
 	class IFileSystem;
 	class VirtualFileSystem;
+	class IWindow;
+	class IWindowManager;
+	class IGpuImage;
+	class IGpuImageView;
+	class Texture;
+	class IRenderBackend;
+	class IRenderer;
+	class ISurface;
+	class IVulkanSurface;
+	class VulkanAllocator;
+	class VulkanSurfaceWindows;
+	class VulkanImage;
+	class VulkanImageView;
+	class VulkanSwapchain;
 
+	using GraphicsContextPtr = std::unique_ptr<IGraphicsContext>;
 	using FileSystemPtr = std::unique_ptr<IFileSystem>;
 	using VirtualFileSystemPtr = std::unique_ptr<VirtualFileSystem>;
+	using WindowPtr = std::unique_ptr<IWindow>;
+	using WindowManagerPtr = std::unique_ptr<IWindowManager>;
+	using GpuImagePtr = std::unique_ptr<IGpuImage>;
+	using GpuImageViewPtr = std::unique_ptr<IGpuImageView>;
+	using TexturePtr = std::unique_ptr<Texture>;
+	using RenderBackendPtr = std::unique_ptr<IRenderBackend>;
+	using RendererPtr = std::unique_ptr<IRenderer>;
+	using SurfacePtr = std::unique_ptr<ISurface>;
+	using VulkanAllocatorPtr = std::unique_ptr<VulkanAllocator>;
+	using VulkanImagePtr = std::unique_ptr<VulkanImage>;
+	using VulkanImageViewPtr = std::unique_ptr<VulkanImageView>;
+	using VulkanSurfacePtr = std::unique_ptr<IVulkanSurface>;
+	using VulkanSurfaceWindowsPtr = std::unique_ptr<VulkanSurfaceWindows>;
+	using VulkanSwapchainPtr = std::unique_ptr<VulkanSwapchain>;
 }
