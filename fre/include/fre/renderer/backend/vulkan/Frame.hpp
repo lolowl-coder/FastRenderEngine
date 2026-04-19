@@ -3,12 +3,13 @@
 #include "fre/renderer/TextureHandle.hpp"
 #include "fre/renderer/backend/vulkan/VulkanFence.hpp"
 #include "fre/renderer/backend/vulkan/VulkanSemaphore.hpp"
+#include "fre/renderer/backend/vulkan/VulkanCommandBuffer.hpp"
 
 namespace fre
 {
     struct Frame
     {
-        //CommandBuffer mCmdBuff;
+        VulkanCommandBuffer mCmdBuff;
         Fence mRenderFence;
         Semaphore mImageAvailable;
         Semaphore mRenderFinished;

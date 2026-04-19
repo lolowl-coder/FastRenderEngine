@@ -1,78 +1,120 @@
 #pragma once
 
-#include <vulkan/vulkan.hpp>
+#include "fre/renderer/backend/vulkan/VulkanCommon.hpp"
 
 namespace fre
 {
-    class CommandBuffer
+    class VulkanCommandBuffer
     {
     public:
-        CommandBuffer() = default;
+        VulkanCommandBuffer() = default;
 
-        CommandBuffer(vk::Device device, vk::CommandPool pool)
-            : mDevice(device), mPool(pool)
+        VulkanCommandBuffer(vk::CommandBuffer buffer)
+            : mBuffer(buffer)
         {
-            vk::CommandBufferAllocateInfo allocInfo{};
-            allocInfo.commandPool = mPool;
-            allocInfo.level = vk::CommandBufferLevel::ePrimary;
-            allocInfo.commandBufferCount = 1;
-
-            mCommandBuffer = mDevice.allocateCommandBuffers(allocInfo)[0];
         }
 
-        ~CommandBuffer()
+        ~VulkanCommandBuffer()
         {
-            if(mCommandBuffer)
-                mDevice.freeCommandBuffers(mPool, mCommandBuffer);
         }
 
-        CommandBuffer(const CommandBuffer&) = delete;
-        CommandBuffer& operator=(const CommandBuffer&) = delete;
+        VulkanCommandBuffer(const VulkanCommandBuffer&) = delete;
+        VulkanCommandBuffer& operator=(const VulkanCommandBuffer&) = delete;
 
-        CommandBuffer(CommandBuffer&& other) noexcept
+        VulkanCommandBuffer(VulkanCommandBuffer&& other) noexcept
         {
             *this = std::move(other);
         }
 
-        CommandBuffer& operator=(CommandBuffer&& other) noexcept
+        VulkanCommandBuffer& operator=(VulkanCommandBuffer&& other) noexcept
         {
             if(this != &other)
             {
-                cleanup();
+                mBuffer = other.mBuffer;
 
-                mDevice = other.mDevice;
-                mPool = other.mPool;
-                mCommandBuffer = other.mCommandBuffer;
-
-                other.mCommandBuffer = nullptr;
+                other.mBuffer = nullptr;
             }
             return *this;
         }
+
+        void reset()
+        {
+            vkCheck(mBuffer.reset());
+		}
 
         void begin(vk::CommandBufferUsageFlags flags = {})
         {
             vk::CommandBufferBeginInfo beginInfo{};
             beginInfo.flags = flags;
-            mCommandBuffer.begin(beginInfo);
+            vkCheck(mBuffer.begin(beginInfo));
         }
 
         void end()
         {
-            mCommandBuffer.end();
+            vkCheck(mBuffer.end());
         }
 
-        vk::CommandBuffer get() const { return mCommandBuffer; }
+        vk::CommandBuffer get() const { return mBuffer; }
 
-    private:
-        void cleanup()
+        void transitionImage(
+            vk::Image image,
+            vk::ImageLayout oldLayout,
+            vk::ImageLayout newLayout,
+            vk::AccessFlags srcAccess,
+            vk::AccessFlags dstAccess,
+            vk::PipelineStageFlags srcStage,
+            vk::PipelineStageFlags dstStage)
         {
-            if(mCommandBuffer)
-                mDevice.freeCommandBuffers(mPool, mCommandBuffer);
+            vk::ImageMemoryBarrier barrier{};
+            barrier.oldLayout = oldLayout;
+            barrier.newLayout = newLayout;
+            barrier.srcAccessMask = srcAccess;
+            barrier.dstAccessMask = dstAccess;
+            barrier.image = image;
+
+            barrier.subresourceRange = {
+                vk::ImageAspectFlagBits::eColor,
+                0, 1,
+                0, 1
+            };
+
+            mBuffer.pipelineBarrier(
+                srcStage,
+                dstStage,
+                {},
+                nullptr,
+                nullptr,
+                barrier
+            );
+        }
+
+        void beginRendering(
+            vk::ImageView imageView,
+            vk::Extent2D extent,
+            vk::ClearColorValue clearColor)
+        {
+            vk::RenderingAttachmentInfo colorAttachment{};
+            colorAttachment.imageView = imageView;
+            colorAttachment.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
+            colorAttachment.loadOp = vk::AttachmentLoadOp::eClear;
+            colorAttachment.storeOp = vk::AttachmentStoreOp::eStore;
+            colorAttachment.clearValue = vk::ClearValue(clearColor);
+
+            vk::RenderingInfo renderingInfo{};
+            renderingInfo.renderArea = vk::Rect2D({ 0, 0 }, extent);
+            renderingInfo.layerCount = 1;
+            renderingInfo.colorAttachmentCount = 1;
+            renderingInfo.pColorAttachments = &colorAttachment;
+
+            mBuffer.beginRendering(renderingInfo);
+        }
+
+        void endRendering()
+        {
+            mBuffer.endRendering();
         }
 
     private:
-        vk::Device mDevice{};
-        vk::CommandPool mPool{};
-        vk::CommandBuffer mCommandBuffer{};
+        vk::CommandBuffer mBuffer;
     };
 }

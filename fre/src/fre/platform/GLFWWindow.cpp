@@ -110,6 +110,8 @@ namespace fre
 
     bool GLFWWindow::shouldClose() const
     {
-        return false;
+        auto result = glfwWindowShouldClose(mWindow);
+
+        return result;
     }
 }

@@ -48,8 +48,8 @@ namespace fre
             uint32_t depth = 1;
             Format format = Format::RGBA8_UNorm;
             ImageUsage usage = ImageUsage::Sampled;
-            uint32_t mipLevels;
-            uint32_t layers;
+            uint32_t mipLevels = 1;
+            uint32_t layers = 1;
         };
 
         virtual ~IGpuImage() noexcept = default;

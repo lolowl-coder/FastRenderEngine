@@ -4,6 +4,7 @@
 #include "fre/renderer/backend/vulkan/IVulkanSurface.hpp"
 #include "fre/renderer/backend/vulkan/VulkanContext.hpp"
 #include "fre/renderer/backend/vulkan/VulkanCore.hpp"
+#include "fre/renderer/backend/vulkan/VulkanCommandPool.hpp"
 #include "fre/renderer/backend/vulkan/VulkanExtension.hpp"
 #include "fre/renderer/backend/vulkan/VulkanImage.hpp"
 #include "fre/renderer/backend/vulkan/VulkanImageView.hpp"
@@ -70,6 +71,10 @@ namespace fre
 		int transferIndex = -1;
 		int presentIndex = -1;
 
+		int presentGraphics = -1;
+		int presentCompute = -1;
+		int presentAny = -1;
+
 		int dedicatedCompute = -1;
 		int dedicatedTransfer = -1;
 
@@ -78,54 +83,78 @@ namespace fre
 			const auto& props = families[i];
 
 			bool graphics = static_cast<bool>(props.queueFlags & vk::QueueFlagBits::eGraphics);
-			bool compute = static_cast<bool>(props.queueFlags & vk::QueueFlagBits::eCompute);
-			bool transfer = static_cast<bool>(props.queueFlags & vk::QueueFlagBits::eTransfer);
-			bool present = vkCheck(mPhysicalDevice.getSurfaceSupportKHR(i, mVkSurface->handle())) == VK_TRUE;
+			bool mCompute = static_cast<bool>(props.queueFlags & vk::QueueFlagBits::eCompute);
+			bool mTransfer = static_cast<bool>(props.queueFlags & vk::QueueFlagBits::eTransfer);
+			bool mPresent = vkCheck(mPhysicalDevice.getSurfaceSupportKHR(i, mVkSurface->handle())) == VK_TRUE;
 
 			if(graphics && graphicsIndex == -1)
 				graphicsIndex = i;
 
 			// Dedicated compute: compute but not graphics
-			if(compute && !graphics)
+			if(mCompute && !graphics)
 				dedicatedCompute = i;
 
 			// Dedicated transfer: transfer but not graphics and not compute
-			if(transfer && !graphics && !compute)
+			if(mTransfer && !graphics && !mCompute)
 				dedicatedTransfer = i;
 
-			if(compute && computeIndex == -1)
+			if(mCompute && computeIndex == -1)
 				computeIndex = i;
 
-			if(transfer && transferIndex == -1)
+			if(mTransfer && transferIndex == -1)
 				transferIndex = i;
-
 				
-			if(present && graphics || (present && compute && presentIndex == -1))
-				presentIndex = i;
+			if(mPresent)
+			{
+				if(graphics && presentGraphics == -1)
+					presentGraphics = i;
+
+				else if(mCompute && presentCompute == -1)
+					presentCompute = i;
+
+				else if(presentAny == -1)
+					presentAny = i;
+			}
 		}
 
 		if(graphicsIndex == -1)
 			return false;
 
+		if(presentGraphics != -1)
+			presentIndex = presentGraphics;
+		else if(presentCompute != -1)
+			presentIndex = presentCompute;
+		else
+			presentIndex = presentAny;
+
 		if(presentIndex == -1)
 			return false;
 
-		mQueueFamilies.graphics = graphicsIndex;
+		mQueueFamilySelection.mGraphics.familyIndex = graphicsIndex;
 
 		// Prefer dedicated compute
 		if(dedicatedCompute != -1)
-			mQueueFamilies.compute = dedicatedCompute;
+			mQueueFamilySelection.mCompute.familyIndex = dedicatedCompute;
 		else
-			mQueueFamilies.compute = computeIndex;
+			mQueueFamilySelection.mCompute.familyIndex = computeIndex;
 
 		// Prefer dedicated transfer
 		if(dedicatedTransfer != -1)
-			mQueueFamilies.transfer = dedicatedTransfer;
+			mQueueFamilySelection.mTransfer.familyIndex = dedicatedTransfer;
 		else
-			mQueueFamilies.transfer = transferIndex;
+			mQueueFamilySelection.mTransfer.familyIndex = transferIndex;
 
 		if(presentIndex != -1)
-			mQueueFamilies.present = presentIndex;
+			mQueueFamilySelection.mPresent.familyIndex = presentIndex;
+
+		mQueueFamilySelection.mGraphics.queueIndex = mQueueCounts[mQueueFamilySelection.mGraphics.familyIndex];
+		mQueueCounts[mQueueFamilySelection.mGraphics.familyIndex]++;
+		mQueueFamilySelection.mCompute.queueIndex = mQueueCounts[mQueueFamilySelection.mCompute.familyIndex];
+		mQueueCounts[mQueueFamilySelection.mCompute.familyIndex]++;
+		mQueueFamilySelection.mTransfer.queueIndex = mQueueCounts[mQueueFamilySelection.mTransfer.familyIndex];
+		mQueueCounts[mQueueFamilySelection.mTransfer.familyIndex]++;
+		mQueueFamilySelection.mPresent.queueIndex= mQueueCounts[mQueueFamilySelection.mPresent.familyIndex];
+		mQueueCounts[mQueueFamilySelection.mPresent.familyIndex]++;
 
 		return true;
 	}
@@ -148,6 +177,24 @@ namespace fre
 		mDebugMessenger = vkCheck(getContext().getInstance().createDebugUtilsMessengerEXT(createInfo));
 
 		return true;
+	}
+
+	bool VulkanRenderBackend::createFrames()
+	{
+		mFrames.clear();
+		for(int i = 0; i < mFramesInFlight; i++)
+		{
+			mFrames.push_back(
+				{
+					.mCmdBuff = mGraphicsCommandPool->allocatePrimary(),
+					.mRenderFence = Fence(mDevice),
+					.mImageAvailable = Semaphore(mDevice),
+					.mRenderFinished = Semaphore(mDevice)
+				}
+			);
+		}
+
+		return mFrames.size() == mFramesInFlight;
 	}
 
 	bool VulkanRenderBackend::evaluateFeatures(const vk::PhysicalDevice& physicalDevice)
@@ -292,20 +339,21 @@ namespace fre
 	{
 		std::set<uint32_t> uniqueFamilies =
 		{
-			mQueueFamilies.graphics,
-			mQueueFamilies.compute,
-			mQueueFamilies.transfer
+			mQueueFamilySelection.mGraphics.familyIndex,
+			mQueueFamilySelection.mCompute.familyIndex,
+			mQueueFamilySelection.mTransfer.familyIndex,
+			mQueueFamilySelection.mPresent.familyIndex,
 		};
 
-		float priority = 1.0f;
+		std::vector<float> priority(uniqueFamilies.size(), 1.0f);
 		std::vector<vk::DeviceQueueCreateInfo> queueInfos;
 
 		for(uint32_t family : uniqueFamilies)
 		{
 			vk::DeviceQueueCreateInfo qci{};
 			qci.queueFamilyIndex = family;
-			qci.queueCount = 1;
-			qci.pQueuePriorities = &priority;
+			qci.queueCount = mQueueCounts[family];
+			qci.pQueuePriorities = priority.data();
 
 			queueInfos.push_back(qci);
 		}
@@ -327,10 +375,24 @@ namespace fre
 		dci.enabledExtensionCount = static_cast<uint32_t>(enabledExtensions.size());
 		dci.ppEnabledExtensionNames = enabledExtensions.data();
 
+		VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeature{};
+		if(
+			mDesc.mFeatures.dynamicRendering.enabled &&
+			mDesc.mFeatures.dynamicRendering.requirement == Requirement::Required)
+		{
+			dynamicRenderingFeature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
+			dynamicRenderingFeature.dynamicRendering = VK_TRUE;
+			dci.pNext = &dynamicRenderingFeature;
+		}
+
 		mDevice = vkCheck(mPhysicalDevice.createDevice(dci));
 
-		LOG_TRACE("Logical device created. Graphics queue family: {}, Compute queue family: {}, Transfer queue family: {}",
-			mQueueFamilies.graphics, mQueueFamilies.compute, mQueueFamilies.transfer);
+		LOG_TRACE("Logical device created.");
+		LOG_TRACE("Graphics queue family : \033[36m{}\033[0m, Compute queue family : \033[36m{}\033[0m, Transfer queue family : \033[36m{}\033[0m, Present queue family : \033[36m{}\033[0m",
+			mQueueFamilySelection.mGraphics.familyIndex,
+			mQueueFamilySelection.mCompute.familyIndex,
+			mQueueFamilySelection.mTransfer.familyIndex,
+			mQueueFamilySelection.mPresent.familyIndex);
 
 		VULKAN_HPP_DEFAULT_DISPATCHER.init(mDevice);
 
@@ -344,6 +406,45 @@ namespace fre
 		mAllocator = std::make_unique<VulkanAllocator>(getContext().getInstance(), mPhysicalDevice, mDevice);
 
 		return mAllocator != nullptr;
+	}
+
+	bool VulkanRenderBackend::createQueues()
+	{
+		mGraphicsQueue = std::make_unique<VulkanQueue>(
+			mDevice,
+			mQueueFamilySelection.mGraphics.familyIndex,
+			mQueueFamilySelection.mGraphics.queueIndex);
+
+		mComputeQueue = std::make_unique<VulkanQueue>(
+			mDevice,
+			mQueueFamilySelection.mCompute.familyIndex,
+			mQueueFamilySelection.mCompute.queueIndex);
+
+		mTransferQueue = std::make_unique<VulkanQueue>(
+			mDevice,
+			mQueueFamilySelection.mTransfer.familyIndex,
+			mQueueFamilySelection.mTransfer.queueIndex);
+
+		mPresentQueue = std::make_unique<VulkanQueue>(
+			mDevice,
+			mQueueFamilySelection.mPresent.familyIndex,
+			mQueueFamilySelection.mPresent.queueIndex);
+
+		return true;
+	}
+
+	bool VulkanRenderBackend::createPools()
+	{
+		mGraphicsCommandPool = std::make_unique<VulkanCommandPool>(
+			mDevice, mQueueFamilySelection.mGraphics.familyIndex);
+
+		mComputeCommandPool = std::make_unique<VulkanCommandPool>(
+			mDevice, mQueueFamilySelection.mCompute.familyIndex);
+
+		mTransferCommandPool = std::make_unique<VulkanCommandPool>(
+			mDevice, mQueueFamilySelection.mTransfer.familyIndex);
+
+		return true;
 	}
 
 	bool VulkanRenderBackend::initialize()
@@ -384,6 +485,15 @@ namespace fre
 		if(!createAllocator())
 			return false;
 
+		if(!createQueues())
+			return false;
+
+		if(!createPools())
+			return false;
+
+		if(!createFrames())
+			return false;
+
 		VulkanSwapchain::Desc swapchainDesc =
 		{
 			.mPhysicalDevice = mPhysicalDevice,
@@ -391,8 +501,8 @@ namespace fre
 			.mSurface = mVkSurface->handle(),
 			.mWidth = mCommonConfig.mWidth,
 			.mHeight = mCommonConfig.mHeight,
-			.mGraphicsQueueFamily = mQueueFamilies.graphics,
-			.mPresentQueueFamily = mQueueFamilies.present
+			.mGraphicsQueueFamily = mQueueFamilySelection.mGraphics.familyIndex,
+			.mPresentQueueFamily = mQueueFamilySelection.mPresent.familyIndex
 		};
 
 		mSwapchain = std::make_unique<VulkanSwapchain>(swapchainDesc);
@@ -403,6 +513,8 @@ namespace fre
 	void VulkanRenderBackend::shutdown()
 	{
 		LOG_TRACE("VulkanRenderBackend::shutdown");
+
+		waitIdle();
 
 		auto instance = getContext().getInstance();
 		if(mDebugMessenger)
@@ -415,6 +527,105 @@ namespace fre
 		{
 			vkCheck(mDevice.waitIdle());
 		}
+	}
+
+	void VulkanRenderBackend::drawFrame(IScene* scene)
+	{
+		auto& frame = mFrames[mCurrentFrame];
+		// 1. Wait for GPU to finish with this frame
+		frame.mRenderFence.wait();
+
+		const auto acquireResult = mSwapchain->acquire(frame.mImageAvailable);
+		if(acquireResult.resized)
+		{
+			LOG_INFO("Swapchain resized, recreating...");
+			mSwapchain->recreate(mCommonConfig.mWidth, mCommonConfig.mHeight);
+			return;
+		}
+
+		// Reset fence BEFORE submitting new work
+		frame.mRenderFence.reset();
+
+		recordCommands(frame.mCmdBuff, acquireResult.imageIndex, scene);
+		submit(frame);
+		present(frame);
+
+		// Advance frame index (VERY IMPORTANT)
+		mCurrentFrame = (mCurrentFrame + 1) % mFramesInFlight;
+	}
+
+	void VulkanRenderBackend::recordCommands(VulkanCommandBuffer& cmdBuff, const uint32_t imageIndex, IScene* scene)
+	{
+		auto imageView = mSwapchain->getImageView(imageIndex);
+		auto vkImageView = dynamic_cast<VulkanImageView*>(imageView);
+		auto extent = mSwapchain->extent();
+		auto vkImage = vkImageView->image();
+		cmdBuff.begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+
+		cmdBuff.transitionImage(
+			vkImage,
+			vk::ImageLayout::eUndefined,
+			vk::ImageLayout::eColorAttachmentOptimal,
+			{},
+			vk::AccessFlagBits::eColorAttachmentWrite,
+			vk::PipelineStageFlagBits::eTopOfPipe,
+			vk::PipelineStageFlagBits::eColorAttachmentOutput
+		);
+
+		cmdBuff.beginRendering(
+			vkImageView->handle(),
+			extent,
+			vk::ClearColorValue(std::array<float, 4>{0.1f, 0.1f, 1.0f, 1.0f})
+		);
+
+		// scene->draw(cmdBuff);   <-- future
+
+		cmdBuff.endRendering();
+
+		cmdBuff.transitionImage(
+			vkImage,
+			vk::ImageLayout::eColorAttachmentOptimal,
+			vk::ImageLayout::ePresentSrcKHR,
+			vk::AccessFlagBits::eColorAttachmentWrite,
+			{},
+			vk::PipelineStageFlagBits::eColorAttachmentOutput,
+			vk::PipelineStageFlagBits::eBottomOfPipe
+		);
+
+		cmdBuff.end();
+	}
+
+	void VulkanRenderBackend::submit(const Frame& frame)
+	{
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+		VkSemaphore waitSemaphores[] = { frame.mImageAvailable.get() };
+		VkPipelineStageFlags waitStages[] = {
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+		};
+
+		submitInfo.waitSemaphoreCount = 1;
+		submitInfo.pWaitSemaphores = waitSemaphores;
+		submitInfo.pWaitDstStageMask = waitStages;
+
+		VkCommandBuffer cmd = frame.mCmdBuff.get();
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &cmd;
+
+		VkSemaphore signalSemaphores[] = { frame.mRenderFinished.get() };
+		submitInfo.signalSemaphoreCount = 1;
+		submitInfo.pSignalSemaphores = signalSemaphores;
+
+		mGraphicsQueue->submit(
+			submitInfo,
+			frame.mRenderFence.get()
+		);
+	}
+
+	void VulkanRenderBackend::present(const Frame& frame)
+	{
+		mSwapchain->present(mPresentQueue->get(), frame.mRenderFinished);
 	}
 
     GpuImagePtr VulkanRenderBackend::createGpuImage(const IGpuImage::Desc& desc)

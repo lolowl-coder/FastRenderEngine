@@ -48,6 +48,8 @@ endif()
 message(WARNING "PLATFORM_SOURCES: " ${PLATFORM_SOURCES})
 
 target_sources(FRE PRIVATE
+    include/fre/app/Application.hpp
+    include/fre/core/IScene.hpp
 	include/fre/core/IWindow.hpp
 	include/fre/core/FileSystemBase.hpp
 	include/fre/core/Hash.hpp
@@ -58,6 +60,7 @@ target_sources(FRE PRIVATE
 	include/fre/core/PlatformFactory.hpp
     include/fre/core/Requirement.hpp
     include/fre/core/WindowManager.hpp
+    include/fre/engine/Engine.hpp
 	include/fre/macros/Class.hpp
 	include/fre/macros/Member.hpp
 	include/fre/renderer/CommonRendererConfig.hpp
@@ -78,21 +81,25 @@ target_sources(FRE PRIVATE
     include/fre/renderer/backend/vulkan/IVulkanSurface.hpp
     include/fre/renderer/backend/vulkan/VulkanAllocator.hpp
     include/fre/renderer/backend/vulkan/VulkanContext.hpp
+    include/fre/renderer/backend/vulkan/VulkanCommandBuffer.hpp
     include/fre/renderer/backend/vulkan/VulkanCommon.hpp
     include/fre/renderer/backend/vulkan/VulkanCore.hpp
     include/fre/renderer/backend/vulkan/VulkanExtension.hpp
     include/fre/renderer/backend/vulkan/VulkanFence.hpp
     include/fre/renderer/backend/vulkan/VulkanImage.hpp
     include/fre/renderer/backend/vulkan/VulkanImageView.hpp
+    include/fre/renderer/backend/vulkan/VulkanQueue.hpp
     include/fre/renderer/backend/vulkan/VulkanRenderBackend.hpp
 	include/fre/renderer/backend/vulkan/VulkanSemaphore.hpp
 	include/fre/renderer/backend/vulkan/VulkanSurfaceWindows.hpp
     include/fre/renderer/backend/vulkan/VulkanSwapchain.hpp
+    src/fre/app/Application.cpp
     src/fre/core/FileSystemBase.cpp
     src/fre/core/Format.cpp
     src/fre/core/Log.cpp
 	src/fre/core/Requirement.cpp
 	src/fre/core/VirtualFileSystem.cpp
+	src/fre/engine/Engine.cpp
 	${PLATFORM_SOURCES}
     src/fre/renderer/IGpuImage.cpp
     src/fre/renderer/IGpuImageView.cpp

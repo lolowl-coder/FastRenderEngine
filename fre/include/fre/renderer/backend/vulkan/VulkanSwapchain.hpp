@@ -1,8 +1,8 @@
 #pragma once
 
 #include "fre/core/Pointers.hpp"
-#include "fre/renderer/backend/vulkan/Frame.hpp"
 #include "fre/renderer/backend/vulkan/VulkanCommon.hpp"
+#include "fre/renderer/backend/vulkan/VulkanSemaphore.hpp"
 
 namespace fre
 {
@@ -33,15 +33,16 @@ namespace fre
 		struct AcquireResult
 		{
 			uint32_t imageIndex;
-			Frame* frame;
 			bool resized;   // signals swapchain needs recreation
 		};
 
 		VulkanSwapchain(const Desc& desc);
 		~VulkanSwapchain();
-		virtual AcquireResult acquire();
-		bool present(vk::Queue presentQueue);
+		virtual AcquireResult acquire(const Semaphore& imageAvailableSemaphore);
+		bool present(vk::Queue presentQueue, const Semaphore& waitSemaphore);
 		virtual void recreate(uint32_t w, uint32_t h);
+		IGpuImage* getImage(uint32_t index) const { return mImages[index].get(); }
+		IGpuImageView* getImageView(uint32_t index) const { return mImageViews[index].get(); }
 
 		virtual vk::Extent2D extent() const { return mExtent; }
 	private:
@@ -57,13 +58,9 @@ namespace fre
 		vk::SwapchainKHR mSwapchain = {};
 		vk::Format mFormat = vk::Format::eUndefined;
 		vk::Extent2D mExtent = { 0u, 0u };
+		std::vector<GpuImagePtr> mImages;
 		std::vector<GpuImageViewPtr> mImageViews;
 
-		uint32_t mCurrentFrame = 0;
 		uint32_t mImageIndex = 0;
-
-		// size = frames in flight
-		std::vector<Frame> mFrames;        
-		const uint32_t mFramesInFlight = 3;
 	};
 }

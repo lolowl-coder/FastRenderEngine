@@ -52,6 +52,7 @@ namespace fre
         virtual ComponentMapping componentMapping() const override { return mDesc.mComponentMapping; }
 
         vk::ImageView handle() const { return mView; }
+        vk::Image image() const { return mImageHandle; }
     private:
         void cleanup();
     private:

@@ -12,6 +12,7 @@ namespace fre
         virtual ~IRenderBackend() = default;
         virtual bool initialize() = 0;
         virtual void shutdown() = 0;
-        virtual void waitIdle() = 0 ;
+        virtual void waitIdle() = 0;
+        virtual void drawFrame(IScene* scene) = 0;
     };
 }

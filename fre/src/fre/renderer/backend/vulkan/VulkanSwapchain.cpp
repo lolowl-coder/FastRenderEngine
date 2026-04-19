@@ -3,6 +3,7 @@
 #include "fre/core/Log.hpp"
 #include "fre/renderer/backend/vulkan/VulkanSwapchain.hpp"
 #include "fre/renderer/backend/vulkan/VulkanCore.hpp"
+#include "fre/renderer/backend/vulkan/VulkanImage.hpp"
 #include "fre/renderer/backend/vulkan/VulkanImageView.hpp"
 
 namespace fre
@@ -82,12 +83,19 @@ namespace fre
 		auto images = vkCheck(mDesc.mDevice.getSwapchainImagesKHR(mSwapchain));
 
 		mImageViews.clear();
+		mImages.clear();
 
-		IGpuImageView::Desc desc = {};
+		IGpuImageView::Desc viewDesc;
+		IGpuImage::Desc imageDesc =
+		{
+			.width = mDesc.mWidth,
+			.height = mDesc.mHeight
+		};
 
 		for(auto image : images)
 		{
-			mImageViews.push_back(std::make_unique<VulkanImageView>(mDesc.mDevice, image, desc));
+			mImageViews.push_back(std::make_unique<VulkanImageView>(mDesc.mDevice, image, viewDesc));
+			mImages.push_back(std::make_unique<VulkanImage>(imageDesc, image));
 		}
 	}
 
@@ -158,33 +166,28 @@ namespace fre
 		cleanupSwapchain();
 	}
 
-	VulkanSwapchain::AcquireResult VulkanSwapchain::acquire()
+	VulkanSwapchain::AcquireResult VulkanSwapchain::acquire(const Semaphore& imageAvailableSemaphore)
 	{
-		Frame& frame = mFrames[mCurrentFrame];
-
-		// 1. Wait for GPU to finish with this frame
-		frame.mRenderFence.wait();
-
-		// 2. Acquire next image
+		// Acquire next image
 		auto res = mDesc.mDevice.acquireNextImageKHR(
 			mSwapchain,
 			UINT64_MAX,
-			frame.mImageAvailable.get(),
+			imageAvailableSemaphore.get(),
 			VK_NULL_HANDLE
 		);
 
 		mImageIndex = res.value;
 		
-		// 3. Handle result
+		// Handle result
 		if(res.result == vk::Result::eErrorOutOfDateKHR)
 		{
-			return { 0, nullptr, true };
+			return { 0, true };
 		}
 
 		if(res.result == vk::Result::eSuboptimalKHR)
 		{
 			// Not fatal — continue rendering, but mark for resize
-			return { mImageIndex, &frame, true };
+			return { mImageIndex, true };
 		}
 
 		if(res.result != vk::Result::eSuccess)
@@ -192,25 +195,19 @@ namespace fre
 			throw std::runtime_error("Failed to acquire swapchain image");
 		}
 
-		// 4. Reset fence BEFORE submitting new work
-		frame.mRenderFence.reset();
-
-		return { mImageIndex, &frame, false };
+		return { mImageIndex, false };
 	}
 
-	bool VulkanSwapchain::present(vk::Queue presentQueue)
+	bool VulkanSwapchain::present(vk::Queue presentQueue, const Semaphore& waitSemaphore)
 	{
-		Frame& frame = mFrames[mCurrentFrame];
-
 		vk::PresentInfoKHR presentInfo{};
 		presentInfo.waitSemaphoreCount = 1;
-		vk::Semaphore waitSemaphores[] = { frame.mRenderFinished.get() };
+		vk::Semaphore waitSemaphores[] = { waitSemaphore.get() };
 		presentInfo.pWaitSemaphores = waitSemaphores;
 
 		vk::SwapchainKHR swapchains[] = { mSwapchain };
 		presentInfo.swapchainCount = 1;
 		presentInfo.pSwapchains = swapchains;
-
 		presentInfo.pImageIndices = &mImageIndex;
 
 		auto result = presentQueue.presentKHR(presentInfo);
@@ -229,9 +226,6 @@ namespace fre
 		{
 			throw std::runtime_error("Failed to present swapchain image");
 		}
-
-		// Advance frame index (VERY IMPORTANT)
-		mCurrentFrame = (mCurrentFrame + 1) % mFramesInFlight;
 
 		return needResize;
 	}

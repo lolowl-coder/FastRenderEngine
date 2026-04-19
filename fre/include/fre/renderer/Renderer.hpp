@@ -11,6 +11,7 @@ namespace fre
 	public:
 		Renderer(const CommonRendererConfig& commonConfig);
 		virtual void beginFrame() override;
+		virtual void renderFrame(IScene* scene) override;
 		virtual void endFrame() override;
 	private:
 		CommonRendererConfig mCommonConfig;
