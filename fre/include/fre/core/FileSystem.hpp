@@ -29,6 +29,8 @@ namespace fre
 
         virtual bool exists(const Path& path) = 0;
         virtual Entries listFiles(const Path& dir) = 0;
+
+		virtual std::vector<uint8_t> readFile(const Path& fileName) = 0;
     };
 
     using FileSystemPtr = std::unique_ptr<IFileSystem>;

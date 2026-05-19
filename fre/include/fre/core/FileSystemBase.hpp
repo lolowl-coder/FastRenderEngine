@@ -14,6 +14,7 @@ namespace fre
 		virtual Path getExt(const Path& fileName) override;
 		virtual bool exists(const Path& path) override;
 		virtual Entries listFiles(const Path& dir) override;
+		virtual std::vector<uint8_t> readFile(const Path& fileName) override;
 
 		FIELD_NS(Path, AppDir, protected, public, public);
 	};

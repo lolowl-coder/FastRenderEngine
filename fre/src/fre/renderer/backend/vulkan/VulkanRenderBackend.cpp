@@ -10,6 +10,7 @@
 #include "fre/renderer/backend/vulkan/VulkanImageView.hpp"
 #include "fre/renderer/backend/vulkan/VulkanRenderBackend.hpp"
 #include "fre/renderer/backend/vulkan/VulkanSurfaceWindows.hpp"
+#include "fre/renderer/backend/vulkan/VulkanShader.hpp"
 #include "fre/renderer/backend/vulkan/VulkanSwapchain.hpp"
 
 #include <format>
@@ -177,6 +178,13 @@ namespace fre
 		mDebugMessenger = vkCheck(getContext().getInstance().createDebugUtilsMessengerEXT(createInfo));
 
 		return true;
+	}
+
+	bool VulkanRenderBackend::createPipelineCache()
+	{
+		mPipelineCache = std::make_unique<VulkanPipelineCache>(mDevice, mAllocator.get());
+
+		return mPipelineCache != nullptr;
 	}
 
 	bool VulkanRenderBackend::createFrames()
@@ -491,6 +499,9 @@ namespace fre
 		if(!createPools())
 			return false;
 
+		if(!createPipelineCache())
+			return false;
+
 		if(!createFrames())
 			return false;
 
@@ -529,7 +540,7 @@ namespace fre
 		}
 	}
 
-	void VulkanRenderBackend::drawFrame(IScene* scene)
+	void VulkanRenderBackend::drawFrame(IScene* scene, RenderPassData& renderPassData)
 	{
 		auto& frame = mFrames[mCurrentFrame];
 		// 1. Wait for GPU to finish with this frame
@@ -546,7 +557,7 @@ namespace fre
 		// Reset fence BEFORE submitting new work
 		frame.mRenderFence.reset();
 
-		recordCommands(frame.mCmdBuff, acquireResult.imageIndex, scene);
+		recordCommands(frame.mCmdBuff, acquireResult.imageIndex, scene, renderPassData);
 		submit(frame);
 		present(frame);
 
@@ -554,7 +565,37 @@ namespace fre
 		mCurrentFrame = (mCurrentFrame + 1) % mFramesInFlight;
 	}
 
-	void VulkanRenderBackend::recordCommands(VulkanCommandBuffer& cmdBuff, const uint32_t imageIndex, IScene* scene)
+	PipelineKey VulkanRenderBackend::makeDefaultPipelineKey(
+		IShader* shader)
+	{
+		PipelineKey key{};
+		key.colorFormat = mSwapchain->format();
+		key.depthFormat = vk::Format::eUndefined;
+		key.shader = shader;
+		return key;
+	}
+
+	void VulkanRenderBackend::recordFrame(VulkanCommandBuffer& cmdBuf, const uint32_t imageIndex, RenderPassData& renderPassData)
+	{
+		PipelineKey key = makeDefaultPipelineKey(renderPassData.shader);
+
+		auto* pipeline = getPipeline(key);
+
+		cmdBuf.get().bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline->handle);
+
+		// Viewport/scissor (dynamic state)
+		vk::Viewport viewport(
+			0.0f, 0.0f,
+			static_cast<float>(mSwapchain->extent().width),
+			static_cast<float>(mSwapchain->extent().height),
+			0.0f, 1.0f);
+		cmdBuf.get().setViewport(0, viewport);
+
+		// Draw
+		cmdBuf.get().draw(3, 1, 0, 0);
+	}
+
+	void VulkanRenderBackend::recordCommands(VulkanCommandBuffer& cmdBuff, const uint32_t imageIndex, IScene* scene, RenderPassData& renderPassData)
 	{
 		auto imageView = mSwapchain->getImageView(imageIndex);
 		auto vkImageView = dynamic_cast<VulkanImageView*>(imageView);
@@ -578,7 +619,7 @@ namespace fre
 			vk::ClearColorValue(std::array<float, 4>{0.1f, 0.1f, 1.0f, 1.0f})
 		);
 
-		// scene->draw(cmdBuff);   <-- future
+		recordFrame(cmdBuff, imageIndex, renderPassData);
 
 		cmdBuff.endRendering();
 
@@ -638,4 +679,9 @@ namespace fre
 		auto vkImage = dynamic_cast<VulkanImage*>(image);
         return std::make_unique<VulkanImageView>(mDevice, vkImage->handle(), desc);
     }
+
+	ShaderPtr VulkanRenderBackend::createGpuShader(const std::string& name, std::unordered_map<ShaderStage, ShaderStageBlob>& blobs)
+	{
+		return std::make_unique<VulkanShader>(name, blobs, mDevice);
+	}
 }

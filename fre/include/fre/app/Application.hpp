@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fre/core/Pointers.hpp"
+#include "fre/core/ThreadPool.hpp"
 
 namespace fre
 {
@@ -15,5 +16,6 @@ namespace fre
 	private:
 		WindowPtr mWindow;
 		EnginePtr mEngine;
+		ThreadPool mThreadPool;
 	};
 }

@@ -3,6 +3,7 @@
 #include "fre/core/Pointers.hpp"
 #include "fre/renderer/IGpuImage.hpp"
 #include "fre/renderer/IGpuImageView.hpp"
+#include "fre/renderer/RenderPassData.hpp"
 
 namespace fre
 {
@@ -13,6 +14,6 @@ namespace fre
         virtual bool initialize() = 0;
         virtual void shutdown() = 0;
         virtual void waitIdle() = 0;
-        virtual void drawFrame(IScene* scene) = 0;
+        virtual void drawFrame(IScene* scene, RenderPassData& renderPassData) = 0;
     };
 }

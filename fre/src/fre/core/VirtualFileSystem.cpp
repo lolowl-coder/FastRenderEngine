@@ -44,4 +44,14 @@ namespace fre
 	{
 		return mMounts;
 	}
+
+	std::vector<uint8_t> VirtualFileSystem::readFile(const Path& fileName) const
+	{
+		auto path = find(fileName);
+		if(path.empty())
+		{
+			throw std::runtime_error("File not found: " + fileName.string());
+		}
+		return mFS.readFile(path);
+	}
 }

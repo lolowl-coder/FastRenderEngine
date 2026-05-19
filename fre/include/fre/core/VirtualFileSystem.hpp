@@ -23,6 +23,8 @@ namespace fre
 
         std::vector<Path> mounts() const;
 
+		std::vector<uint8_t> readFile(const Path& fileName) const;
+
     private:
         IFileSystem& mFS;
         std::vector<Path> mMounts;

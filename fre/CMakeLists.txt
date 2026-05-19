@@ -59,6 +59,7 @@ target_sources(FRE PRIVATE
 	include/fre/core/Pointers.hpp
 	include/fre/core/PlatformFactory.hpp
     include/fre/core/Requirement.hpp
+    include/fre/core/ThreadPool.hpp
     include/fre/core/WindowManager.hpp
     include/fre/engine/Engine.hpp
 	include/fre/macros/Class.hpp
@@ -69,14 +70,21 @@ target_sources(FRE PRIVATE
 	include/fre/renderer/IGpuResourceFactory.hpp
 	include/fre/renderer/IGraphicsContext.hpp
 	include/fre/renderer/IRenderer.hpp
-	include/fre/renderer/RendererFactory.hpp
-	include/fre/renderer/Renderer.hpp
+	include/fre/renderer/IShader.hpp
 	include/fre/renderer/ISurface.hpp
+	include/fre/renderer/RendererFactory.hpp
+	include/fre/renderer/RenderPassData.hpp
+	include/fre/renderer/Renderer.hpp
+	include/fre/renderer/ShaderAsset.hpp
+	include/fre/renderer/ShaderLoadDesc.hpp
+	include/fre/renderer/ShaderStage.hpp
+	include/fre/renderer/ShaderStageBlob.hpp
 	include/fre/renderer/Texture.hpp
 	include/fre/renderer/TextureHandle.hpp
 	include/fre/renderer/backend/Enums.hpp
 	include/fre/renderer/backend/IRenderBackend.hpp
 	include/fre/renderer/backend/RenderBackendFactory.hpp
+    include/fre/renderer/backend/vulkan/EnumConvert.hpp
     include/fre/renderer/backend/vulkan/Frame.hpp
     include/fre/renderer/backend/vulkan/IVulkanSurface.hpp
     include/fre/renderer/backend/vulkan/VulkanAllocator.hpp
@@ -89,7 +97,9 @@ target_sources(FRE PRIVATE
     include/fre/renderer/backend/vulkan/VulkanImage.hpp
     include/fre/renderer/backend/vulkan/VulkanImageView.hpp
     include/fre/renderer/backend/vulkan/VulkanQueue.hpp
+    include/fre/renderer/backend/vulkan/VulkanPipeline.hpp
     include/fre/renderer/backend/vulkan/VulkanRenderBackend.hpp
+	include/fre/renderer/backend/vulkan/VulkanShader.hpp
 	include/fre/renderer/backend/vulkan/VulkanSemaphore.hpp
 	include/fre/renderer/backend/vulkan/VulkanSurfaceWindows.hpp
     include/fre/renderer/backend/vulkan/VulkanSwapchain.hpp
@@ -105,6 +115,7 @@ target_sources(FRE PRIVATE
     src/fre/renderer/IGpuImageView.cpp
     src/fre/renderer/RendererFactory.cpp
     src/fre/renderer/Renderer.cpp
+    src/fre/renderer/ShaderSystem.cpp
     src/fre/renderer/TextureManager.cpp
     src/fre/renderer/backend/RenderBackendFactory.cpp
     src/fre/renderer/backend/vulkan/VmaUsage.cpp

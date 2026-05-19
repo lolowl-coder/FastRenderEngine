@@ -1,4 +1,5 @@
 #include "fre/core/FileSystemBase.hpp"
+#include <fstream>
 
 namespace fre
 {
@@ -40,6 +41,28 @@ namespace fre
 		for (auto const& entry : std::filesystem::directory_iterator{ dir })
 		{
 			result.push_back(entry.path().filename().generic_string());
+		}
+
+		return result;
+	}
+
+	std::vector<uint8_t> FileSystemBase::readFile(const Path& fileName)
+	{
+		std::vector<uint8_t> result;
+		std::ifstream file(fileName, std::ios::binary | std::ios::ate);
+		if (file.is_open())
+		{
+			std::streamsize size = file.tellg();
+			file.seekg(0, std::ios::beg);
+			result.resize(size);
+			if (!file.read((char*)result.data(), size))
+			{
+				throw std::runtime_error("Failed to read file: " + fileName.string());
+			}
+		}
+		else
+		{
+			throw std::runtime_error("Failed to open file: " + fileName.string());
 		}
 
 		return result;

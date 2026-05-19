@@ -7,7 +7,9 @@
 #include "fre/renderer/backend/IRenderBackend.hpp"
 #include "fre/renderer/backend/vulkan/Frame.hpp"
 #include "fre/renderer/backend/vulkan/VulkanAllocator.hpp"
+#include "fre/renderer/backend/vulkan/VulkanPipeline.hpp"
 #include "fre/renderer/backend/vulkan/VulkanQueue.hpp"
+#include "fre/renderer/RenderPassData.hpp"
 
 #include <map>
 
@@ -53,10 +55,11 @@ namespace fre
         void shutdown() override;
         void waitIdle() override;
 
-		virtual void drawFrame(IScene* scene) override;
+		virtual void drawFrame(IScene* scene, RenderPassData& renderPassData) override;
 
         virtual GpuImagePtr createGpuImage(const IGpuImage::Desc& desc) override;
         virtual GpuImageViewPtr createGpuImageView(IGpuImage* image, const IGpuImageView::Desc& desc) override;
+        virtual ShaderPtr createGpuShader(const std::string& name, std::unordered_map<ShaderStage, ShaderStageBlob>& blobs) override;
     private:
         bool createLogicalDevice();
         bool createAllocator();
@@ -65,14 +68,22 @@ namespace fre
         bool selectPhysicalDevice();
         bool selectQueueFamilies();
         bool createDebugMessenger();
+        bool createPipelineCache();
         bool createFrames();
 		bool evaluateFeatures(const vk::PhysicalDevice& physicalDevice);
         bool evaluateExtensions(const vk::PhysicalDevice& physicalDevice);
 		int scorePhysicalDevice(const vk::PhysicalDevice& device);
         VulkanContext& getContext();
-        void recordCommands(VulkanCommandBuffer& cmdBuff, const uint32_t imageIndex, IScene* scene);
+        PipelineKey makeDefaultPipelineKey(
+            IShader* shader);
+        void recordFrame(VulkanCommandBuffer& cmdBuf, const uint32_t imageIndex, RenderPassData& renderPassData);
+        void recordCommands(VulkanCommandBuffer& cmdBuff, const uint32_t imageIndex, IScene* scene, RenderPassData& renderPassData);
         void submit(const Frame& frame);
         void present(const Frame& frame);
+        Pipeline* getPipeline(const PipelineKey& key)
+        {
+            return mPipelineCache->getOrCreate(key);
+        }
 
     private:
         bool mHeadless = false;
@@ -109,5 +120,7 @@ namespace fre
         std::vector<Frame> mFrames;
         uint32_t mCurrentFrame = 0;
         const uint32_t mFramesInFlight = 3;
+
+        VulkanPipelineCachePtr mPipelineCache;
     };
 }

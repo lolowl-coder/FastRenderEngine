@@ -15,9 +15,9 @@ namespace fre
 	{
 	}
 
-	void Renderer::renderFrame(IScene* scene)
+	void Renderer::renderFrame(IScene* scene, RenderPassData& renderPassData)
 	{
-		mBackend->drawFrame(scene);
+		mBackend->drawFrame(scene, renderPassData);
 	}
 
 	void Renderer::endFrame()

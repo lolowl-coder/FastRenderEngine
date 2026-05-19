@@ -43,7 +43,7 @@ namespace fre
 		virtual void recreate(uint32_t w, uint32_t h);
 		IGpuImage* getImage(uint32_t index) const { return mImages[index].get(); }
 		IGpuImageView* getImageView(uint32_t index) const { return mImageViews[index].get(); }
-
+		vk::Format format() const { return mFormat; }
 		virtual vk::Extent2D extent() const { return mExtent; }
 	private:
 		SwapchainDetails getSwapchainDetails(vk::PhysicalDevice device, vk::SurfaceKHR surface);

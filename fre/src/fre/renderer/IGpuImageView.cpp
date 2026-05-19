@@ -17,7 +17,7 @@ namespace fre
         }
     }
 
-	vk::ImageAspectFlagBits toVk(Aspect aspect)\
+	vk::ImageAspectFlagBits toVk(Aspect aspect)
 	{
 		switch(aspect)
 		{
