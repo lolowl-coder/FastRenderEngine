@@ -1,7 +1,7 @@
 CPMAddPackage(
 	NAME spdlog
 	GIT_REPOSITORY https://github.com/gabime/spdlog.git
-	GIT_TAG v1.13.0
+	GIT_TAG v1.17.0
 )
 
 CPMAddPackage(
@@ -72,15 +72,22 @@ target_sources(FRE PRIVATE
 	include/fre/renderer/IRenderer.hpp
 	include/fre/renderer/IShader.hpp
 	include/fre/renderer/ISurface.hpp
-	include/fre/renderer/RendererFactory.hpp
-	include/fre/renderer/RenderPassData.hpp
+	include/fre/renderer/ITexture.hpp
+    include/fre/renderer/PSO.hpp
 	include/fre/renderer/Renderer.hpp
+	include/fre/renderer/RendererFactory.hpp
+	include/fre/renderer/RendererStructs.hpp
+	include/fre/renderer/RenderPassData.hpp
+	include/fre/renderer/SampleCount.hpp
 	include/fre/renderer/ShaderAsset.hpp
 	include/fre/renderer/ShaderLoadDesc.hpp
 	include/fre/renderer/ShaderStage.hpp
 	include/fre/renderer/ShaderStageBlob.hpp
+	include/fre/renderer/ShaderSystem.hpp
 	include/fre/renderer/Texture.hpp
 	include/fre/renderer/TextureHandle.hpp
+	include/fre/renderer/TextureManager.hpp
+	include/fre/renderer/VertexLayout.hpp
 	include/fre/renderer/backend/Enums.hpp
 	include/fre/renderer/backend/IRenderBackend.hpp
 	include/fre/renderer/backend/RenderBackendFactory.hpp
@@ -88,36 +95,35 @@ target_sources(FRE PRIVATE
     include/fre/renderer/backend/vulkan/Frame.hpp
     include/fre/renderer/backend/vulkan/IVulkanSurface.hpp
     include/fre/renderer/backend/vulkan/VulkanAllocator.hpp
-    include/fre/renderer/backend/vulkan/VulkanContext.hpp
     include/fre/renderer/backend/vulkan/VulkanCommandBuffer.hpp
+    include/fre/renderer/backend/vulkan/VulkanCommandPool.hpp
     include/fre/renderer/backend/vulkan/VulkanCommon.hpp
+    include/fre/renderer/backend/vulkan/VulkanContext.hpp
     include/fre/renderer/backend/vulkan/VulkanCore.hpp
     include/fre/renderer/backend/vulkan/VulkanExtension.hpp
     include/fre/renderer/backend/vulkan/VulkanFence.hpp
     include/fre/renderer/backend/vulkan/VulkanImage.hpp
     include/fre/renderer/backend/vulkan/VulkanImageView.hpp
-    include/fre/renderer/backend/vulkan/VulkanQueue.hpp
     include/fre/renderer/backend/vulkan/VulkanPipeline.hpp
+    include/fre/renderer/backend/vulkan/VulkanQueue.hpp
     include/fre/renderer/backend/vulkan/VulkanRenderBackend.hpp
-	include/fre/renderer/backend/vulkan/VulkanShader.hpp
 	include/fre/renderer/backend/vulkan/VulkanSemaphore.hpp
+	include/fre/renderer/backend/vulkan/VulkanShader.hpp
 	include/fre/renderer/backend/vulkan/VulkanSurfaceWindows.hpp
     include/fre/renderer/backend/vulkan/VulkanSwapchain.hpp
     src/fre/app/Application.cpp
     src/fre/core/FileSystemBase.cpp
-    src/fre/core/Format.cpp
     src/fre/core/Log.cpp
 	src/fre/core/Requirement.cpp
 	src/fre/core/VirtualFileSystem.cpp
 	src/fre/engine/Engine.cpp
 	${PLATFORM_SOURCES}
-    src/fre/renderer/IGpuImage.cpp
-    src/fre/renderer/IGpuImageView.cpp
     src/fre/renderer/RendererFactory.cpp
     src/fre/renderer/Renderer.cpp
     src/fre/renderer/ShaderSystem.cpp
     src/fre/renderer/TextureManager.cpp
     src/fre/renderer/backend/RenderBackendFactory.cpp
+    src/fre/renderer/backend/vulkan/EnumConvert.cpp
     src/fre/renderer/backend/vulkan/VmaUsage.cpp
     src/fre/renderer/backend/vulkan/VulkanAllocator.cpp
     src/fre/renderer/backend/vulkan/VulkanContext.cpp

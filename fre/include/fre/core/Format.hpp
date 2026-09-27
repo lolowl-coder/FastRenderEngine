@@ -18,6 +18,4 @@ namespace fre
         D24S8,
         D32
     };
-
-    vk::Format toVk(fre::Format format);
 }

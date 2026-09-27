@@ -44,7 +44,8 @@ namespace fre
 			ofn.nFilterIndex = 1;
 			ofn.lpstrFileTitle = NULL;
 			ofn.nMaxFileTitle = 0;
-			ofn.lpstrInitialDir = dir.string().c_str();
+			auto dirStr = dir.string();
+			ofn.lpstrInitialDir = dirStr.c_str();
 			ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
 			// Display the Open dialog box
@@ -76,7 +77,8 @@ namespace fre
 		ofn.nFilterIndex = 1;
 		ofn.lpstrFileTitle = NULL;
 		ofn.nMaxFileTitle = 0;
-		ofn.lpstrInitialDir = dir.string().c_str();
+		auto dirStr = dir.string();
+		ofn.lpstrInitialDir = dirStr.c_str();
 		ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
 
 		if (GetSaveFileName(&ofn) == TRUE)

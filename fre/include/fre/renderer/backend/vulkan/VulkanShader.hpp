@@ -28,6 +28,15 @@ namespace fre
 				auto vkStage = toVk(stage);
                 mStages[vkStage] = { module, vkStage };
             }
+
+            vk::PipelineLayoutCreateInfo layoutInfo{};
+            layoutInfo.setLayoutCount = 0;
+            layoutInfo.pSetLayouts = nullptr;
+
+            layoutInfo.pushConstantRangeCount = 0;
+            layoutInfo.pPushConstantRanges = nullptr;
+
+            mPipelineLayout = vkCheck(logicalDevice.createPipelineLayout(layoutInfo));
 		}
         struct Stage
         {
@@ -37,6 +46,7 @@ namespace fre
 
 		virtual const std::string& getName() const override { return mName; }
         const std::unordered_map<vk::ShaderStageFlagBits, Stage>& getStages() const { return mStages; }
+        virtual const VertexLayout& getVertexLayout() const override { return VertexLayout(); }
 
         vk::PipelineLayout getPipelineLayout() const { return mPipelineLayout; }
 

@@ -1,3 +1,4 @@
+#include "fre/renderer/backend/vulkan/EnumConvert.hpp"
 #include "fre/renderer/backend/vulkan/VulkanImage.hpp"
 
 namespace fre

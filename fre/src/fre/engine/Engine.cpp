@@ -102,7 +102,7 @@ namespace fre
     void Engine::render()
     {
         mRenderer->beginFrame();
-		RenderPassData renderPassData = { .shader = mFullscreenShader };
+        RenderPassData renderPassData = { .shader = mFullscreenShader };
 		mRenderer->renderFrame(mScene.get(), renderPassData);
         mRenderer->endFrame();
 	}

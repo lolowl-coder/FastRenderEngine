@@ -36,6 +36,11 @@ namespace fre
             }
         }
 
+        ~ThreadPool()
+        {
+            destroy();
+        }
+
         template<class F>
         void enqueue(F&& f)
         {

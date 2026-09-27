@@ -36,8 +36,6 @@ namespace fre
         return a;
     }*/
 
-    vk::ImageUsageFlags toVk(ImageUsage usage);
-
     class IGpuImage
     {
     public:

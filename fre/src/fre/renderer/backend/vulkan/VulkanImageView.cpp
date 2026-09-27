@@ -1,3 +1,4 @@
+#include "fre/renderer/backend/vulkan/EnumConvert.hpp"
 #include "fre/renderer/backend/vulkan/VulkanCore.hpp"
 #include "fre/renderer/backend/vulkan/VulkanImage.hpp"
 #include "fre/renderer/backend/vulkan/VulkanImageView.hpp"

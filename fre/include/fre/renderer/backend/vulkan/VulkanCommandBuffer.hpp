@@ -1,6 +1,9 @@
 #pragma once
 
+#include "fre/renderer/RenderPassData.hpp"
+#include "fre/renderer/backend/vulkan/EnumConvert.hpp"
 #include "fre/renderer/backend/vulkan/VulkanCommon.hpp"
+#include "fre/renderer/backend/vulkan/VulkanImageView.hpp"
 
 namespace fre
 {
@@ -88,23 +91,45 @@ namespace fre
             );
         }
 
-        void beginRendering(
-            vk::ImageView imageView,
-            vk::Extent2D extent,
-            vk::ClearColorValue clearColor)
+        void setViewport(const Viewport& viewport)
         {
-            vk::RenderingAttachmentInfo colorAttachment{};
-            colorAttachment.imageView = imageView;
-            colorAttachment.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
-            colorAttachment.loadOp = vk::AttachmentLoadOp::eClear;
-            colorAttachment.storeOp = vk::AttachmentStoreOp::eStore;
-            colorAttachment.clearValue = vk::ClearValue(clearColor);
+            auto vkViewport = toVk(viewport);
+            mBuffer.setViewport(0, vkViewport );
+		}
+
+        void setScissor(const ScissorRect& scissor)
+        {
+            auto vkScissor = toVk(scissor);
+            mBuffer.setScissor(0, vkScissor);
+		}
+
+        void beginRendering(const RenderPassContext & ctx)
+        {
+            std::vector<vk::RenderingAttachmentInfo> colorAttachments;
+            colorAttachments.reserve(ctx.attachments.size());
+
+            for(size_t i = 0; i < ctx.attachments.size(); i++)
+            {
+                vk::RenderingAttachmentInfo attachment{};
+				const auto* vkImageView = dynamic_cast<VulkanImageView*>(ctx.attachments[i]);
+                attachment.imageView = vkImageView->handle();
+                attachment.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
+                attachment.loadOp = vk::AttachmentLoadOp::eClear;
+                attachment.storeOp = vk::AttachmentStoreOp::eStore;
+                attachment.clearValue.color = { ctx.clearColor.x, ctx.clearColor.y, ctx.clearColor.z, ctx.clearColor.w };
+                attachment.clearValue.depthStencil = vk::ClearDepthStencilValue(0.0f, 0.0f);
+
+                colorAttachments.push_back(attachment);
+            }
 
             vk::RenderingInfo renderingInfo{};
-            renderingInfo.renderArea = vk::Rect2D({ 0, 0 }, extent);
+            renderingInfo.renderArea = vk::Rect2D({ 0,0 }, { ctx.extent.width, ctx.extent.height });
             renderingInfo.layerCount = 1;
-            renderingInfo.colorAttachmentCount = 1;
-            renderingInfo.pColorAttachments = &colorAttachment;
+
+            renderingInfo.colorAttachmentCount =
+                static_cast<uint32_t>(colorAttachments.size());
+
+            renderingInfo.pColorAttachments = colorAttachments.data();
 
             mBuffer.beginRendering(renderingInfo);
         }

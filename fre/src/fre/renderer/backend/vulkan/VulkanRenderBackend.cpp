@@ -294,7 +294,7 @@ namespace fre
 		LOG_INFO("GPUs found:");
 		for(auto& physicalDevice : physicalDevices)
 		{
-			LOG_INFO("\033[36m{}\033[0m", physicalDevice.getProperties().deviceName);
+			LOG_INFO("\033[36m{}\033[0m", physicalDevice.getProperties().deviceName.data());
 		}
 
 		if(mCommonConfig.mGPUSelectionMode == GPUSelectionMode::Index)
@@ -302,7 +302,7 @@ namespace fre
 			if(physicalDevices.size() > mCommonConfig.mGPUIndex)
 			{
 				mPhysicalDevice = physicalDevices[mCommonConfig.mGPUIndex];
-				LOG_INFO("Selected GPU: {} based on user preference", mPhysicalDevice.getProperties().deviceName);
+				LOG_INFO("Selected GPU: {} based on user preference", mPhysicalDevice.getProperties().deviceName.data());
 			}
 			else
 			{
@@ -318,13 +318,13 @@ namespace fre
 				bool featuresSupported = evaluateFeatures(physicalDevice);
 				if(!featuresSupported)
 				{
-					LOG_INFO("GPU: {} does not support required features and will be skipped", physicalDevice.getProperties().deviceName);
+					LOG_INFO("GPU: {} does not support required features and will be skipped", physicalDevice.getProperties().deviceName.data());
 					continue;
 				}
 				bool extensionsSupported = evaluateExtensions(physicalDevice);
 				if(!extensionsSupported)
 				{
-					LOG_INFO("GPU: {} does not support required extensions and will be skipped", physicalDevice.getProperties().deviceName);
+					LOG_INFO("GPU: {} does not support required extensions and will be skipped", physicalDevice.getProperties().deviceName.data());
 					continue;
 				}
 				if(featuresSupported && extensionsSupported)
@@ -335,7 +335,7 @@ namespace fre
 						maxScore = score;
 						mPhysicalDevice = physicalDevice;
 					}
-					LOG_INFO("GPU: {}, Score: {}", mPhysicalDevice.getProperties().deviceName, score);
+					LOG_INFO("GPU: {}, Score: {}", mPhysicalDevice.getProperties().deviceName.data(), score);
 				}
 			}
 		}
@@ -569,27 +569,40 @@ namespace fre
 		IShader* shader)
 	{
 		PipelineKey key{};
-		key.colorFormat = mSwapchain->format();
-		key.depthFormat = vk::Format::eUndefined;
-		key.shader = shader;
+		key.type = PipelineType::Graphics;
+		GraphicsPipelineDesc desc{};
+		desc.shader = shader;
+		GraphicsPipelineDescHash hasher;
+		key.descHash = hasher(desc);
 		return key;
 	}
 
-	void VulkanRenderBackend::recordFrame(VulkanCommandBuffer& cmdBuf, const uint32_t imageIndex, RenderPassData& renderPassData)
+	void VulkanRenderBackend::recordFrameCommands(VulkanCommandBuffer& cmdBuf, const uint32_t imageIndex, RenderPassData& renderPassData)
 	{
-		PipelineKey key = makeDefaultPipelineKey(renderPassData.shader);
+		// We have no attachments currently. Later it will extended with frame graph
+		int colorAttachmentCount = 0;
+		GraphicsPipelineDesc desc{};
+		desc.shader = renderPassData.shader;
+		desc.renderTargets = renderPassData.renderTargetState;
+		BlendAttachmentState blendAttachmentState;
+		desc.blend = { { { false } } };
 
-		auto* pipeline = getPipeline(key);
+		auto pipeline = getPipeline(desc);
 
-		cmdBuf.get().bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline->handle);
+		cmdBuf.get().bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline.handle);
 
 		// Viewport/scissor (dynamic state)
-		vk::Viewport viewport(
+		fre::Viewport viewport = {
 			0.0f, 0.0f,
 			static_cast<float>(mSwapchain->extent().width),
 			static_cast<float>(mSwapchain->extent().height),
-			0.0f, 1.0f);
-		cmdBuf.get().setViewport(0, viewport);
+			0.0f, 1.0f };
+		cmdBuf.setViewport(viewport);
+
+		fre::ScissorRect scissorRect = {
+			0, 0, mSwapchain->extent().width, mSwapchain->extent().height
+		};
+		cmdBuf.setScissor(scissorRect);
 
 		// Draw
 		cmdBuf.get().draw(3, 1, 0, 0);
@@ -597,10 +610,14 @@ namespace fre
 
 	void VulkanRenderBackend::recordCommands(VulkanCommandBuffer& cmdBuff, const uint32_t imageIndex, IScene* scene, RenderPassData& renderPassData)
 	{
+		// TODO: this is very temporary. Later we will have frame graph and render passes with their own attachments
+		renderPassData.renderTargetState.colorFormats = { fromVk(mSwapchain->format()) };
+
 		auto imageView = mSwapchain->getImageView(imageIndex);
 		auto vkImageView = dynamic_cast<VulkanImageView*>(imageView);
 		auto extent = mSwapchain->extent();
 		auto vkImage = vkImageView->image();
+		
 		cmdBuff.begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 
 		cmdBuff.transitionImage(
@@ -613,13 +630,16 @@ namespace fre
 			vk::PipelineStageFlagBits::eColorAttachmentOutput
 		);
 
-		cmdBuff.beginRendering(
-			vkImageView->handle(),
-			extent,
-			vk::ClearColorValue(std::array<float, 4>{0.1f, 0.1f, 1.0f, 1.0f})
-		);
+		RenderPassContext renderPassCtx =
+		{
+			.extent = { mSwapchain->extent().width, mSwapchain->extent().height },
+			.attachments = { vkImageView },
+			.clearColor = { 0.1f, 0.1f, 1.0f, 1.0f }
+		};
 
-		recordFrame(cmdBuff, imageIndex, renderPassData);
+		cmdBuff.beginRendering(renderPassCtx);
+
+		recordFrameCommands(cmdBuff, imageIndex, renderPassData);
 
 		cmdBuff.endRendering();
 

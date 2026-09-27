@@ -26,8 +26,6 @@ namespace fre
         ComponentSwizzle a = ComponentSwizzle::Identity;
     };
 
-    vk::ComponentSwizzle toVk(ComponentSwizzle s);
-
     enum class Aspect
     {
         Color,
@@ -47,8 +45,6 @@ namespace fre
         MemoryPlane2EXT,
         MemoryPlane3EXT
     };
-
-    vk::ImageAspectFlagBits toVk(Aspect aspect);
 
     class IGpuImageView
     {

@@ -74,16 +74,16 @@ namespace fre
         bool evaluateExtensions(const vk::PhysicalDevice& physicalDevice);
 		int scorePhysicalDevice(const vk::PhysicalDevice& device);
         VulkanContext& getContext();
-        PipelineKey makeDefaultPipelineKey(
-            IShader* shader);
-        void recordFrame(VulkanCommandBuffer& cmdBuf, const uint32_t imageIndex, RenderPassData& renderPassData);
+        void recordFrameCommands(VulkanCommandBuffer& cmdBuf, const uint32_t imageIndex, RenderPassData& renderPassData);
         void recordCommands(VulkanCommandBuffer& cmdBuff, const uint32_t imageIndex, IScene* scene, RenderPassData& renderPassData);
         void submit(const Frame& frame);
         void present(const Frame& frame);
-        Pipeline* getPipeline(const PipelineKey& key)
+        Pipeline getPipeline(const GraphicsPipelineDesc& desc)
         {
-            return mPipelineCache->getOrCreate(key);
+            return mPipelineCache->getOrCreate(desc);
         }
+        PipelineKey makeDefaultPipelineKey(
+            IShader* shader);
 
     private:
         bool mHeadless = false;
