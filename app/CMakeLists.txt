@@ -17,3 +17,5 @@ set_target_properties(FREApp PROPERTIES
 set_target_properties(FREApp PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
+
+add_dependencies(FREApp FREShaders)

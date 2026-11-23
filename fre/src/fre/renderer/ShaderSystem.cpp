@@ -10,12 +10,9 @@ namespace fre
 
 	void ShaderSystem::createGpuResources()
 	{
-		for(auto& asset : mShaderAssets)
+		for(auto& [name, asset] : mShaderAssets)
 		{
-			for(auto& [stage, blob] : asset.second.blobs)
-			{
-				asset.second.shader = mGpuResourceFactory->createGpuShader(asset.first, asset.second.blobs);
-			}
+			asset.shader = mGpuResourceFactory->createGpuShader(name, asset.blobs);
 		}
 	}
 

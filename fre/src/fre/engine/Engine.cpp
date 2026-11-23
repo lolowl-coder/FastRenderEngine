@@ -60,8 +60,8 @@ namespace fre
             {
                 "FullscreenTri",
                 {
-                    { ShaderStage::Vertex, "FullscreenTri.vert.spv", "main" },
-                    { ShaderStage::Fragment, "FullscreenTri.frag.spv", "main" }
+                    { ShaderStage::Vertex, "fre/shaders/FullscreenTri.vert.spv", "vertexMain" },
+                    { ShaderStage::Fragment, "fre/shaders/FullscreenTri.frag.spv", "fragmentMain" }
                 }
             }
         };

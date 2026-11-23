@@ -209,6 +209,7 @@ namespace fre
 	{
 		vk::PhysicalDeviceVulkan13Features features13{};
 		vk::PhysicalDeviceVulkan12Features features12{};
+		vk::PhysicalDeviceVulkan11Features features11{};
 		vk::PhysicalDeviceFeatures2 features2{};
 
 		vk::PhysicalDeviceAccelerationStructureFeaturesKHR accelFeatures{};
@@ -228,6 +229,7 @@ namespace fre
 			&& evaluateRequirement(features12.descriptorIndexing, mDesc.mFeatures.descriptorIndexing)
 			&& evaluateRequirement(features12.bufferDeviceAddress, mDesc.mFeatures.bufferDeviceAddress)
 			&& evaluateRequirement(features13.synchronization2, mDesc.mFeatures.synchronization2)
+			&& evaluateRequirement(features2, mDesc.mFeatures.shaderDrawParameters)
 			// Ray tracing
 			&& evaluateRequirement(accelFeatures.accelerationStructure, mDesc.mFeatures.accelerationStructure)
 			&& evaluateRequirement(rtPipelineFeatures.rayTracingPipeline, mDesc.mFeatures.rayTracingPipeline);
@@ -297,50 +299,50 @@ namespace fre
 			LOG_INFO("\033[36m{}\033[0m", physicalDevice.getProperties().deviceName.data());
 		}
 
-		if(mCommonConfig.mGPUSelectionMode == GPUSelectionMode::Index)
+if(mCommonConfig.mGPUSelectionMode == GPUSelectionMode::Index)
+{
+	if(physicalDevices.size() > mCommonConfig.mGPUIndex)
+	{
+		mPhysicalDevice = physicalDevices[mCommonConfig.mGPUIndex];
+		LOG_INFO("Selected GPU: {} based on user preference", mPhysicalDevice.getProperties().deviceName.data());
+	}
+	else
+	{
+		LOG_ERROR("GPU index {} is out of range. Available GPUs: {}", mCommonConfig.mGPUIndex, physicalDevices.size());
+		return false;
+	}
+}
+else if(mCommonConfig.mGPUSelectionMode == GPUSelectionMode::Auto)
+{
+	int maxScore = -1;
+	for(auto& physicalDevice : physicalDevices)
+	{
+		bool featuresSupported = evaluateFeatures(physicalDevice);
+		if(!featuresSupported)
 		{
-			if(physicalDevices.size() > mCommonConfig.mGPUIndex)
-			{
-				mPhysicalDevice = physicalDevices[mCommonConfig.mGPUIndex];
-				LOG_INFO("Selected GPU: {} based on user preference", mPhysicalDevice.getProperties().deviceName.data());
-			}
-			else
-			{
-				LOG_ERROR("GPU index {} is out of range. Available GPUs: {}", mCommonConfig.mGPUIndex, physicalDevices.size());
-				return false;
-			}
+			LOG_INFO("GPU: {} does not support required features and will be skipped", physicalDevice.getProperties().deviceName.data());
+			continue;
 		}
-		else if(mCommonConfig.mGPUSelectionMode == GPUSelectionMode::Auto)
+		bool extensionsSupported = evaluateExtensions(physicalDevice);
+		if(!extensionsSupported)
 		{
-			int maxScore = -1;
-			for(auto& physicalDevice : physicalDevices)
-			{
-				bool featuresSupported = evaluateFeatures(physicalDevice);
-				if(!featuresSupported)
-				{
-					LOG_INFO("GPU: {} does not support required features and will be skipped", physicalDevice.getProperties().deviceName.data());
-					continue;
-				}
-				bool extensionsSupported = evaluateExtensions(physicalDevice);
-				if(!extensionsSupported)
-				{
-					LOG_INFO("GPU: {} does not support required extensions and will be skipped", physicalDevice.getProperties().deviceName.data());
-					continue;
-				}
-				if(featuresSupported && extensionsSupported)
-				{
-					int score = scorePhysicalDevice(physicalDevice);
-					if(score > maxScore)
-					{
-						maxScore = score;
-						mPhysicalDevice = physicalDevice;
-					}
-					LOG_INFO("GPU: {}, Score: {}", mPhysicalDevice.getProperties().deviceName.data(), score);
-				}
-			}
+			LOG_INFO("GPU: {} does not support required extensions and will be skipped", physicalDevice.getProperties().deviceName.data());
+			continue;
 		}
+		if(featuresSupported && extensionsSupported)
+		{
+			int score = scorePhysicalDevice(physicalDevice);
+			if(score > maxScore)
+			{
+				maxScore = score;
+				mPhysicalDevice = physicalDevice;
+			}
+			LOG_INFO("GPU: {}, Score: {}", mPhysicalDevice.getProperties().deviceName.data(), score);
+		}
+	}
+}
 
-		return true;
+return true;
 	}
 
 	bool VulkanRenderBackend::createLogicalDevice()
@@ -383,6 +385,8 @@ namespace fre
 		dci.enabledExtensionCount = static_cast<uint32_t>(enabledExtensions.size());
 		dci.ppEnabledExtensionNames = enabledExtensions.data();
 
+		void ** nextFeature = nullptr;
+		// Enable features
 		VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeature{};
 		if(
 			mDesc.mFeatures.dynamicRendering.enabled &&
@@ -390,8 +394,18 @@ namespace fre
 		{
 			dynamicRenderingFeature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
 			dynamicRenderingFeature.dynamicRendering = VK_TRUE;
-			dci.pNext = &dynamicRenderingFeature;
+			nextFeature = &dynamicRenderingFeature.pNext;
 		}
+		vk::PhysicalDeviceVulkan11Features features11{};
+		if(
+			mDesc.mFeatures.shaderDrawParameters.enabled &&
+			mDesc.mFeatures.shaderDrawParameters.requirement == Requirement::Required)
+		{
+			features11.shaderDrawParameters = VK_TRUE;
+			*nextFeature = &features11;
+			nextFeature = &features11.pNext;
+		}
+		dci.pNext = &dynamicRenderingFeature;
 
 		mDevice = vkCheck(mPhysicalDevice.createDevice(dci));
 
@@ -466,6 +480,7 @@ namespace fre
 		mDesc.mFeatures.accelerationStructure.requirement = fre::Requirement::Optional;
 		mDesc.mFeatures.rayTracingPipeline.requirement = fre::Requirement::Optional;
 		mDesc.mFeatures.rayQuery.requirement = fre::Requirement::Optional;
+		mDesc.mFeatures.shaderDrawParameters.requirement = fre::Requirement::Required;
 
 		LOG_TRACE("Common renderer config: Width: {}, height: {}, headless {}, validation {}",
 			mCommonConfig.mWidth, mCommonConfig.mHeight, mCommonConfig.mHeadless, mCommonConfig.mEnableValidation);

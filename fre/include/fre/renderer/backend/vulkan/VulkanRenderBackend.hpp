@@ -34,6 +34,7 @@ namespace fre
                 DEFINE_REQUIREMENT(accelerationStructure);
                 DEFINE_REQUIREMENT(rayTracingPipeline);
                 DEFINE_REQUIREMENT(rayQuery);
+                DEFINE_REQUIREMENT(shaderDrawParameters);
             } mFeatures;
 
             std::vector<RequirementRequest> mInstanceExtensions =

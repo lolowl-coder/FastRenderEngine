@@ -101,7 +101,7 @@ namespace fre
                 vk::PipelineShaderStageCreateInfo stage{};
                 stage.stage = s.second.stage;
                 stage.module = s.second.module;
-                stage.pName = "main";
+                stage.pName = s.second.entryPoint.c_str();
 
                 vkStages.push_back(stage);
             }

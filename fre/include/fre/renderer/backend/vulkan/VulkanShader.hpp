@@ -26,7 +26,7 @@ namespace fre
                     reinterpret_cast<const uint32_t*>(blob.bytecode.data()));
                 auto module = vkCheck(logicalDevice.createShaderModule(shaderModuleCreateInfo));
 				auto vkStage = toVk(stage);
-                mStages[vkStage] = { module, vkStage };
+                mStages[vkStage] = { module, vkStage, blob.entryPoint };
             }
 
             vk::PipelineLayoutCreateInfo layoutInfo{};
@@ -42,6 +42,7 @@ namespace fre
         {
             vk::ShaderModule module;
             vk::ShaderStageFlagBits stage;
+			std::string entryPoint;
         };
 
 		virtual const std::string& getName() const override { return mName; }

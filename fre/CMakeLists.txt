@@ -169,3 +169,58 @@ if (WIN32)
 		VK_USE_PLATFORM_WIN32_KHR
 	)
 endif()
+
+
+
+# Slang shader compiler
+find_program(SLANGC_EXECUTABLE
+    NAMES slangc
+    DOC "Path to the Slang shader compiler"
+)
+
+if (NOT SLANGC_EXECUTABLE)
+    message(FATAL_ERROR
+        "slangc was not found. Install Slang or set SLANGC_EXECUTABLE."
+    )
+endif()
+
+set(FRE_SHADER_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/fre/shaders")
+set(FRE_SHADER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/bin/$<CONFIG>/assets/fre/shaders")
+
+set(FRE_SHADER_OUTPUTS
+    "${FRE_SHADER_OUTPUT_DIR}/FullscreenTri.vert.spv"
+    "${FRE_SHADER_OUTPUT_DIR}/FullscreenTri.frag.spv"
+)
+
+add_custom_command(
+    OUTPUT ${FRE_SHADER_OUTPUTS}
+
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "${FRE_SHADER_OUTPUT_DIR}"
+
+    COMMAND "${SLANGC_EXECUTABLE}"
+        "${FRE_SHADER_SOURCE_DIR}/FullscreenTri.slang"
+        -target spirv
+        -stage vertex
+        -entry vertexMain
+        -fvk-use-entrypoint-name
+        -o "${FRE_SHADER_OUTPUT_DIR}/FullscreenTri.vert.spv"
+
+    COMMAND "${SLANGC_EXECUTABLE}"
+        "${FRE_SHADER_SOURCE_DIR}/FullscreenTri.slang"
+        -target spirv
+        -stage fragment
+        -entry fragmentMain
+        -fvk-use-entrypoint-name
+        -o "${FRE_SHADER_OUTPUT_DIR}/FullscreenTri.frag.spv"
+
+    DEPENDS
+        "${FRE_SHADER_SOURCE_DIR}/FullscreenTri.slang"
+
+    COMMENT "Compiling FRE triangle shaders with Slang"
+    VERBATIM
+)
+
+add_custom_target(FREShaders
+    DEPENDS ${FRE_SHADER_OUTPUTS}
+)

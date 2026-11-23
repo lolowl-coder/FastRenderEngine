@@ -18,7 +18,7 @@ namespace fre
         mVFS = std::make_unique<VirtualFileSystem>(*mFS);
         Log::initialize(*mFS, true, true);
         LOG_INFO("Current dir: {}", mFS->getCurrentDir().generic_string());
-        mVFS->mount("assets/shaders");
+        mVFS->mount("assets");
 
         const int width = 1920;
         const int height = 1080;
